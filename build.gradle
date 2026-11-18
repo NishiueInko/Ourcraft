@@ -1,0 +1,98 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+group = 'com.voxelgame'
+version = '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+// =========================================================================
+// 1. KHAI BÁO PHIÊN BẢN THƯ VIỆN (LWJGL 3.3.3 & JOML 1.10.5)
+// =========================================================================
+project.ext.lwjglVersion = "3.3.3"
+project.ext.jomlVersion = "1.10.5"
+
+// =========================================================================
+// 2. TỰ ĐỘNG NHẬN DIỆN HỆ ĐIỀU HÀNH & KIẾN TRÚC CPU (NATIVES)
+// OpenGL, GLFW và STBImage đều là thư viện viết bằng C/C++ chạy sát phần cứng.
+// Do đó, Java cần tải đúng file thư viện liên kết động (.dll trên Windows,
+// .so trên Linux, .dylib trên macOS) tương ứng với máy tính của bạn.
+// =========================================================================
+import org.gradle.internal.os.OperatingSystem
+
+switch (OperatingSystem.current()) {
+    case OperatingSystem.LINUX:
+        def osArch = System.getProperty("os.arch")
+        project.ext.lwjglNatives = osArch.startsWith("arm") || osArch.startsWith("aarch64")
+            ? "natives-linux-${osArch.contains("64") || osArch.startsWith("armv8") ? "arm64" : "arm32"}"
+            : "natives-linux"
+        break
+    case OperatingSystem.MAC_OS:
+        def osArch = System.getProperty("os.arch")
+        project.ext.lwjglNatives = osArch.startsWith("aarch64") ? "natives-macos-arm64" : "natives-macos"
+        break
+    case OperatingSystem.WINDOWS:
+        def osArch = System.getProperty("os.arch")
+        project.ext.lwjglNatives = osArch.contains("64")
+            ? "natives-windows${osArch.startsWith("aarch64") ? "-arm64" : ""}"
+            : "natives-windows-x86"
+        break
+}
+
+// =========================================================================
+// 3. KHAI BÁO CÁC GÓI THƯ VIỆN PHỤ THUỘC (DEPENDENCIES)
+// =========================================================================
+dependencies {
+    // Quản lý đồng bộ phiên bản cho toàn bộ các module LWJGL thông qua BOM (Bill of Materials)
+    implementation platform("org.lwjgl:lwjgl-bom:$lwjglVersion")
+
+    // Module cốt lõi của LWJGL (Quản lý bộ nhớ Off-heap MemoryUtil, MemoryStack)
+    implementation "org.lwjgl:lwjgl"
+    // Module GLFW (Tạo cửa sổ game, bắt sự kiện bàn phím, chuột, con lăn chuột)
+    implementation "org.lwjgl:lwjgl-glfw"
+    // Module OpenGL (Cung cấp toàn bộ các hàm đồ họa glGenBuffers, glDrawArrays, Shader...)
+    implementation "org.lwjgl:lwjgl-opengl"
+    // MỚI: Module STB (Cung cấp thư viện STBImage để đọc trực tiếp file ảnh .png, .jpg từ ổ cứng)
+    implementation "org.lwjgl:lwjgl-stb"
+
+    // Các gói thư viện C/C++ Native đi kèm cho từng module LWJGL ở trên
+    runtimeOnly "org.lwjgl:lwjgl::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-glfw::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-opengl::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-stb::$lwjglNatives"
+
+    // Thư viện toán học JOML (Tính toán Vector3f, Matrix4f cho Camera 3D và giao diện 2D Orthographic)
+    implementation "org.joml:joml:${jomlVersion}"
+
+    // MỚI: Thư viện JLayer (Giải mã trực tiếp luồng âm thanh nén .mp3 sang sóng âm PCM 16-bit)
+    // Kết hợp với javax.sound.sampled có sẵn trong JDK để phát nhạc lặp lại và chỉnh âm lượng thời gian thực
+    implementation "javazoom:jlayer:1.0.1"
+}
+
+// =========================================================================
+// 4. CẤU HÌNH CHẠY ỨNG DỤNG & TRÌNH BIÊN DỊCH JAVA
+// =========================================================================
+application {
+    // Chỉ định class chứa hàm main() để khởi chạy game
+    mainClass = 'com.voxelgame.Main'
+
+    // Trên macOS, thư viện cửa sổ GLFW bắt buộc phải chạy trên luồng đầu tiên (Main Thread)
+    if (OperatingSystem.current().isMacOsX()) {
+        applicationDefaultJvmArgs = ["-XstartOnFirstThread"]
+    }
+}
+
+java {
+    // Tương thích với JDK 17 trở lên (bao gồm JDK 17, 21, 26)
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+// Đảm bảo trình biên dịch đọc đúng bảng mã UTF-8 (không bị lỗi font tiếng Việt trong chú thích)
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
