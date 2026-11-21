@@ -1,24 +1,30 @@
 package com.voxelgame.engine;
 
+import com.badlogic.gdx.math.Vector3;
 import com.voxelgame.entity.Block;
-import org.joml.Vector3f;
 
 /**
- * Thực hiện thuật toán bắn tia 3D DDA (Digital Differential Analyzer - Amanatides & Woo)
+ * Thực hiện thuật toán bắn tia 3D DDA (Digital Differential Analyzer -
+ * Amanatides & Woo)
  * trong không gian lưới Voxel 3D.
  *
  * THỂ HIỆN TÍNH ĐÓNG GÓI (ENCAPSULATION) & ĐA HÌNH (POLYMORPHISM):
- * - Lớp kết quả `HitResult` đóng gói toàn bộ các trường tọa độ ở phạm vi `private final` và chỉ
- *   cung cấp các phương thức truy vấn chuẩn (`isHit()`, `getBlockX()`, `getBlockY()`, `getBlockZ()`,
- *   `getPrevBlockX()`, `getPrevBlockY()`, `getPrevBlockZ()`, `getBlock()`).
- * - Tia Raycast kiểm tra tính chất vật lý của mỗi ô thông qua đối tượng đa hình `Block.fromId(blockId)`:
- *   tự động đi xuyên qua Không khí (`AirBlock`) và Chất lỏng (`WaterBlock`, `LavaBlock`), chỉ dừng lại
- *   khi chạm vào một khối rắn (`block.isSolid() == true`).
+ * - Lớp kết quả `HitResult` đóng gói toàn bộ các trường tọa độ ở phạm vi
+ * `private final` và chỉ
+ * cung cấp các phương thức truy vấn chuẩn (`isHit()`, `getBlockX()`,
+ * `getBlockY()`, `getBlockZ()`,
+ * `getPrevBlockX()`, `getPrevBlockY()`, `getPrevBlockZ()`, `getBlock()`).
+ * - Tia Raycast kiểm tra tính chất vật lý của mỗi ô thông qua đối tượng đa hình
+ * `Block.fromId(blockId)`:
+ * tự động đi xuyên qua Không khí (`AirBlock`) và Chất lỏng (`WaterBlock`,
+ * `LavaBlock`), chỉ dừng lại
+ * khi chạm vào một khối rắn (`block.isSolid() == true`).
  */
 public class Raycast {
 
     /**
-     * Cấu trúc dữ liệu bất biến (Immutable Value Object) lưu trữ kết quả bắn tia Raycast.
+     * Cấu trúc dữ liệu bất biến (Immutable Value Object) lưu trữ kết quả bắn tia
+     * Raycast.
      */
     public static class HitResult {
         private final boolean hit;
@@ -38,8 +44,7 @@ public class Raycast {
                 int prevBlockX,
                 int prevBlockY,
                 int prevBlockZ,
-                Block block
-        ) {
+                Block block) {
             this.hit = hit;
             this.blockX = blockX;
             this.blockY = blockY;
@@ -92,15 +97,23 @@ public class Raycast {
     }
 
     /**
-     * Bắn một tia từ vị trí mắt Camera (`origin`) theo hướng nhìn (`direction`) với tầm với tối đa (`maxDistance`).
-     * Tự động bỏ qua Không khí (`Block.AIR`) và các khối Chất lỏng (`WaterBlock`, `LavaBlock`).
+     * Bắn một tia từ vị trí mắt Camera (`origin`) theo hướng nhìn (`direction`) với
+     * tầm với tối đa (`maxDistance`).
+     * Tự động bỏ qua Không khí (`Block.AIR`) và các khối Chất lỏng (`WaterBlock`,
+     * `LavaBlock`).
+     *
+     * @param world       thế giới voxel
+     * @param origin      vị trí điểm gốc của tia (mắt người chơi)
+     * @param direction   hướng nhìn 3D (vector chỉ phương)
+     * @param maxDistance tầm với xa nhất của tia
+     * @return đối tượng HitResult chứa thông tin khối bị chạm hoặc HitResult.miss()
      */
-    public static HitResult cast(World world, Vector3f origin, Vector3f direction, float maxDistance) {
-        Vector3f dir = new Vector3f(direction);
-        if (dir.lengthSquared() < 1e-8f) {
+    public static HitResult cast(World world, Vector3 origin, Vector3 direction, float maxDistance) {
+        Vector3 dir = new Vector3(direction);
+        if (dir.len2() < 1e-8f) {
             return HitResult.miss();
         }
-        dir.normalize();
+        dir.nor();
 
         int mapX = (int) Math.floor(origin.x);
         int mapY = (int) Math.floor(origin.y);

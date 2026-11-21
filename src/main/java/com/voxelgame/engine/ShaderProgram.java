@@ -1,36 +1,28 @@
 package com.voxelgame.engine;
 
-import org.joml.Matrix4f;
-import org.joml.Vector3f;
-import org.joml.Vector4f;
-import org.lwjgl.system.MemoryStack;
-
-import java.nio.FloatBuffer;
-import java.util.HashMap;
-import java.util.Map;
-
-import static org.lwjgl.opengl.GL20.*;
-import static org.lwjgl.system.MemoryStack.stackPush;
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.math.Matrix4;
+import com.badlogic.gdx.math.Vector3;
+import com.badlogic.gdx.utils.Disposable;
 
 /**
- * Quản lý việc biên dịch (Compile), liên kết (Link) chương trình GLSL Shader trên GPU
- * và truyền các biến Uniform từ Java xuống Card đồ họa, triển khai giao diện {@link Cleanable}.
+ * Quản lý việc biên dịch (Compile), liên kết (Link) chương trình GLSL Shader 330 Core trên GPU
+ * và truyền các biến Uniform từ Java xuống GPU thông qua libGDX, triển khai {@link Disposable}.
  *
  * THỂ HIỆN CÁC TÍNH CHẤT OOP:
  * 1. Tính Trừu tượng (Abstraction):
- *    - Ẩn toàn bộ lời gọi hàm OpenGL cấp thấp (`glCreateShader`, `glShaderSource`, `glCompileShader`,
- *      `glLinkProgram`, `glGetUniformLocation`) đằng sau các phương thức trực quan như
+ *    - Ẩn toàn bộ thao tác GLSL cấp thấp đằng sau các phương thức trực quan như
  *      `enable3DWorldMode()`, `enable2DUIMode()`, `setUniformMatrix4f()`.
  * 2. Tính Đa hình lúc biên dịch (Compile-time Polymorphism / Method Overloading):
- *    - Nạp chồng phương thức `setUniformVec4(String, Vector4f)` và `setUniformVec4(String, float, float, float, float)`
- *      giúp truyền màu sắc hoặc vector 4 chiều linh hoạt theo ngữ cảnh sử dụng.
+ *    - Nạp chồng phương thức `setUniformVec4(String, float, float, float, float)` và
+ *      `setUniformVec3(String, Vector3)` giúp truyền màu sắc hoặc vector linh hoạt.
  * 3. Tính Đóng gói (Encapsulation):
- *    - Đóng gói `programId` và bộ nhớ đệm `uniformLocations` ở phạm vi `private final`.
+ *    - Đóng gói đối tượng `com.badlogic.gdx.graphics.glutils.ShaderProgram` ở phạm vi `private final`.
  */
-public class ShaderProgram implements Cleanable {
+public class ShaderProgram implements Disposable {
 
-    private final int programId;
-    private final Map<String, Integer> uniformLocations = new HashMap<>();
+    private final com.badlogic.gdx.graphics.glutils.ShaderProgram gdxShader;
+    private final Matrix4 identityMatrix = new Matrix4();
 
     /**
      * Mã nguồn Vertex Shader (GLSL 330 Core).
@@ -112,27 +104,18 @@ public class ShaderProgram implements Cleanable {
             """;
 
     public ShaderProgram() {
-        programId = glCreateProgram();
-        if (programId == 0) {
-            throw new RuntimeException("Không thể khởi tạo chương trình OpenGL Shader!");
+        // Tắt chuỗi tiền tố mặc định của libGDX để giữ nguyên #version 330 core ở dòng 1
+        com.badlogic.gdx.graphics.glutils.ShaderProgram.prependVertexCode = "";
+        com.badlogic.gdx.graphics.glutils.ShaderProgram.prependFragmentCode = "";
+
+        gdxShader = new com.badlogic.gdx.graphics.glutils.ShaderProgram(
+                VERTEX_SHADER_SOURCE,
+                FRAGMENT_SHADER_SOURCE
+        );
+
+        if (!gdxShader.isCompiled()) {
+            throw new RuntimeException("Lỗi biên dịch GLSL Shader:\n" + gdxShader.getLog());
         }
-
-        int vertexShaderId = compileShader(VERTEX_SHADER_SOURCE, GL_VERTEX_SHADER);
-        int fragmentShaderId = compileShader(FRAGMENT_SHADER_SOURCE, GL_FRAGMENT_SHADER);
-
-        glAttachShader(programId, vertexShaderId);
-        glAttachShader(programId, fragmentShaderId);
-        glLinkProgram(programId);
-
-        if (glGetProgrami(programId, GL_LINK_STATUS) == GL_FALSE) {
-            throw new RuntimeException("Lỗi khi liên kết Shader Program: " + glGetProgramInfoLog(programId, 1024));
-        }
-
-        glValidateProgram(programId);
-        glDetachShader(programId, vertexShaderId);
-        glDetachShader(programId, fragmentShaderId);
-        glDeleteShader(vertexShaderId);
-        glDeleteShader(fragmentShaderId);
 
         bind();
         setUniform1i("uTexture", 0);
@@ -142,64 +125,28 @@ public class ShaderProgram implements Cleanable {
         unbind();
     }
 
-    private int compileShader(String shaderCode, int shaderType) {
-        int shaderId = glCreateShader(shaderType);
-        if (shaderId == 0) {
-            throw new RuntimeException("Lỗi khi tạo đối tượng Shader kiểu: " + shaderType);
-        }
-
-        glShaderSource(shaderId, shaderCode);
-        glCompileShader(shaderId);
-
-        if (glGetShaderi(shaderId, GL_COMPILE_STATUS) == GL_FALSE) {
-            throw new RuntimeException("Lỗi biên dịch mã GLSL: " + glGetShaderInfoLog(shaderId, 1024));
-        }
-
-        return shaderId;
+    public void setUniformMatrix4f(String name, Matrix4 matrix) {
+        gdxShader.setUniformMatrix(name, matrix);
     }
 
-    private int getUniformLocation(String uniformName) {
-        return uniformLocations.computeIfAbsent(uniformName, name -> {
-            int location = glGetUniformLocation(programId, name);
-            if (location < 0) {
-                System.err.println("Cảnh báo: Không tìm thấy biến Uniform '" + name + "' trong Shader.");
-            }
-            return location;
-        });
+    public void setUniformVec3(String name, Vector3 vec) {
+        gdxShader.setUniformf(name, vec);
     }
 
-    public void setUniformMatrix4f(String name, Matrix4f matrix) {
-        try (MemoryStack stack = stackPush()) {
-            FloatBuffer fb = stack.mallocFloat(16);
-            matrix.get(fb);
-            glUniformMatrix4fv(getUniformLocation(name), false, fb);
-        }
+    public void setUniformVec3(String name, float x, float y, float z) {
+        gdxShader.setUniformf(name, x, y, z);
     }
 
-    public void setUniformVec3(String name, Vector3f vec) {
-        glUniform3f(getUniformLocation(name), vec.x, vec.y, vec.z);
-    }
-
-    /**
-     * Đa hình lúc biên dịch (Method Overloading 1): Truyền Vector4f vào biến Uniform.
-     */
-    public void setUniformVec4(String name, Vector4f vec) {
-        glUniform4f(getUniformLocation(name), vec.x, vec.y, vec.z, vec.w);
-    }
-
-    /**
-     * Đa hình lúc biên dịch (Method Overloading 2): Truyền trực tiếp 4 thành phần (R, G, B, A) vào biến Uniform.
-     */
     public void setUniformVec4(String name, float r, float g, float b, float a) {
-        glUniform4f(getUniformLocation(name), r, g, b, a);
+        gdxShader.setUniformf(name, r, g, b, a);
     }
 
     public void setUniform1f(String name, float value) {
-        glUniform1f(getUniformLocation(name), value);
+        gdxShader.setUniformf(name, value);
     }
 
     public void setUniform1i(String name, int value) {
-        glUniform1i(getUniformLocation(name), value);
+        gdxShader.setUniformi(name, value);
     }
 
     /**
@@ -214,27 +161,29 @@ public class ShaderProgram implements Cleanable {
     /**
      * Chuyển nhanh Shader sang chế độ vẽ Giao diện 2D (Tắt Sương mù, đặt View & Model về ma trận đơn vị).
      */
-    public void enable2DUIMode(Matrix4f orthoProjectionMatrix) {
-        Matrix4f identity = new Matrix4f().identity();
+    public void enable2DUIMode(Matrix4 orthoProjectionMatrix) {
         setUniformMatrix4f("uProjection", orthoProjectionMatrix);
-        setUniformMatrix4f("uView", identity);
-        setUniformMatrix4f("uModel", identity);
+        setUniformMatrix4f("uView", identityMatrix);
+        setUniformMatrix4f("uModel", identityMatrix);
         setUniform1i("uUseFog", 0);
     }
 
     public void bind() {
-        glUseProgram(programId);
+        gdxShader.bind();
     }
 
     public void unbind() {
-        glUseProgram(0);
+        Gdx.gl.glUseProgram(0);
+    }
+
+    public com.badlogic.gdx.graphics.glutils.ShaderProgram getGdxShader() {
+        return gdxShader;
     }
 
     @Override
-    public void cleanup() {
-        unbind();
-        if (programId != 0) {
-            glDeleteProgram(programId);
+    public void dispose() {
+        if (gdxShader != null) {
+            gdxShader.dispose();
         }
     }
 }

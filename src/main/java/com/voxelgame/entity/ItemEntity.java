@@ -1,20 +1,17 @@
 package com.voxelgame.entity;
 
+import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.Mesh;
+import com.badlogic.gdx.graphics.VertexAttribute;
+import com.badlogic.gdx.graphics.VertexAttributes;
+import com.badlogic.gdx.graphics.VertexAttributes.Usage;
+import com.badlogic.gdx.math.Matrix4;
+import com.badlogic.gdx.math.Vector3;
 import com.voxelgame.engine.ShaderProgram;
 import com.voxelgame.engine.World;
-import org.joml.Matrix4f;
-import org.joml.Vector3f;
-import org.lwjgl.system.MemoryUtil;
 
-import java.nio.FloatBuffer;
 import java.util.HashMap;
 import java.util.Map;
-
-import static org.lwjgl.opengl.GL11.*;
-import static org.lwjgl.opengl.GL15.*;
-import static org.lwjgl.opengl.GL20.glEnableVertexAttribArray;
-import static org.lwjgl.opengl.GL20.glVertexAttribPointer;
-import static org.lwjgl.opengl.GL30.*;
 
 /**
  * Thực thể Vật phẩm 3D nhỏ rơi ra ngoài thế giới sau khi người chơi đập vỡ một Block, kế thừa từ {@link Entity}.
@@ -24,8 +21,8 @@ import static org.lwjgl.opengl.GL30.*;
  * 2. Đa hình lúc biên dịch (Method Overloading): Cung cấp 2 constructor nạp chồng — một tự sinh lực văng
  *    ngẫu nhiên và một nhận vector vận tốc khởi tạo tùy chỉnh.
  * 3. Đa hình lúc chạy (Method Overriding): Ghi đè `update(World, float)` và `render(ShaderProgram)` của `Entity`.
- * 4. Đóng gói & Quản lý bộ nhớ GPU: Sử dụng `Map<Block, MeshData> SHARED_MESHES = new HashMap<>()` để dùng chung
- *    VAO/VBO cho từng loại `Block` thay vì cấp phát trùng lặp trên VRAM.
+ * 4. Đóng gói & Quản lý bộ nhớ GPU: Sử dụng `Map<Block, Mesh> SHARED_MESHES = new HashMap<>()` để dùng chung
+ *    lưới đa giác Mesh cho từng loại `Block` thay vì cấp phát trùng lặp trên VRAM.
  */
 public class ItemEntity extends Entity {
 
@@ -44,32 +41,32 @@ public class ItemEntity extends Entity {
     private float age = 0.0f;
     private boolean collected = false;
 
-    private final Matrix4f modelMatrix = new Matrix4f();
+    private final Matrix4 modelMatrix = new Matrix4();
 
-    // Bộ nhớ đệm lưu trữ lưới đa giác (VAO/VBO) dùng chung cho từng thực thể Block (thay thế EnumMap bằng HashMap)
-    private static final Map<Block, MeshData> SHARED_MESHES = new HashMap<>();
+    // Bộ nhớ đệm lưu trữ lưới Mesh dùng chung cho từng loại Block
+    private static final Map<Block, Mesh> SHARED_MESHES = new HashMap<>();
 
-    private static class MeshData {
-        final int vaoId;
-        final int vboId;
-        final int vertexCount;
-
-        MeshData(int vaoId, int vboId, int vertexCount) {
-            this.vaoId = vaoId;
-            this.vboId = vboId;
-            this.vertexCount = vertexCount;
-        }
-    }
+    // Thuộc tính đỉnh của Mesh ItemEntity: aPos (3 floats), aTexCoord (2 floats), aShade (1 float)
+    private static final VertexAttributes VERTEX_ATTRIBUTES = new VertexAttributes(
+            new VertexAttribute(Usage.Position, 3, "aPos"),
+            new VertexAttribute(Usage.TextureCoordinates, 2, "aTexCoord"),
+            new VertexAttribute(Usage.Generic, 1, "aShade")
+    );
 
     /**
      * Constructor 1: Tự động tạo vận tốc nảy nhẹ ngẫu nhiên khi khối vừa vỡ ra.
+     *
+     * @param startX tọa độ spawn trục X
+     * @param startY tọa độ spawn trục Y
+     * @param startZ tọa độ spawn trục Z
+     * @param block loại khối mà vật phẩm đại diện
      */
     public ItemEntity(float startX, float startY, float startZ, Block block) {
         this(
                 startX,
                 startY,
                 startZ,
-                new Vector3f(
+                new Vector3(
                         (float) ((Math.random() - 0.5) * 1.4),
                         3.2f,
                         (float) ((Math.random() - 0.5) * 1.4)
@@ -80,8 +77,14 @@ public class ItemEntity extends Entity {
 
     /**
      * Constructor 2 (Overloaded Constructor): Cho phép chỉ định vector vận tốc văng cụ thể.
+     *
+     * @param startX tọa độ spawn trục X
+     * @param startY tọa độ spawn trục Y
+     * @param startZ tọa độ spawn trục Z
+     * @param initialVelocity vector vận tốc văng ban đầu
+     * @param block loại khối mà vật phẩm đại diện
      */
-    public ItemEntity(float startX, float startY, float startZ, Vector3f initialVelocity, Block block) {
+    public ItemEntity(float startX, float startY, float startZ, Vector3 initialVelocity, Block block) {
         super(startX, startY, startZ, HALF_SIZE, ITEM_SCALE);
         if (initialVelocity != null) {
             this.velocity.set(initialVelocity);
@@ -98,6 +101,7 @@ public class ItemEntity extends Entity {
         if (world == null) {
             return;
         }
+
         Player player = world.getPlayer();
         Hotbar hotbar = (player != null) ? player.getHotbar() : null;
         update(world, player, hotbar, deltaTime);
@@ -105,6 +109,11 @@ public class ItemEntity extends Entity {
 
     /**
      * Phương thức nạp chồng hỗ trợ cập nhật trực tiếp với đối tượng `Player` và `Hotbar`.
+     *
+     * @param world thế giới voxel
+     * @param player người chơi
+     * @param hotbar thanh công cụ của người chơi
+     * @param deltaTime thời gian giữa hai khung hình
      */
     public void update(World world, Player player, Hotbar hotbar, float deltaTime) {
         if (collected) {
@@ -119,8 +128,8 @@ public class ItemEntity extends Entity {
 
         // 1. Kiểm tra khoảng cách tới tâm cơ thể người chơi để kích hoạt lực hút nam châm
         if (player != null && hotbar != null) {
-            Vector3f playerCenter = player.getCenterPosition();
-            float distSq = position.distanceSquared(playerCenter);
+            Vector3 playerCenter = player.getCenterPosition();
+            float distSq = position.dst2(playerCenter);
 
             if (age >= PICKUP_DELAY && distSq <= MAGNET_DISTANCE * MAGNET_DISTANCE) {
                 if (distSq <= PICKUP_DISTANCE * PICKUP_DISTANCE) {
@@ -130,9 +139,9 @@ public class ItemEntity extends Entity {
                     }
                 }
 
-                Vector3f pullDir = new Vector3f(playerCenter).sub(position);
-                if (pullDir.lengthSquared() > 0.0001f) {
-                    pullDir.normalize().mul(9.5f);
+                Vector3 pullDir = new Vector3(playerCenter).sub(position);
+                if (pullDir.len2() > 0.0001f) {
+                    pullDir.nor().scl(9.5f);
                     position.add(pullDir.x * deltaTime, pullDir.y * deltaTime, pullDir.z * deltaTime);
                     return;
                 }
@@ -186,21 +195,18 @@ public class ItemEntity extends Entity {
             return;
         }
 
-        MeshData mesh = getOrCreateMesh(block);
+        Mesh mesh = getOrCreateMesh(block);
 
         float bobOffset = (float) Math.sin(age * 3.8f) * 0.07f + 0.08f;
-        float rotationRadians = (float) Math.toRadians(age * 110.0f);
+        float rotationDegrees = age * 110.0f;
 
-        modelMatrix.identity()
+        modelMatrix.idt()
                 .translate(position.x, position.y + bobOffset, position.z)
-                .rotateY(rotationRadians)
-                .scale(ITEM_SCALE);
+                .rotate(Vector3.Y, rotationDegrees)
+                .scale(ITEM_SCALE, ITEM_SCALE, ITEM_SCALE);
 
         shader.setUniformMatrix4f("uModel", modelMatrix);
-
-        glBindVertexArray(mesh.vaoId);
-        glDrawArrays(GL_TRIANGLES, 0, mesh.vertexCount);
-        glBindVertexArray(0);
+        mesh.render(shader.getGdxShader(), GL20.GL_TRIANGLES);
     }
 
     public boolean isCollected() {
@@ -215,7 +221,7 @@ public class ItemEntity extends Entity {
         return block;
     }
 
-    private static MeshData getOrCreateMesh(Block type) {
+    private static Mesh getOrCreateMesh(Block type) {
         return SHARED_MESHES.computeIfAbsent(type, t -> {
             float[] topUV = t.getFaceUV(Block.Face.TOP);
             float[] botUV = t.getFaceUV(Block.Face.BOTTOM);
@@ -266,29 +272,9 @@ public class ItemEntity extends Entity {
                     -0.5f,  0.5f,  0.5f, sideUV[2], sideUV[1],
                     -0.5f,  0.5f, -0.5f, sideUV[0], sideUV[1], 0.72f);
 
-            FloatBuffer buffer = MemoryUtil.memAllocFloat(vertices.length);
-            buffer.put(vertices).flip();
-
-            int vao = glGenVertexArrays();
-            int vbo = glGenBuffers();
-
-            glBindVertexArray(vao);
-            glBindBuffer(GL_ARRAY_BUFFER, vbo);
-            glBufferData(GL_ARRAY_BUFFER, buffer, GL_STATIC_DRAW);
-
-            int stride = 6 * Float.BYTES;
-            glVertexAttribPointer(0, 3, GL_FLOAT, false, stride, 0L);
-            glEnableVertexAttribArray(0);
-            glVertexAttribPointer(1, 2, GL_FLOAT, false, stride, 3L * Float.BYTES);
-            glEnableVertexAttribArray(1);
-            glVertexAttribPointer(2, 1, GL_FLOAT, false, stride, 5L * Float.BYTES);
-            glEnableVertexAttribArray(2);
-
-            glBindBuffer(GL_ARRAY_BUFFER, 0);
-            glBindVertexArray(0);
-            MemoryUtil.memFree(buffer);
-
-            return new MeshData(vao, vbo, 36);
+            Mesh mesh = new Mesh(true, 36, 0, VERTEX_ATTRIBUTES);
+            mesh.setVertices(vertices);
+            return mesh;
         });
     }
 
@@ -321,12 +307,13 @@ public class ItemEntity extends Entity {
     }
 
     /**
-     * Giải phóng toàn bộ các VAO/VBO dùng chung của ItemEntity khi đóng game.
+     * Giải phóng toàn bộ các Mesh dùng chung của ItemEntity khi đóng game.
      */
     public static void cleanupSharedMeshes() {
-        for (MeshData mesh : SHARED_MESHES.values()) {
-            glDeleteBuffers(mesh.vboId);
-            glDeleteVertexArrays(mesh.vaoId);
+        for (Mesh mesh : SHARED_MESHES.values()) {
+            if (mesh != null) {
+                mesh.dispose();
+            }
         }
         SHARED_MESHES.clear();
     }

@@ -36,6 +36,10 @@ public class Hotbar {
 
     /**
      * Thiết lập trực tiếp loại Block và số lượng cho một ô cụ thể.
+     *
+     * @param slotIndex chỉ số ô (0..8)
+     * @param type loại Block
+     * @param count số lượng (tối đa 64)
      */
     public void setSlot(int slotIndex, Block type, int count) {
         if (slotIndex < 0 || slotIndex >= SLOT_COUNT) {
@@ -52,6 +56,8 @@ public class Hotbar {
 
     /**
      * Chọn ô trực tiếp theo chỉ số (0 đến 8, tương ứng khi bấm phím 1 đến 9).
+     *
+     * @param slotIndex chỉ số ô cần chọn (0..8)
      */
     public void selectSlot(int slotIndex) {
         if (slotIndex >= 0 && slotIndex < SLOT_COUNT) {
@@ -61,6 +67,8 @@ public class Hotbar {
 
     /**
      * Chuyển đổi ô đang chọn khi người chơi cuộn con lăn chuột (Mouse Scroll Callback).
+     *
+     * @param scrollYOffset lượng cuộn trục Y (dương: cuộn lên, âm: cuộn xuống)
      */
     public void scroll(double scrollYOffset) {
         if (Math.abs(scrollYOffset) < 0.01) {
@@ -72,6 +80,11 @@ public class Hotbar {
 
     /**
      * Thêm một số lượng Block vừa nhặt được (từ ItemEntity rơi ra trên mặt đất) vào thanh Hotbar.
+     * Ưu tiên gộp vào các ô cùng loại chưa đầy 64, sau đó mới xếp vào ô trống đầu tiên.
+     *
+     * @param type loại Block nhặt được
+     * @param amount số lượng cần thêm
+     * @return true nếu đã thêm được ít nhất 1 item vào Hotbar
      */
     public boolean addItem(Block type, int amount) {
         if (type == null || type == Block.AIR || amount <= 0) {
@@ -111,6 +124,8 @@ public class Hotbar {
 
     /**
      * Tiêu thụ 1 Block ở ô đang chọn khi người chơi click chuột phải để đặt Block.
+     *
+     * @return loại Block vừa tiêu thụ, hoặc Block.AIR nếu ô trống
      */
     public Block consumeSelectedItem() {
         Block currentType = slotTypes[selectedSlot];

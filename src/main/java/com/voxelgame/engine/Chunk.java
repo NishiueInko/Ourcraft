@@ -1,37 +1,41 @@
 package com.voxelgame.engine;
 
+import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.Mesh;
+import com.badlogic.gdx.graphics.VertexAttribute;
+import com.badlogic.gdx.graphics.VertexAttributes;
+import com.badlogic.gdx.graphics.VertexAttributes.Usage;
+import com.badlogic.gdx.utils.Disposable;
 import com.voxelgame.entity.Block;
-import org.lwjgl.system.MemoryUtil;
 
-import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.lwjgl.opengl.GL11.*;
-import static org.lwjgl.opengl.GL15.*;
-import static org.lwjgl.opengl.GL20.glEnableVertexAttribArray;
-import static org.lwjgl.opengl.GL20.glVertexAttribPointer;
-import static org.lwjgl.opengl.GL30.*;
-
 /**
- * Quản lý một phân vùng không gian 16x16x16 Blocks (Chunk) và bộ đệm lưới đỉnh OpenGL (VAO/VBO),
- * triển khai giao diện {@link Cleanable}.
+ * Quản lý một phân vùng không gian 16x16x16 Blocks (Chunk) và bộ đệm lưới đỉnh (libGDX Mesh),
+ * triển khai giao diện {@link Disposable}.
  *
  * THỂ HIỆN CÁC TÍNH CHẤT OOP:
  * 1. Tính Đóng gói cấp Package (Package-Private Encapsulation):
  *    - Các phương thức thao tác nội bộ (`getBlockLocal`, `setBlockLocal`, `isDirty`, `markDirty`,
  *      `rebuildMesh`, `render`) được giới hạn ở mức truy cập **package-private** (không có `public`).
  *    - Nhờ đó, chỉ lớp điều phối `World` nằm cùng package `com.voxelgame.engine` mới được phép can thiệp
- *      vào mảng dữ liệu và quá trình tái tạo lưới đỉnh OpenGL của Chunk.
+ *      vào mảng dữ liệu và quá trình tái tạo lưới đỉnh Mesh của Chunk.
  * 2. Tính Đa hình (Polymorphism):
- *    - Trong `rebuildMesh(World)`, Chunk không cần kiểm tra thủ công loại khối là Nước hay Lava để hạ
- *      độ cao mặt thoáng, mà gọi trực tiếp phương thức đa hình `block.getTopHeight(world, wx, wy, wz)`
- *      và `block.getFaceUV(Block.Face.*)`.
+ *    - Trong `rebuildMesh(World)`, Chunk gọi trực tiếp phương thức đa hình `block.getTopHeight(world, wx, wy, wz)`
+ *      và `block.getFaceUV(Block.Face.*)` để mỗi loại khối tự quyết định hình học và tọa độ chất liệu.
  */
-public class Chunk implements Cleanable {
+public class Chunk implements Disposable {
 
     public static final int SIZE = 16;
     private static final int FLOATS_PER_VERTEX = 6; // [x, y, z, u, v, shade]
+
+    // Định nghĩa cấu trúc thuộc tính đỉnh của libGDX: vị trí vec3 (0), uv vec2 (1), shade float (2)
+    private static final VertexAttributes VERTEX_ATTRIBUTES = new VertexAttributes(
+            new VertexAttribute(Usage.Position, 3, "aPos"),
+            new VertexAttribute(Usage.TextureCoordinates, 2, "aTexCoord"),
+            new VertexAttribute(Usage.Generic, 1, "aShade")
+    );
 
     private final int chunkX;
     private final int chunkY;
@@ -40,9 +44,8 @@ public class Chunk implements Cleanable {
     // Mảng 3D lưu trữ mã ID (1 byte/ô) của các Block trong Chunk
     private final byte[][][] blocks = new byte[SIZE][SIZE][SIZE];
 
-    private final int vaoId;
-    private final int vboId;
-    private int vertexCount;
+    private Mesh mesh;
+    private int vertexCount = 0;
     private boolean dirty = true;
 
     // Hệ số độ sáng theo hướng mặt (Directional Face Shading)
@@ -55,9 +58,6 @@ public class Chunk implements Cleanable {
         this.chunkX = chunkX;
         this.chunkY = chunkY;
         this.chunkZ = chunkZ;
-
-        this.vaoId = glGenVertexArrays();
-        this.vboId = glGenBuffers();
     }
 
     byte getBlockLocal(int x, int y, int z) {
@@ -85,6 +85,8 @@ public class Chunk implements Cleanable {
     /**
      * Xây dựng lại lưới đỉnh (Mesh Rebuilding) cho toàn bộ Chunk dựa trên đối tượng đa hình {@link Block}.
      * Chỉ cho phép gọi trong nội bộ package `com.voxelgame.engine`.
+     *
+     * @param world thế giới voxel cung cấp dữ liệu các khối lân cận
      */
     void rebuildMesh(World world) {
         List<Float> vertices = new ArrayList<>(4096);
@@ -148,34 +150,26 @@ public class Chunk implements Cleanable {
 
         this.vertexCount = vertices.size() / FLOATS_PER_VERTEX;
 
-        FloatBuffer vertexBuffer = MemoryUtil.memAllocFloat(vertices.size());
-        for (int i = 0; i < vertices.size(); i++) {
-            vertexBuffer.put(vertices.get(i));
+        if (vertexCount > 0) {
+            float[] vertexArray = new float[vertices.size()];
+            for (int i = 0; i < vertices.size(); i++) {
+                vertexArray[i] = vertices.get(i);
+            }
+
+            if (mesh == null || mesh.getMaxVertices() < vertexCount) {
+                if (mesh != null) {
+                    mesh.dispose();
+                }
+                mesh = new Mesh(true, vertexCount, 0, VERTEX_ATTRIBUTES);
+            }
+            mesh.setVertices(vertexArray, 0, vertexArray.length);
+        } else {
+            if (mesh != null) {
+                mesh.dispose();
+                mesh = null;
+            }
         }
-        vertexBuffer.flip();
 
-        glBindVertexArray(vaoId);
-        glBindBuffer(GL_ARRAY_BUFFER, vboId);
-        glBufferData(GL_ARRAY_BUFFER, vertexBuffer, GL_DYNAMIC_DRAW);
-
-        int stride = FLOATS_PER_VERTEX * Float.BYTES;
-
-        // Location 0: aPos (x, y, z)
-        glVertexAttribPointer(0, 3, GL_FLOAT, false, stride, 0L);
-        glEnableVertexAttribArray(0);
-
-        // Location 1: aTexCoord (u, v)
-        glVertexAttribPointer(1, 2, GL_FLOAT, false, stride, 3L * Float.BYTES);
-        glEnableVertexAttribArray(1);
-
-        // Location 2: aShade (shade)
-        glVertexAttribPointer(2, 1, GL_FLOAT, false, stride, 5L * Float.BYTES);
-        glEnableVertexAttribArray(2);
-
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-        glBindVertexArray(0);
-
-        MemoryUtil.memFree(vertexBuffer);
         this.dirty = false;
     }
 
@@ -186,19 +180,18 @@ public class Chunk implements Cleanable {
         return !neighbor.isSolid();
     }
 
-    void render() {
-        if (vertexCount <= 0) {
-            return;
+    void render(ShaderProgram shader) {
+        if (mesh != null && vertexCount > 0) {
+            mesh.render(shader.getGdxShader(), GL20.GL_TRIANGLES, 0, vertexCount);
         }
-        glBindVertexArray(vaoId);
-        glDrawArrays(GL_TRIANGLES, 0, vertexCount);
-        glBindVertexArray(0);
     }
 
     @Override
-    public void cleanup() {
-        glDeleteBuffers(vboId);
-        glDeleteVertexArrays(vaoId);
+    public void dispose() {
+        if (mesh != null) {
+            mesh.dispose();
+            mesh = null;
+        }
     }
 
     private void putVertex(List<Float> list, float x, float y, float z, float u, float v, float shade) {

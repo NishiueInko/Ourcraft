@@ -1,11 +1,12 @@
 package com.voxelgame.engine;
 
+import com.badlogic.gdx.math.Matrix4;
+import com.badlogic.gdx.utils.Disposable;
 import com.voxelgame.entity.Block;
 import com.voxelgame.entity.Entity;
 import com.voxelgame.entity.Hotbar;
 import com.voxelgame.entity.ItemEntity;
 import com.voxelgame.entity.Player;
-import org.joml.Matrix4f;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -13,7 +14,7 @@ import java.util.Random;
 
 /**
  * Quản lý toàn bộ thế giới Voxel, thuật toán Sinh Địa Hình Tự Nhiên (Procedural World Generation)
- * và danh sách đa hình các Thực thể động (`List<Entity> entities`), triển khai {@link Cleanable}.
+ * và danh sách đa hình các Thực thể động (`List<Entity> entities`), triển khai {@link Disposable}.
  *
  * THỂ HIỆN CÁC TÍNH CHẤT OOP:
  * 1. Tính Đa hình (Runtime Polymorphism):
@@ -26,7 +27,7 @@ import java.util.Random;
  *    - Đóng gói mảng `chunks`, `surfaceHeights` và danh sách `entities` ở phạm vi `private final`,
  *      chỉ cung cấp các phương thức giao tiếp an toàn (`registerPlayer`, `spawnDroppedItem`, `getBlock`, `setBlock`).
  */
-public class World implements Cleanable {
+public class World implements Disposable {
 
     // Kích thước thế giới: 20 x 2 x 20 Chunks = 320 x 32 x 320 Blocks
     public static final int WORLD_CHUNKS_X = 20;
@@ -48,7 +49,7 @@ public class World implements Cleanable {
     private Player player;
     private final List<Entity> entities = new ArrayList<>();
 
-    private final Matrix4f identityMatrix = new Matrix4f().identity();
+    private final Matrix4 identityMatrix = new Matrix4();
 
     public World() {
         for (int cx = 0; cx < WORLD_CHUNKS_X; cx++) {
@@ -65,6 +66,8 @@ public class World implements Cleanable {
 
     /**
      * Đăng ký thực thể `Player` vào thế giới và đưa vào danh sách cập nhật đa hình `List<Entity>`.
+     *
+     * @param player thực thể người chơi
      */
     public void registerPlayer(Player player) {
         this.player = player;
@@ -79,6 +82,8 @@ public class World implements Cleanable {
 
     /**
      * Thêm một thực thể vật phẩm rơi (`ItemEntity`) vào danh sách đa hình `List<Entity>`.
+     *
+     * @param item vật phẩm rơi
      */
     public void spawnDroppedItem(ItemEntity item) {
         if (item != null) {
@@ -89,6 +94,8 @@ public class World implements Cleanable {
     /**
      * Cập nhật đa hình toàn bộ các thực thể (`Player` và `ItemEntity`) trong thế giới
      * và tự động dọn dẹp các `ItemEntity` đã được nhặt vào Hotbar.
+     *
+     * @param deltaTime khoảng thời gian giữa hai khung hình (giây)
      */
     public void updateEntities(float deltaTime) {
         for (int i = 0; i < entities.size(); i++) {
@@ -398,6 +405,10 @@ public class World implements Cleanable {
 
     /**
      * Đập vỡ hoàn toàn một Block tại `(worldX, worldY, worldZ)` và kích hoạt hành vi đa hình `target.onBreak(...)`.
+     *
+     * @param worldX tọa độ X thế giới
+     * @param worldY tọa độ Y thế giới
+     * @param worldZ tọa độ Z thế giới
      */
     public void breakBlockAndSpawnDrop(int worldX, int worldY, int worldZ) {
         Block target = Block.fromId(getBlock(worldX, worldY, worldZ));
@@ -427,6 +438,8 @@ public class World implements Cleanable {
 
     /**
      * Vẽ toàn bộ các Chunk địa hình và duyệt danh sách đa hình `entities` để vẽ các thực thể 3D.
+     *
+     * @param shader chương trình Shader đang kích hoạt
      */
     public void render(ShaderProgram shader) {
         rebuildAllDirtyChunks();
@@ -435,7 +448,7 @@ public class World implements Cleanable {
         for (int cx = 0; cx < WORLD_CHUNKS_X; cx++) {
             for (int cy = 0; cy < WORLD_CHUNKS_Y; cy++) {
                 for (int cz = 0; cz < WORLD_CHUNKS_Z; cz++) {
-                    chunks[cx][cy][cz].render();
+                    chunks[cx][cy][cz].render(shader);
                 }
             }
         }
@@ -449,12 +462,12 @@ public class World implements Cleanable {
     }
 
     @Override
-    public void cleanup() {
+    public void dispose() {
         for (int cx = 0; cx < WORLD_CHUNKS_X; cx++) {
             for (int cy = 0; cy < WORLD_CHUNKS_Y; cy++) {
                 for (int cz = 0; cz < WORLD_CHUNKS_Z; cz++) {
                     if (chunks[cx][cy][cz] != null) {
-                        chunks[cx][cy][cz].cleanup();
+                        chunks[cx][cy][cz].dispose();
                     }
                 }
             }

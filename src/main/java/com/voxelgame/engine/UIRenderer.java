@@ -1,28 +1,27 @@
 package com.voxelgame.engine;
 
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.Mesh;
+import com.badlogic.gdx.graphics.VertexAttribute;
+import com.badlogic.gdx.graphics.VertexAttributes;
+import com.badlogic.gdx.graphics.VertexAttributes.Usage;
+import com.badlogic.gdx.math.Matrix4;
+import com.badlogic.gdx.utils.Disposable;
 import com.voxelgame.entity.Block;
 import com.voxelgame.entity.Hotbar;
 import com.voxelgame.entity.Player;
-import org.joml.Matrix4f;
-import org.lwjgl.system.MemoryUtil;
 
-import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.lwjgl.opengl.GL11.*;
-import static org.lwjgl.opengl.GL15.*;
-import static org.lwjgl.opengl.GL20.glEnableVertexAttribArray;
-import static org.lwjgl.opengl.GL20.glVertexAttribPointer;
-import static org.lwjgl.opengl.GL30.*;
-
 /**
  * Hệ thống Kết xuất Giao diện Người dùng 2D & Hiệu ứng Tương tác 3D (UI & HUD Renderer),
- * triển khai giao diện {@link Cleanable}.
+ * triển khai giao diện {@link Disposable}.
  *
  * THỂ HIỆN CÁC TÍNH CHẤT OOP:
  * 1. Tính Trừu tượng (Abstraction):
- *    - Triển khai `Cleanable` để thống nhất cơ chế giải phóng bộ đệm VAO/VBO của giao diện.
+ *    - Triển khai `Disposable` để thống nhất cơ chế giải phóng bộ đệm Mesh của giao diện.
  *    - Đóng gói toàn bộ thuật toán vẽ 2D Orthographic và bảng mã phông chữ ma trận điểm ảnh 5x7
  *      đằng sau phương thức `render2DHUD(...)` và `renderTargetBlockOverlay3D(...)`.
  * 2. Tính Đóng gói (Encapsulation):
@@ -32,10 +31,17 @@ import static org.lwjgl.opengl.GL30.*;
  *    - Sử dụng `itemType.getFaceUV(Block.Face.SOUTH)` để lấy đúng tọa độ UV trên Texture Atlas cho bất kỳ
  *      loại `Block` nào đang nằm trong 9 ô `Hotbar`.
  */
-public class UIRenderer implements Cleanable {
+public class UIRenderer implements Disposable {
 
-    private final int uiVaoId;
-    private final int uiVboId;
+    // Cấu hình thuộc tính đỉnh libGDX: aPos (3), aTexCoord (2), aShade (1)
+    private static final VertexAttributes VERTEX_ATTRIBUTES = new VertexAttributes(
+            new VertexAttribute(Usage.Position, 3, "aPos"),
+            new VertexAttribute(Usage.TextureCoordinates, 2, "aTexCoord"),
+            new VertexAttribute(Usage.Generic, 1, "aShade")
+    );
+
+    private Mesh uiMesh;
+    private ShaderProgram currentShader;
 
     // Kích thước các thành phần trong Pause Menu (tính bằng Pixel màn hình)
     private static final float PANEL_WIDTH = 420.0f;
@@ -52,26 +58,11 @@ public class UIRenderer implements Cleanable {
     private static final float HOTBAR_SLOT_SIZE = 50.0f;
     private static final float HOTBAR_SLOT_PADDING = 4.0f;
 
-    private final Matrix4f modelMatrix = new Matrix4f();
+    private final Matrix4 modelMatrix = new Matrix4();
 
     public UIRenderer() {
-        this.uiVaoId = glGenVertexArrays();
-        this.uiVboId = glGenBuffers();
-
-        // Cấu hình sẵn định dạng đỉnh 6 floats [x, y, z, u, v, shade] cho VAO của UI
-        glBindVertexArray(uiVaoId);
-        glBindBuffer(GL_ARRAY_BUFFER, uiVboId);
-
-        int stride = 6 * Float.BYTES;
-        glVertexAttribPointer(0, 3, GL_FLOAT, false, stride, 0L);
-        glEnableVertexAttribArray(0);
-        glVertexAttribPointer(1, 2, GL_FLOAT, false, stride, 3L * Float.BYTES);
-        glEnableVertexAttribArray(1);
-        glVertexAttribPointer(2, 1, GL_FLOAT, false, stride, 5L * Float.BYTES);
-        glEnableVertexAttribArray(2);
-
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-        glBindVertexArray(0);
+        // Khởi tạo Mesh động cho UI với dung lượng ban đầu 4096 đỉnh
+        uiMesh = new Mesh(false, 4096, 0, VERTEX_ATTRIBUTES);
     }
 
     // =========================================================================
@@ -91,9 +82,11 @@ public class UIRenderer implements Cleanable {
             return;
         }
 
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        glDisable(GL_CULL_FACE);
+        this.currentShader = shader;
+
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        Gdx.gl.glDisable(GL20.GL_CULL_FACE);
 
         shader.setUniform1i("uUseTexture", 0);
 
@@ -110,7 +103,7 @@ public class UIRenderer implements Cleanable {
         float y1 = by + 1.0f + expand;
         float z1 = bz + 1.0f + expand;
 
-        modelMatrix.identity();
+        modelMatrix.idt();
         shader.setUniformMatrix4f("uModel", modelMatrix);
 
         if (miningProgress > 0.001f) {
@@ -140,8 +133,8 @@ public class UIRenderer implements Cleanable {
         shader.setUniform1i("uUseTexture", 1);
         shader.setUniformVec4("uTintColor", 1.0f, 1.0f, 1.0f, 1.0f);
 
-        glEnable(GL_CULL_FACE);
-        glDisable(GL_BLEND);
+        Gdx.gl.glEnable(GL20.GL_CULL_FACE);
+        Gdx.gl.glDisable(GL20.GL_BLEND);
     }
 
     // =========================================================================
@@ -196,10 +189,12 @@ public class UIRenderer implements Cleanable {
             double mouseX,
             double mouseY
     ) {
-        glDisable(GL_DEPTH_TEST);
-        glDisable(GL_CULL_FACE);
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        this.currentShader = shader;
+
+        Gdx.gl.glDisable(GL20.GL_DEPTH_TEST);
+        Gdx.gl.glDisable(GL20.GL_CULL_FACE);
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
 
         shader.enable2DUIMode(camera.getOrthoMatrix(windowWidth, windowHeight));
 
@@ -222,9 +217,9 @@ public class UIRenderer implements Cleanable {
         }
 
         shader.enable3DWorldMode();
-        glDisable(GL_BLEND);
-        glEnable(GL_CULL_FACE);
-        glEnable(GL_DEPTH_TEST);
+        Gdx.gl.glDisable(GL20.GL_BLEND);
+        Gdx.gl.glEnable(GL20.GL_CULL_FACE);
+        Gdx.gl.glEnable(GL20.GL_DEPTH_TEST);
     }
 
     private void renderCrosshair(ShaderProgram shader, int windowWidth, int windowHeight) {
@@ -237,7 +232,7 @@ public class UIRenderer implements Cleanable {
         drawRect2D(cx - 10.0f, cy - 2.0f, 20.0f, 4.0f);
         drawRect2D(cx - 2.0f, cy - 10.0f, 4.0f, 20.0f);
 
-        shader.setUniformVec4("uTintColor", 1.0f, 0.0f + 1.0f, 1.0f, 0.92f);
+        shader.setUniformVec4("uTintColor", 1.0f, 1.0f, 1.0f, 0.92f);
         drawRect2D(cx - 8.0f, cy - 1.0f, 16.0f, 2.0f);
         drawRect2D(cx - 1.0f, cy - 8.0f, 2.0f, 16.0f);
     }
@@ -633,17 +628,20 @@ public class UIRenderer implements Cleanable {
     }
 
     private void uploadAndDrawTriangles(float[] vertices) {
-        FloatBuffer buffer = MemoryUtil.memAllocFloat(vertices.length);
-        buffer.put(vertices).flip();
+        if (currentShader == null || vertices == null || vertices.length == 0) {
+            return;
+        }
 
-        glBindVertexArray(uiVaoId);
-        glBindBuffer(GL_ARRAY_BUFFER, uiVboId);
-        glBufferData(GL_ARRAY_BUFFER, buffer, GL_STREAM_DRAW);
-        glDrawArrays(GL_TRIANGLES, 0, vertices.length / 6);
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-        glBindVertexArray(0);
+        int count = vertices.length / 6;
+        if (uiMesh == null || uiMesh.getMaxVertices() < count) {
+            if (uiMesh != null) {
+                uiMesh.dispose();
+            }
+            uiMesh = new Mesh(false, Math.max(count, 4096), 0, VERTEX_ATTRIBUTES);
+        }
 
-        MemoryUtil.memFree(buffer);
+        uiMesh.setVertices(vertices, 0, vertices.length);
+        uiMesh.render(currentShader.getGdxShader(), GL20.GL_TRIANGLES, 0, count);
     }
 
     private int[] getGlyph5x7(char c) {
@@ -693,8 +691,10 @@ public class UIRenderer implements Cleanable {
     }
 
     @Override
-    public void cleanup() {
-        glDeleteBuffers(uiVboId);
-        glDeleteVertexArrays(uiVaoId);
+    public void dispose() {
+        if (uiMesh != null) {
+            uiMesh.dispose();
+            uiMesh = null;
+        }
     }
 }

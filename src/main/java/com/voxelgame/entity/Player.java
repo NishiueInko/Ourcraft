@@ -1,11 +1,11 @@
 package com.voxelgame.entity;
 
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
+import com.badlogic.gdx.math.Vector3;
 import com.voxelgame.engine.Camera;
 import com.voxelgame.engine.ShaderProgram;
 import com.voxelgame.engine.World;
-import org.joml.Vector3f;
-
-import static org.lwjgl.glfw.GLFW.*;
 
 /**
  * Thực thể Người chơi kế thừa từ {@link Entity} và sở hữu {@link Hotbar} theo quan hệ Hợp thành (Composition).
@@ -41,13 +41,12 @@ public class Player extends Entity {
     private static final float TERMINAL_VELOCITY = -45.0f;
 
     // Khoảng thời gian tối đa giữa 2 lần bấm Space để kích hoạt chế độ Bay (0.30 giây)
-    private static final double DOUBLE_TAP_THRESHOLD = 0.30;
+    private static final float DOUBLE_TAP_THRESHOLD = 0.30f;
 
     // Quan hệ Hợp thành (Composition - Player "has-a" Hotbar)
     private final Hotbar hotbar = new Hotbar();
 
-    // Tham chiếu điều khiển cửa sổ GLFW và góc nhìn Camera
-    private long windowHandle = 0L;
+    // Tham chiếu góc nhìn Camera
     private Camera camera;
 
     // Các cờ trạng thái chuyển động của nhân vật
@@ -57,9 +56,10 @@ public class Player extends Entity {
 
     // Biến phục vụ nhận diện thao tác bấm đúp phím Space (Double-tap Space)
     private boolean wasSpacePressed = false;
-    private double lastSpaceTapTime = -1.0;
+    private float lastSpaceTapTime = -1.0f;
+    private float playerElapsedTime = 0.0f;
 
-    public Player(Vector3f startPosition) {
+    public Player(Vector3 startPosition) {
         super(startPosition.x, startPosition.y, startPosition.z, PLAYER_HALF_WIDTH, PLAYER_HEIGHT);
     }
 
@@ -68,18 +68,26 @@ public class Player extends Entity {
     }
 
     /**
-     * Liên kết handle cửa sổ GLFW và đối tượng Camera để Player đọc phím bấm và đồng bộ góc nhìn.
+     * Liên kết đối tượng Camera để Player đọc hướng nhìn và đồng bộ tọa độ tầm mắt.
+     *
+     * @param camera đối tượng Camera góc nhìn thứ nhất
      */
-    public void attachControls(long windowHandle, Camera camera) {
-        this.windowHandle = windowHandle;
+    public void attachControls(Camera camera) {
         this.camera = camera;
     }
 
     /**
-     * Phương thức nạp chồng tiện ích cho phép truyền trực tiếp windowHandle và camera khi cập nhật.
+     * Phương thức nạp chồng tiện ích giữ tương thích với các lệnh gọi cũ (nếu có).
      */
-    public void update(long windowHandle, World world, Camera camera, float deltaTime) {
-        attachControls(windowHandle, camera);
+    public void attachControls(long windowHandle, Camera camera) {
+        this.camera = camera;
+    }
+
+    /**
+     * Phương thức nạp chồng tiện ích cho phép truyền camera khi cập nhật.
+     */
+    public void update(World world, Camera camera, float deltaTime) {
+        attachControls(camera);
         update(world, deltaTime);
     }
 
@@ -90,17 +98,19 @@ public class Player extends Entity {
      */
     @Override
     public void update(World world, float deltaTime) {
-        if (windowHandle == 0L || camera == null || world == null) {
+        if (camera == null || world == null) {
             return;
         }
 
-        handleInput(windowHandle, world, camera);
+        playerElapsedTime += deltaTime;
+
+        handleInput(world, camera);
         applyPhysicsAndCollision(world, deltaTime);
 
         // Nếu rơi xuống dưới đáy bản đồ, đưa người chơi trở lại vị trí an toàn trên mặt đất
         if (position.y < -25.0f) {
             position.set(World.WORLD_SIZE_X / 2.0f, 22.0f, World.WORLD_SIZE_Z / 2.0f);
-            velocity.zero();
+            velocity.set(0.0f, 0.0f, 0.0f);
             isFlying = false;
         }
 
@@ -123,14 +133,14 @@ public class Player extends Entity {
         // Góc nhìn thứ nhất: không vẽ mô hình 3D của chính người chơi
     }
 
-    private void handleInput(long windowHandle, World world, Camera camera) {
-        boolean spaceDown = glfwGetKey(windowHandle, GLFW_KEY_SPACE) == GLFW_PRESS;
-        boolean shiftDown = glfwGetKey(windowHandle, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS;
-        boolean ctrlDown = glfwGetKey(windowHandle, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS;
+    private void handleInput(World world, Camera camera) {
+        boolean spaceDown = Gdx.input.isKeyPressed(Input.Keys.SPACE);
+        boolean shiftDown = Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT);
+        boolean ctrlDown = Gdx.input.isKeyPressed(Input.Keys.CONTROL_LEFT);
 
         // 1. Xử lý Double-Tap Space để Bật/Tắt chế độ Bay (Fly Mode)
         if (spaceDown && !wasSpacePressed) {
-            double now = glfwGetTime();
+            float now = playerElapsedTime;
             if (now - lastSpaceTapTime <= DOUBLE_TAP_THRESHOLD) {
                 isFlying = !isFlying;
                 velocity.y = 0.0f;
@@ -138,7 +148,7 @@ public class Player extends Entity {
                     onGround = false;
                     isSneaking = false;
                 }
-                lastSpaceTapTime = -1.0;
+                lastSpaceTapTime = -1.0f;
             } else {
                 lastSpaceTapTime = now;
             }
@@ -157,24 +167,24 @@ public class Player extends Entity {
 
         // 3. Tính hướng di chuyển trên mặt phẳng ngang XZ
         double yawRad = Math.toRadians(camera.getYaw());
-        Vector3f forwardXZ = new Vector3f((float) Math.cos(yawRad), 0.0f, (float) Math.sin(yawRad)).normalize();
-        Vector3f rightXZ = new Vector3f(-forwardXZ.z, 0.0f, forwardXZ.x).normalize();
+        Vector3 forwardXZ = new Vector3((float) Math.cos(yawRad), 0.0f, (float) Math.sin(yawRad)).nor();
+        Vector3 rightXZ = new Vector3(-forwardXZ.z, 0.0f, forwardXZ.x).nor();
 
-        Vector3f wishDir = new Vector3f(0.0f, 0.0f, 0.0f);
-        if (glfwGetKey(windowHandle, GLFW_KEY_W) == GLFW_PRESS) {
+        Vector3 wishDir = new Vector3(0.0f, 0.0f, 0.0f);
+        if (Gdx.input.isKeyPressed(Input.Keys.W)) {
             wishDir.add(forwardXZ);
         }
-        if (glfwGetKey(windowHandle, GLFW_KEY_S) == GLFW_PRESS) {
+        if (Gdx.input.isKeyPressed(Input.Keys.S)) {
             wishDir.sub(forwardXZ);
         }
-        if (glfwGetKey(windowHandle, GLFW_KEY_D) == GLFW_PRESS) {
+        if (Gdx.input.isKeyPressed(Input.Keys.D)) {
             wishDir.add(rightXZ);
         }
-        if (glfwGetKey(windowHandle, GLFW_KEY_A) == GLFW_PRESS) {
+        if (Gdx.input.isKeyPressed(Input.Keys.A)) {
             wishDir.sub(rightXZ);
         }
 
-        boolean isMovingHorizontally = wishDir.lengthSquared() > 0.0001f;
+        boolean isMovingHorizontally = wishDir.len2() > 0.0001f;
 
         // 4. Tính tốc độ di chuyển (Sprint 1.5x / Sneak 0.5x / Fly)
         isSprinting = ctrlDown && isMovingHorizontally && !isSneaking;
@@ -197,7 +207,7 @@ public class Player extends Entity {
         }
 
         if (isMovingHorizontally) {
-            wishDir.normalize().mul(currentSpeed);
+            wishDir.nor().scl(currentSpeed);
         }
 
         velocity.x = wishDir.x;

@@ -1,169 +1,149 @@
 package com.voxelgame.engine;
 
-import javazoom.jl.decoder.Bitstream;
-import javazoom.jl.decoder.Decoder;
-import javazoom.jl.decoder.Header;
-import javazoom.jl.decoder.SampleBuffer;
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.audio.Music;
+import com.badlogic.gdx.files.FileHandle;
+import com.badlogic.gdx.utils.Disposable;
 
-import javax.sound.sampled.AudioFormat;
-import javax.sound.sampled.AudioSystem;
-import javax.sound.sampled.SourceDataLine;
-import java.io.BufferedInputStream;
-import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.stream.Stream;
 
 /**
- * Hệ thống Quản lý Âm thanh & Nhạc nền (Background Music Manager) triển khai {@link Cleanable}.
+ * Hệ thống Quản lý Âm thanh & Nhạc nền (Background Music Manager) trong libGDX,
+ * triển khai giao diện {@link Disposable}.
+ *
+ * Lớp này sử dụng đối tượng {@link Music} của libGDX (chạy trên OpenAL) để phát luồng (stream)
+ * trực tiếp file MP3, hỗ trợ lặp vô hạn và điều chỉnh âm lượng mượt mà theo thời gian thực
+ * mà không gây nghẽn luồng xử lý đồ họa (Render Thread).
  *
  * THỂ HIỆN CÁC TÍNH CHẤT OOP:
  * 1. Tính Trừu tượng (Abstraction):
- *    - Che giấu toàn bộ quy trình giải mã luồng bit MP3 (`Bitstream`, `Decoder`), biến đổi tín hiệu số
- *      PCM 16-bit Little-Endian và điều khiển luồng chạy ngầm (`Daemon Thread`) đằng sau các phương thức
- *      giao tiếp đơn giản: `startBackgroundMusic()`, `setVolume()`, `changeVolume()`, `cleanup()`.
+ *    - Che giấu toàn bộ cơ chế giải mã âm thanh OpenAL đa nền tảng, quản lý bộ đệm streaming
+ *      và luồng phát ngầm của libGDX đằng sau các phương thức giao tiếp đơn giản:
+ *      {@link #startBackgroundMusic()}, {@link #setVolume(float)}, {@link #changeVolume(float)},
+ *      và {@link #dispose()}.
  * 2. Tính Đóng gói (Encapsulation):
- *    - Các trạng thái luồng âm thanh (`volume`, `running`, `bgmThread`, `cachedMp3Bytes`) được khóa `private`
- *      và kiểm soát đồng bộ giữa luồng UI và luồng âm thanh bằng từ khóa `volatile`, đảm bảo giới hạn
- *      âm lượng luôn an toàn trong đoạn `[0.0f, 1.0f]`.
+ *    - Trạng thái âm lượng {@code volume} [0.0f, 1.0f] và đối tượng phần cứng {@code backgroundMusic}
+ *      được đóng gói an toàn ở phạm vi {@code private}. Các thao tác thay đổi âm lượng luôn được
+ *      kẹp trong đoạn hợp lệ thông qua setter duy nhất {@link #setVolume(float)}.
+ * 3. Quản lý Vòng đời Tài nguyên (Resource Lifecycle):
+ *    - Triển khai {@link Disposable} để đồng bộ cơ chế giải phóng tài nguyên OpenAL cùng với
+ *      toàn bộ hệ sinh thái libGDX của dự án.
  */
-public class AudioManager implements Cleanable {
+public class AudioManager implements Disposable {
 
-    // Biến volatile đảm bảo khi luồng giao diện (UI) thay đổi âm lượng hoặc tắt nhạc,
-    // luồng phát nhạc ngầm (bgmThread) sẽ nhận được giá trị mới ngay lập tức.
-    private volatile float volume = 0.70f; // Âm lượng mặc định: 70% (0.70f)
-    private volatile boolean running = false;
+    /** Mức âm lượng hiện tại trong đoạn [0.0f, 1.0f], mặc định 70% (0.70f) */
+    private float volume = 0.70f;
 
-    private Thread bgmThread;
-    private final byte[] cachedMp3Bytes;
+    /** Cờ trạng thái đánh dấu nhạc nền đang được bật */
+    private boolean running = false;
 
+    /** Đối tượng quản lý stream âm thanh phần cứng OpenAL của libGDX */
+    private Music backgroundMusic;
+
+    /** Con trỏ tập tin đại diện cho file nhạc nền MP3 */
+    private FileHandle musicFileHandle;
+
+    /**
+     * Khởi tạo AudioManager:
+     * Tự động tìm kiếm file nhạc MP3 trong Classpath (`src/main/resources`), thư mục dự án
+     * hoặc các thư mục con, sau đó khởi tạo đối tượng {@link Music}.
+     */
     public AudioManager() {
-        // Tự động tìm và nạp file nhạc "1-08. Minecraft.mp3" vào bộ nhớ đệm (RAM)
-        this.cachedMp3Bytes = loadMp3BytesFlexible(
+        // Tự động tìm kiếm linh hoạt file nhạc "1-08. Minecraft.mp3"
+        this.musicFileHandle = findMp3FileHandleFlexible(
                 "1-08. Minecraft.mp3",
                 "audio/1-08. Minecraft.mp3",
                 "music/1-08. Minecraft.mp3",
                 "minecraft.mp3",
                 "bgm.mp3"
         );
+
+        if (this.musicFileHandle != null) {
+            try {
+                this.backgroundMusic = Gdx.audio.newMusic(this.musicFileHandle);
+                this.backgroundMusic.setLooping(true);
+                this.backgroundMusic.setVolume(this.volume);
+            } catch (Exception e) {
+                System.err.println("[AudioManager] Không thể khởi tạo luồng âm thanh từ file: "
+                        + this.musicFileHandle.path() + " - Lỗi: " + e.getMessage());
+                this.backgroundMusic = null;
+            }
+        }
     }
 
     /**
-     * Bắt đầu phát lặp lại (Loop) nhạc nền trên luồng chạy ngầm.
+     * Bắt đầu phát lặp lại (Loop) nhạc nền vô hạn trên luồng âm thanh OpenAL.
+     * Nếu chưa nạp được nhạc, phương thức sẽ thử tìm kiếm lại một lần nữa trước khi báo lỗi.
      */
     public void startBackgroundMusic() {
-        if (cachedMp3Bytes == null || cachedMp3Bytes.length == 0) {
+        if (backgroundMusic == null) {
+            // Thử quét lại tập tin phòng trường hợp file nhạc vừa được người dùng copy vào
+            if (musicFileHandle == null) {
+                musicFileHandle = findMp3FileHandleFlexible(
+                        "1-08. Minecraft.mp3",
+                        "audio/1-08. Minecraft.mp3",
+                        "music/1-08. Minecraft.mp3",
+                        "minecraft.mp3",
+                        "bgm.mp3"
+                );
+            }
+            if (musicFileHandle != null) {
+                try {
+                    backgroundMusic = Gdx.audio.newMusic(musicFileHandle);
+                    backgroundMusic.setLooping(true);
+                    backgroundMusic.setVolume(this.volume);
+                } catch (Exception e) {
+                    System.err.println("[AudioManager] Khởi tạo Music thất bại: " + e.getMessage());
+                    backgroundMusic = null;
+                }
+            }
+        }
+
+        if (backgroundMusic == null) {
             System.err.println("[AudioManager] Không tìm thấy file nhạc '.mp3'. "
                     + "Hãy đặt file '1-08. Minecraft.mp3' vào thư mục 'src/main/resources/audio/' hoặc thư mục gốc của project.");
             return;
         }
 
-        if (running) {
+        if (running && backgroundMusic.isPlaying()) {
             return;
         }
-        running = true;
 
-        bgmThread = new Thread(this::musicLoopWorker, "VoxelGame-BGM-Thread");
-        // Đặt làm Daemon Thread để nếu cửa sổ game đóng đột ngột, luồng nhạc cũng tự động kết thúc theo JVM
-        bgmThread.setDaemon(true);
-        bgmThread.start();
-    }
-
-    /**
-     * Vòng lặp giải mã MP3 -> PCM 16-bit -> Khuếch đại theo biến `volume` -> Phát ra thiết bị âm thanh.
-     */
-    private void musicLoopWorker() {
-        while (running) {
-            SourceDataLine soundLine = null;
-            Bitstream bitstream = null;
-
-            try (InputStream bais = new BufferedInputStream(new ByteArrayInputStream(cachedMp3Bytes))) {
-                bitstream = new Bitstream(bais);
-                Decoder decoder = new Decoder();
-
-                Header frameHeader;
-                // Đọc lần lượt từng khung âm thanh (Audio Frame) trong file MP3
-                while (running && (frameHeader = bitstream.readFrame()) != null) {
-                    // Giải mã khung MP3 hiện tại thành các mẫu sóng âm PCM 16-bit
-                    SampleBuffer output = (SampleBuffer) decoder.decodeFrame(frameHeader, bitstream);
-                    short[] pcmSamples = output.getBuffer();
-                    int sampleLength = output.getBufferLength();
-
-                    // Khởi tạo đường truyền âm thanh phần cứng (SourceDataLine) ở khung đầu tiên
-                    if (soundLine == null) {
-                        int sampleRate = decoder.getOutputFrequency();
-                        int channels = decoder.getOutputChannels();
-                        // Định dạng PCM 16-bit, có dấu (signed), thứ tự byte Little-Endian
-                        AudioFormat format = new AudioFormat(sampleRate, 16, channels, true, false);
-                        soundLine = AudioSystem.getSourceDataLine(format);
-                        soundLine.open(format, 8192);
-                        soundLine.start();
-                    }
-
-                    // Lấy mức âm lượng hiện tại (0.0f -> 1.0f)
-                    float currentVol = this.volume;
-
-                    // Chuyển đổi mảng mẫu 16-bit (short) sang mảng byte (Little-Endian) đồng thời nhân với hệ số âm lượng
-                    byte[] pcmBytes = new byte[sampleLength * 2];
-                    for (int i = 0; i < sampleLength; i++) {
-                        int scaledSample = Math.round(pcmSamples[i] * currentVol);
-                        // Giới hạn trong khoảng hợp lệ của kiểu short 16-bit [-32768, 32767] để tránh rè tiếng (Clipping)
-                        if (scaledSample > Short.MAX_VALUE) {
-                            scaledSample = Short.MAX_VALUE;
-                        } else if (scaledSample < Short.MIN_VALUE) {
-                            scaledSample = Short.MIN_VALUE;
-                        }
-
-                        // Tách số nguyên 16-bit thành 2 byte theo chuẩn Little-Endian (Byte thấp trước, Byte cao sau)
-                        pcmBytes[i * 2] = (byte) (scaledSample & 0xFF);
-                        pcmBytes[i * 2 + 1] = (byte) ((scaledSample >> 8) & 0xFF);
-                    }
-
-                    // Đẩy khối dữ liệu PCM đã chỉnh âm lượng ra card âm thanh
-                    soundLine.write(pcmBytes, 0, pcmBytes.length);
-
-                    // Đánh dấu đã xử lý xong khung MP3 hiện tại để tiến tới khung kế tiếp
-                    bitstream.closeFrame();
-                }
-
-                // Nếu bài hát đã chạy đến cuối file mà game vẫn đang mở, đợi hết phần âm còn lại trong bộ đệm rồi lặp lại
-                if (soundLine != null && running) {
-                    soundLine.drain();
-                }
-            } catch (Exception e) {
-                System.err.println("[AudioManager] Lỗi khi phát nhạc nền MP3: " + e.getMessage());
-                break;
-            } finally {
-                if (soundLine != null) {
-                    try {
-                        soundLine.stop();
-                        soundLine.close();
-                    } catch (Exception ignored) {
-                    }
-                }
-                if (bitstream != null) {
-                    try {
-                        bitstream.close();
-                    } catch (Exception ignored) {
-                    }
-                }
-            }
+        try {
+            backgroundMusic.setLooping(true);
+            backgroundMusic.setVolume(this.volume);
+            backgroundMusic.play();
+            running = true;
+            System.out.println("[AudioManager] Bắt đầu phát lặp nhạc nền thành công (Âm lượng: " + getVolumePercent() + "%).");
+        } catch (Exception e) {
+            System.err.println("[AudioManager] Lỗi khi phát nhạc nền: " + e.getMessage());
         }
     }
 
     /**
      * Thiết lập mức âm lượng nhạc nền theo thời gian thực (từ 0.0f = Tắt tiếng đến 1.0f = 100%).
      * Được gọi trực tiếp khi người chơi bấm nút [-]/[+] hoặc kéo thanh trượt Volume trong Pause Menu.
+     *
+     * @param newVolume giá trị âm lượng mới
      */
     public void setVolume(float newVolume) {
         this.volume = Math.max(0.0f, Math.min(1.0f, newVolume));
+        if (backgroundMusic != null) {
+            try {
+                backgroundMusic.setVolume(this.volume);
+            } catch (Exception ignored) {
+            }
+        }
     }
 
     /**
-     * Tăng hoặc giảm âm lượng một khoảng `delta` (ví dụ: +0.10f hoặc -0.10f).
+     * Tăng hoặc giảm âm lượng một khoảng {@code delta} (ví dụ: +0.10f hoặc -0.10f).
+     *
+     * @param delta mức thay đổi âm lượng
      */
     public void changeVolume(float delta) {
         setVolume(this.volume + delta);
@@ -171,6 +151,8 @@ public class AudioManager implements Cleanable {
 
     /**
      * Lấy mức âm lượng hiện tại trong khoảng [0.0f, 1.0f].
+     *
+     * @return giá trị âm lượng dạng số thực
      */
     public float getVolume() {
         return volume;
@@ -178,33 +160,60 @@ public class AudioManager implements Cleanable {
 
     /**
      * Lấy mức âm lượng hiện tại tính theo phần trăm nguyên (0 đến 100) để hiển thị trên Pause Menu.
+     *
+     * @return phần trăm âm lượng (0 - 100)
      */
     public int getVolumePercent() {
         return Math.round(volume * 100.0f);
     }
 
     /**
-     * Ghi đè phương thức của giao diện {@link Cleanable}:
-     * Dừng luồng nhạc nền và giải phóng thiết bị âm thanh ngay lập tức khi đóng cửa sổ game.
+     * Kiểm tra trạng thái phát nhạc hiện tại.
+     *
+     * @return true nếu nhạc nền đang phát
+     */
+    public boolean isPlaying() {
+        return backgroundMusic != null && backgroundMusic.isPlaying();
+    }
+
+    /**
+     * Giải phóng toàn bộ tài nguyên âm thanh OpenAL khi đóng game,
+     * triển khai phương thức của giao diện {@link Disposable}.
      */
     @Override
-    public void cleanup() {
+    public void dispose() {
         running = false;
-        if (bgmThread != null && bgmThread.isAlive()) {
-            bgmThread.interrupt();
+        if (backgroundMusic != null) {
             try {
-                bgmThread.join(300);
-            } catch (InterruptedException ignored) {
-                Thread.currentThread().interrupt();
+                if (backgroundMusic.isPlaying()) {
+                    backgroundMusic.stop();
+                }
+                backgroundMusic.dispose();
+            } catch (Exception ignored) {
+            } finally {
+                backgroundMusic = null;
             }
         }
     }
 
     /**
-     * Tìm kiếm linh hoạt file `.mp3` trong Classpath (`src/main/resources`), thư mục gốc của project,
-     * hoặc bất kỳ file `.mp3` nào được người dùng copy vào thư mục dự án.
+     * Phương thức tương thích ngược với giao diện Cleanable cũ, ủy quyền trực tiếp cho {@link #dispose()}.
      */
-    private byte[] loadMp3BytesFlexible(String... candidateNames) {
+    public void cleanup() {
+        dispose();
+    }
+
+    /**
+     * Cơ chế tìm kiếm linh hoạt con trỏ file `.mp3` qua API {@link FileHandle} của libGDX:
+     * 1. Tìm trong Internal/Classpath assets (`src/main/resources/`)
+     * 2. Tìm trong thư mục cục bộ (Local working directory)
+     * 3. Tìm theo các đường dẫn cơ sở thông dụng (`audio/`, `music/`, `src/main/resources/audio/`)
+     * 4. Quét tự động cây thư mục tối đa 4 tầng để nhận diện bất kỳ file `.mp3` nào.
+     *
+     * @param candidateNames danh sách tên file hoặc đường dẫn ứng viên
+     * @return {@link FileHandle} nếu tìm thấy, hoặc {@code null} nếu không tìm thấy
+     */
+    private FileHandle findMp3FileHandleFlexible(String... candidateNames) {
         String[] baseDirs = {
                 "",
                 "src/main/resources/",
@@ -213,45 +222,55 @@ public class AudioManager implements Cleanable {
                 "music/"
         };
 
-        // 1. Kiểm tra theo danh sách đường dẫn ưu tiên
+        // 1. Kiểm tra qua cơ chế FileHandle của libGDX (Internal & Classpath)
         for (String name : candidateNames) {
-            String resPath = name.startsWith("/") ? name : "/" + name;
-            try (InputStream is = AudioManager.class.getResourceAsStream(resPath)) {
-                if (is != null) {
-                    System.out.println("[AudioManager] Đã nạp nhạc nền từ Classpath: " + resPath);
-                    return is.readAllBytes();
+            try {
+                FileHandle fh = Gdx.files.internal(name);
+                if (fh.exists() && !fh.isDirectory()) {
+                    System.out.println("[AudioManager] Đã tìm thấy nhạc nền qua Gdx.files.internal: " + fh.path());
+                    return fh;
                 }
-            } catch (IOException ignored) {
+            } catch (Exception ignored) {
             }
 
+            try {
+                String cleanClasspathPath = name.startsWith("/") ? name.substring(1) : name;
+                FileHandle fh = Gdx.files.classpath(cleanClasspathPath);
+                if (fh.exists() && !fh.isDirectory()) {
+                    System.out.println("[AudioManager] Đã tìm thấy nhạc nền qua Gdx.files.classpath: " + fh.path());
+                    return fh;
+                }
+            } catch (Exception ignored) {
+            }
+
+            // 2. Kiểm tra theo các thư mục trên ổ cứng (File hệ thống)
             for (String dir : baseDirs) {
                 File f = new File(dir + name);
                 if (f.exists() && f.isFile()) {
-                    try {
-                        System.out.println("[AudioManager] Đã nạp nhạc nền từ ổ cứng: " + f.getPath());
-                        return Files.readAllBytes(f.toPath());
-                    } catch (IOException ignored) {
-                    }
+                    System.out.println("[AudioManager] Đã nạp nhạc nền từ ổ cứng: " + f.getPath());
+                    return Gdx.files.absolute(f.getAbsolutePath());
                 }
             }
         }
 
-        // 2. Nếu người dùng đặt file .mp3 ở một thư mục con bất kỳ trong project, tự động quét tìm file .mp3 đầu tiên
-        Path rootDir = Path.of(".");
-        if (Files.exists(rootDir)) {
-            try (Stream<Path> stream = Files.walk(rootDir, 4)) {
-                Path foundMp3 = stream
-                        .filter(Files::isRegularFile)
-                        .filter(p -> p.getFileName().toString().toLowerCase().endsWith(".mp3"))
-                        .findFirst()
-                        .orElse(null);
+        // 3. Nếu người dùng đặt file .mp3 ở một thư mục con bất kỳ trong project, tự động quét tìm file .mp3 đầu tiên
+        try {
+            Path rootDir = Path.of(".");
+            if (Files.exists(rootDir)) {
+                try (Stream<Path> stream = Files.walk(rootDir, 4)) {
+                    Path foundMp3 = stream
+                            .filter(Files::isRegularFile)
+                            .filter(p -> p.getFileName().toString().toLowerCase().endsWith(".mp3"))
+                            .findFirst()
+                            .orElse(null);
 
-                if (foundMp3 != null) {
-                    System.out.println("[AudioManager] Tự động phát hiện và nạp nhạc nền: " + foundMp3);
-                    return Files.readAllBytes(foundMp3);
+                    if (foundMp3 != null) {
+                        System.out.println("[AudioManager] Tự động phát hiện và nạp nhạc nền: " + foundMp3);
+                        return Gdx.files.absolute(foundMp3.toAbsolutePath().toString());
+                    }
                 }
-            } catch (IOException ignored) {
             }
+        } catch (IOException ignored) {
         }
 
         return null;
