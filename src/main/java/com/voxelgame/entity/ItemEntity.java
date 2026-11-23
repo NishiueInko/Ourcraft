@@ -37,6 +37,9 @@ public class ItemEntity extends Entity {
     private static final float PICKUP_DISTANCE = 0.85f;
     private static final float MAX_LIFETIME = 300.0f;
 
+    /** Bộ đệm cho tâm người chơi và hướng hút vật phẩm. */
+    private final Vector3 pullDirection = new Vector3();
+
     private final Block block;
     private float age = 0.0f;
     private boolean collected = false;
@@ -128,7 +131,7 @@ public class ItemEntity extends Entity {
 
         // 1. Kiểm tra khoảng cách tới tâm cơ thể người chơi để kích hoạt lực hút nam châm
         if (player != null && hotbar != null) {
-            Vector3 playerCenter = player.getCenterPosition();
+            Vector3 playerCenter = player.copyCenterPosition(pullDirection);
             float distSq = position.dst2(playerCenter);
 
             if (age >= PICKUP_DELAY && distSq <= MAGNET_DISTANCE * MAGNET_DISTANCE) {
@@ -139,7 +142,7 @@ public class ItemEntity extends Entity {
                     }
                 }
 
-                Vector3 pullDir = new Vector3(playerCenter).sub(position);
+                Vector3 pullDir = playerCenter.sub(position);
                 if (pullDir.len2() > 0.0001f) {
                     pullDir.nor().scl(9.5f);
                     position.add(pullDir.x * deltaTime, pullDir.y * deltaTime, pullDir.z * deltaTime);
@@ -158,31 +161,20 @@ public class ItemEntity extends Entity {
         velocity.x *= damping;
         velocity.z *= damping;
 
-        // 3. Cập nhật tọa độ và kiểm tra va chạm với các Block rắn trong World
-        position.x += velocity.x * deltaTime;
-        if (world.isSolidBlock((int) Math.floor(position.x), (int) Math.floor(position.y), (int) Math.floor(position.z))) {
-            position.x -= velocity.x * deltaTime;
+        // Tọa độ vẽ ở tâm vật phẩm, còn quét va chạm dùng đáy hộp.
+        position.y -= HALF_SIZE;
+        if (moveAxis(world, 0, velocity.x * deltaTime) != null) {
             velocity.x = 0.0f;
         }
-
-        position.z += velocity.z * deltaTime;
-        if (world.isSolidBlock((int) Math.floor(position.x), (int) Math.floor(position.y), (int) Math.floor(position.z))) {
-            position.z -= velocity.z * deltaTime;
+        if (moveAxis(world, 2, velocity.z * deltaTime) != null) {
             velocity.z = 0.0f;
         }
-
         onGround = false;
-        position.y += velocity.y * deltaTime;
-
-        int blockX = (int) Math.floor(position.x);
-        int blockYBelow = (int) Math.floor(position.y - HALF_SIZE);
-        int blockZ = (int) Math.floor(position.z);
-
-        if (velocity.y <= 0.0f && world.isSolidBlock(blockX, blockYBelow, blockZ)) {
-            position.y = blockYBelow + 1.0f + HALF_SIZE;
-            velocity.y = 0.0f;
-            onGround = true;
+        if (moveAxis(world, 1, velocity.y * deltaTime) != null) {
+            onGround = velocity.y < 0;
+            velocity.y = 0;
         }
+        position.y += HALF_SIZE;
     }
 
     /**
@@ -195,8 +187,6 @@ public class ItemEntity extends Entity {
             return;
         }
 
-        Mesh mesh = getOrCreateMesh(block);
-
         float bobOffset = (float) Math.sin(age * 3.8f) * 0.07f + 0.08f;
         float rotationDegrees = age * 110.0f;
 
@@ -205,8 +195,13 @@ public class ItemEntity extends Entity {
                 .rotate(Vector3.Y, rotationDegrees)
                 .scale(ITEM_SCALE, ITEM_SCALE, ITEM_SCALE);
 
-        shader.setUniformMatrix4f("uModel", modelMatrix);
-        mesh.render(shader.getGdxShader(), GL20.GL_TRIANGLES);
+        renderBlockMesh(shader, block, modelMatrix);
+    }
+
+    /** Chia sẻ hình block giữa vật phẩm nhỏ và thực thể trọng lực kích thước thật. */
+    static void renderBlockMesh(ShaderProgram shader, Block block, Matrix4 model) {
+        shader.setUniformMatrix4f("uModel", model);
+        getOrCreateMesh(block).render(shader.getGdxShader(), GL20.GL_TRIANGLES);
     }
 
     public boolean isCollected() {
@@ -223,6 +218,9 @@ public class ItemEntity extends Entity {
 
     private static Mesh getOrCreateMesh(Block type) {
         return SHARED_MESHES.computeIfAbsent(type, t -> {
+            if (t.getGeometryType() == Block.GeometryType.CROSS_PLANT) {
+                return createPlantMesh(t);
+            }
             float[] topUV = t.getFaceUV(Block.Face.TOP);
             float[] botUV = t.getFaceUV(Block.Face.BOTTOM);
             float[] sideUV = t.getFaceUV(Block.Face.NORTH);
@@ -272,10 +270,38 @@ public class ItemEntity extends Entity {
                     -0.5f,  0.5f,  0.5f, sideUV[2], sideUV[1],
                     -0.5f,  0.5f, -0.5f, sideUV[0], sideUV[1], 0.72f);
 
+            // Giữ mặt cắt của cactus và chiều cao mặc định của một lớp tuyết.
+            Block.Bounds shape = t.getSelectionBounds(0);
+            if (shape != null && shape != Block.FULL_BOUNDS) {
+                for (int i = 0; i < vertices.length; i += 6) {
+                    vertices[i] *= shape.maxX() - shape.minX();
+                    vertices[i + 1] = (vertices[i + 1] + 0.5f) * (shape.maxY() - shape.minY()) - 0.5f;
+                    vertices[i + 2] *= shape.maxZ() - shape.minZ();
+                }
+            }
             Mesh mesh = new Mesh(true, 36, 0, VERTEX_ATTRIBUTES);
             mesh.setVertices(vertices);
             return mesh;
         });
+    }
+
+    /** Dựng hai mặt chéo với mặt trước và mặt sau để cây hiện ở mọi góc xoay. */
+    private static Mesh createPlantMesh(Block block) {
+        float[] uv = block.getFaceUV(Block.Face.NORTH);
+        float[] vertices = new float[24 * 6];
+        int offset = plantPlane(vertices, 0, -0.35f, -0.35f, 0.35f, 0.35f, uv);
+        offset = plantPlane(vertices, offset, 0.35f, 0.35f, -0.35f, -0.35f, uv);
+        offset = plantPlane(vertices, offset, -0.35f, 0.35f, 0.35f, -0.35f, uv);
+        plantPlane(vertices, offset, 0.35f, -0.35f, -0.35f, 0.35f, uv);
+        Mesh mesh = new Mesh(true, 24, 0, VERTEX_ATTRIBUTES);
+        mesh.setVertices(vertices);
+        return mesh;
+    }
+
+    /** Ghi hai tam giác của một phía mặt phẳng thẳng đứng. */
+    private static int plantPlane(float[] vertices, int offset, float x1, float z1, float x2, float z2, float[] uv) {
+        return putFace(vertices, offset, x1, -0.5f, z1, uv[0], uv[3], x2, -0.5f, z2, uv[2], uv[3],
+                x2, 0.5f, z2, uv[2], uv[1], x1, 0.5f, z1, uv[0], uv[1], 1.0f);
     }
 
     private static int putFace(

@@ -1,5 +1,7 @@
 package com.voxelgame.engine;
 
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.math.Frustum;
 import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Vector3;
@@ -8,13 +10,13 @@ import com.badlogic.gdx.utils.Disposable;
 import com.badlogic.gdx.utils.FloatArray;
 import com.voxelgame.entity.Block;
 import com.voxelgame.entity.Entity;
+import com.voxelgame.entity.FallingBlockEntity;
 import com.voxelgame.entity.Hotbar;
 import com.voxelgame.entity.ItemEntity;
 import com.voxelgame.entity.Player;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
 
 /**
  * Quản lý toàn bộ thế giới Voxel, thuật toán Sinh Địa Hình Tự Nhiên (Procedural World Generation)
@@ -33,12 +35,13 @@ import java.util.Random;
  */
 public class World implements Disposable {
 
-    // Kích thước thế giới: 112 × 16 × 112 chunk, tương ứng 1792 × 256 × 1792 block.
-    public static final int WORLD_CHUNKS_X = 112;
+    // Ba biome rộng 1.000 block theo trục X; chunk cuối chỉ chứa tám cột hợp lệ.
+    static final int BIOME_WIDTH = 1_000;
+    public static final int WORLD_SIZE_X = 3 * BIOME_WIDTH;
+    public static final int WORLD_CHUNKS_X = (WORLD_SIZE_X + Chunk.SIZE - 1) / Chunk.SIZE;
     public static final int WORLD_CHUNKS_Y = 16;
     public static final int WORLD_CHUNKS_Z = 112;
 
-    public static final int WORLD_SIZE_X = WORLD_CHUNKS_X * Chunk.SIZE;
     public static final int WORLD_SIZE_Y = WORLD_CHUNKS_Y * Chunk.SIZE;
     public static final int WORLD_SIZE_Z = WORLD_CHUNKS_Z * Chunk.SIZE;
 
@@ -54,21 +57,34 @@ public class World implements Disposable {
     // Giới hạn nghiêm ngặt: Tổng số lớp địa hình từ đáy (y = 0) đến đỉnh cao nhất <= 20 lớp (tức y <= 19)
     public static final int MAX_TERRAIN_LAYERS = 20;
     public static final int MAX_TERRAIN_Y = MAX_TERRAIN_LAYERS - 1; // y = 19
+    /** Seed ổn định dùng cho toàn bộ vùng khí hậu và đặc trưng địa hình. */
+    public static final long WORLD_SEED = 20261114L;
 
     // Một ô null biểu thị chunk chỉ chứa không khí, chưa cần mảng block hay mesh.
     private final Chunk[][][] chunks = new Chunk[WORLD_CHUNKS_X][WORLD_CHUNKS_Y][WORLD_CHUNKS_Z];
-    private final int[][] surfaceHeights = new int[WORLD_SIZE_X][WORLD_SIZE_Z];
+    private final TerrainGenerator terrain = new TerrainGenerator(WORLD_SEED);
 
     // Tham chiếu tới thực thể người chơi và danh sách đa hình chứa mọi Entity hoạt động trong thế giới
     private Player player;
     private final List<Entity> entities = new ArrayList<>();
+    // Các luật có thể ghi thêm ô trong lúc hàng đợi đang được xử lý.
+    private final BlockUpdateQueue blockUpdates = new BlockUpdateQueue();
+    private boolean drainingBlockUpdates;
 
     private final Matrix4 identityMatrix = new Matrix4();
     // Khung nhìn và bộ đệm dựng mesh được tái sử dụng trên luồng kết xuất.
     private final Matrix4 inverseViewProjection = new Matrix4();
     private final Frustum frustum = new Frustum();
     private final FloatArray meshVertices = new FloatArray(4096);
+    private final FloatArray translucentVertices = new FloatArray(4096);
     private final Vector3 nearCenter = new Vector3();
+    /** Dung lượng chặn trên bởi tổng số ô chunk, kể cả thế giới đã được xây kín. */
+    private static final int CHUNK_CAPACITY = WORLD_CHUNKS_X * WORLD_CHUNKS_Y * WORLD_CHUNKS_Z;
+    private final Chunk[] visibleChunks = new Chunk[CHUNK_CAPACITY];
+    private final Chunk[] translucentChunks = new Chunk[CHUNK_CAPACITY];
+    private final float[] translucentDistances = new float[CHUNK_CAPACITY];
+    private final int[] translucentKeys = new int[CHUNK_CAPACITY];
+    private int visibleChunkCount;
     // Hàng đợi nhỏ tái sử dụng để ưu tiên các chunk gần camera.
     private final Chunk[] pendingMeshes = new Chunk[MESH_BUILDS_PER_FRAME];
     private final float[] pendingDistances = new float[MESH_BUILDS_PER_FRAME];
@@ -80,7 +96,21 @@ public class World implements Disposable {
 
     /** Sinh địa hình và dựng trước mesh quanh điểm xuất phát. */
     public World() {
-        generateTerrainAndEcosystem();
+        this(true);
+    }
+
+    /** Mở một thế giới trống để kiểm tra luật block mà không cần GPU. */
+    static World empty() {
+        return new World(false);
+    }
+
+    /** Tách sinh địa hình và khởi tạo mesh khỏi đường tạo bản đồ trống. */
+    private World(boolean generate) {
+        if (!generate) {
+            spawnY = 1;
+            return;
+        }
+        terrain.generate(this);
         // Tâm nằm trên giao điểm bốn cột block. Lấy cột cao nhất dưới chân người chơi.
         int groundY = 0;
         for (int x = CENTER_X - 1; x <= CENTER_X; x++) {
@@ -107,6 +137,11 @@ public class World implements Disposable {
     /** Trả về vị trí chân người chơi ở tâm bản đồ, ngay trên mặt đất khi tạo thế giới. */
     public Vector3 getSpawnPosition() {
         return new Vector3(CENTER_X, spawnY, CENTER_Z);
+    }
+
+    /** Trả vùng khí hậu tại cột, kể cả khi chunk chưa có mesh. */
+    public BiomeType getBiome(int x, int z) {
+        return terrain.getBiome(x, z);
     }
 
     /**
@@ -143,12 +178,15 @@ public class World implements Disposable {
      * @param deltaTime khoảng thời gian giữa hai khung hình (giây)
      */
     public void updateEntities(float deltaTime) {
-        for (int i = 0; i < entities.size(); i++) {
+        int frameEntityCount = entities.size();
+        for (int i = 0; i < frameEntityCount; i++) {
             Entity entity = entities.get(i);
             entity.update(this, deltaTime);
 
-            if (entity instanceof ItemEntity item && item.isCollected()) {
+            if ((entity instanceof ItemEntity item && item.isCollected())
+                    || (entity instanceof FallingBlockEntity falling && falling.isFinished())) {
                 entities.remove(i);
+                frameEntityCount--;
                 i--;
             }
         }
@@ -170,187 +208,6 @@ public class World implements Disposable {
         }
     }
 
-    private void generateTerrainAndEcosystem() {
-        Random rng = new Random(20261114L);
-
-        // GIAI ĐOẠN 1: PHÂN TẦNG ĐỊA CHẤT (BEDROCK -> STONE -> DIRT -> GRASS)
-        for (int wx = 0; wx < WORLD_SIZE_X; wx++) {
-            for (int wz = 0; wz < WORLD_SIZE_Z; wz++) {
-                double wave1 = Math.sin(wx * 0.085) * Math.cos(wz * 0.085) * 2.2;
-                double wave2 = Math.sin((wx + wz) * 0.05) * 1.4;
-                int surfaceY = (int) Math.round(10.0 + wave1 + wave2);
-
-                surfaceY = Math.max(5, Math.min(MAX_TERRAIN_Y, surfaceY));
-                surfaceHeights[wx][wz] = surfaceY;
-
-                int dirtThickness = 2 + ((wx * 13 + wz * 7) & 1);
-                int stoneTopY = Math.max(1, surfaceY - dirtThickness);
-
-                for (int wy = 0; wy <= surfaceY; wy++) {
-                    if (wy == 0) {
-                        setBlockInternal(wx, wy, wz, Block.BEDROCK.getId());
-                    } else if (wy < stoneTopY) {
-                        setBlockInternal(wx, wy, wz, Block.STONE.getId());
-                    } else if (wy < surfaceY) {
-                        setBlockInternal(wx, wy, wz, Block.DIRT.getId());
-                    } else {
-                        setBlockInternal(wx, wy, wz, Block.GRASS.getId());
-                    }
-                }
-            }
-        }
-
-        // GIAI ĐOẠN 2: TẠO HỒ NƯỚC (WATER LAKES) & HỒ DUNG NHAM (LAVA POOLS)
-        carveLiquidLake(22, 24, 6.5f, 2, Block.WATER, Block.DIRT);
-        carveLiquidLake(52, 28, 7.5f, 2, Block.WATER, Block.DIRT);
-        carveLiquidLake(26, 62, 7.0f, 2, Block.WATER, Block.DIRT);
-        carveLiquidLake(68, 66, 8.0f, 3, Block.WATER, Block.DIRT);
-
-        carveLiquidLake(42, 20, 4.8f, 2, Block.LAVA, Block.STONE);
-        carveLiquidLake(20, 44, 4.5f, 2, Block.LAVA, Block.STONE);
-        carveLiquidLake(64, 46, 5.2f, 2, Block.LAVA, Block.STONE);
-        carveLiquidLake(46, 72, 5.0f, 2, Block.LAVA, Block.STONE);
-
-        // GIAI ĐOẠN 3: TRỒNG CÂY SỒI TỰ NHIÊN (OAK TREES) TRÊN CÁC KHỐI CỎ
-        for (int wx = 6; wx < WORLD_SIZE_X - 6; wx += 4) {
-            for (int wz = 6; wz < WORLD_SIZE_Z - 6; wz += 4) {
-                int tx = wx + rng.nextInt(3) - 1;
-                int tz = wz + rng.nextInt(3) - 1;
-
-                if (Math.abs(tx - CENTER_X) <= 4 && Math.abs(tz - CENTER_Z) <= 4) {
-                    continue;
-                }
-
-                if (rng.nextInt(100) < 28) {
-                    int groundY = findHighestBlockY(tx, tz);
-                    if (groundY >= 4 && groundY <= MAX_TERRAIN_Y &&
-                        getBlock(tx, groundY, tz) == Block.GRASS.getId() &&
-                        !hasLiquidNearby(tx, groundY, tz, 2)) {
-
-                        int trunkHeight = 4 + rng.nextInt(3);
-                        generateOakTree(tx, groundY + 1, tz, trunkHeight, rng);
-                    }
-                }
-            }
-        }
-    }
-
-    private void carveLiquidLake(
-            int centerX,
-            int centerZ,
-            float radius,
-            int depth,
-            Block liquidType,
-            Block basinBlockType
-    ) {
-        int liquidLevel = Integer.MAX_VALUE;
-        int rCeil = (int) Math.ceil(radius + 1);
-
-        for (int x = centerX - rCeil; x <= centerX + rCeil; x++) {
-            for (int z = centerZ - rCeil; z <= centerZ + rCeil; z++) {
-                if (isInsideWorld(x, 1, z)) {
-                    float dx = x - centerX;
-                    float dz = z - centerZ;
-                    if (dx * dx + dz * dz <= radius * radius) {
-                        liquidLevel = Math.min(liquidLevel, surfaceHeights[x][z]);
-                    }
-                }
-            }
-        }
-
-        liquidLevel = Math.max(4, Math.min(MAX_TERRAIN_Y - 1, liquidLevel));
-
-        for (int x = centerX - rCeil - 1; x <= centerX + rCeil + 1; x++) {
-            for (int z = centerZ - rCeil - 1; z <= centerZ + rCeil + 1; z++) {
-                if (!isInsideWorld(x, 1, z)) {
-                    continue;
-                }
-
-                float dx = x - centerX;
-                float dz = z - centerZ;
-                float waveRadius = radius + (float) (Math.sin(x * 0.7) * Math.cos(z * 0.7) * 0.85);
-                float dist = (float) Math.sqrt(dx * dx + dz * dz);
-
-                if (dist <= waveRadius) {
-                    float normalizedDist = dist / Math.max(1.0f, waveRadius);
-                    int localDepth = Math.max(1, Math.round(depth * (1.0f - normalizedDist * 0.65f)));
-                    int bottomY = Math.max(2, liquidLevel - localDepth + 1);
-
-                    for (int y = liquidLevel + 1; y <= MAX_TERRAIN_Y + 4; y++) {
-                        setBlockInternal(x, y, z, Block.AIR.getId());
-                    }
-
-                    for (int y = bottomY; y <= liquidLevel; y++) {
-                        setBlockInternal(x, y, z, liquidType.getId());
-                    }
-
-                    if (bottomY - 1 > 0) {
-                        setBlockInternal(x, bottomY - 1, z, basinBlockType.getId());
-                    }
-                    surfaceHeights[x][z] = liquidLevel;
-                } else if (dist <= waveRadius + 1.3f) {
-                    for (int y = 1; y <= liquidLevel; y++) {
-                        byte existing = getBlock(x, y, z);
-                        if (existing == Block.AIR.getId()) {
-                            Block topShore = (liquidType == Block.LAVA)
-                                    ? Block.STONE
-                                    : (y == liquidLevel ? Block.GRASS : Block.DIRT);
-                            setBlockInternal(x, y, z, topShore.getId());
-                        }
-                    }
-                    if (surfaceHeights[x][z] > liquidLevel + 1) {
-                        for (int y = liquidLevel + 2; y <= surfaceHeights[x][z]; y++) {
-                            setBlockInternal(x, y, z, Block.AIR.getId());
-                        }
-                        setBlockInternal(x, liquidLevel + 1, z,
-                                (liquidType == Block.LAVA) ? Block.STONE.getId() : Block.GRASS.getId());
-                        surfaceHeights[x][z] = liquidLevel + 1;
-                    }
-                }
-            }
-        }
-    }
-
-    private void generateOakTree(int baseX, int baseY, int baseZ, int trunkHeight, Random rng) {
-        if (baseY - 1 > 0) {
-            setBlockInternal(baseX, baseY - 1, baseZ, Block.DIRT.getId());
-        }
-
-        int topTrunkY = Math.min(WORLD_SIZE_Y - 3, baseY + trunkHeight - 1);
-
-        int leafStart = topTrunkY - 2;
-        int leafEnd = topTrunkY + 1;
-
-        for (int ly = leafStart; ly <= leafEnd; ly++) {
-            int dy = ly - topTrunkY;
-            int radius = (dy <= -1) ? 2 : 1;
-
-            for (int lx = baseX - radius; lx <= baseX + radius; lx++) {
-                for (int lz = baseZ - radius; lz <= baseZ + radius; lz++) {
-                    int distX = Math.abs(lx - baseX);
-                    int distZ = Math.abs(lz - baseZ);
-
-                    if (distX == radius && distZ == radius) {
-                        if (dy == 1 || rng.nextBoolean()) {
-                            continue;
-                        }
-                    }
-
-                    if (isInsideWorld(lx, ly, lz) && getBlock(lx, ly, lz) == Block.AIR.getId()) {
-                        setBlockInternal(lx, ly, lz, Block.OAK_LEAVES.getId());
-                    }
-                }
-            }
-        }
-
-        for (int y = baseY; y <= topTrunkY; y++) {
-            if (isInsideWorld(baseX, y, baseZ)) {
-                setBlockInternal(baseX, y, baseZ, Block.OAK_LOG.getId());
-            }
-        }
-    }
-
-    /** Tìm mặt đất khi sinh cây, bỏ qua các tầng chunk còn trống phía trên. */
     private int findHighestBlockY(int wx, int wz) {
         int cx = wx / Chunk.SIZE;
         int cz = wz / Chunk.SIZE;
@@ -370,22 +227,13 @@ public class World implements Disposable {
         return 0;
     }
 
-    private boolean hasLiquidNearby(int wx, int wy, int wz, int radius) {
-        for (int x = wx - radius; x <= wx + radius; x++) {
-            for (int z = wz - radius; z <= wz + radius; z++) {
-                for (int y = wy - 1; y <= wy + 1; y++) {
-                    Block t = Block.fromId(getBlock(x, y, z));
-                    if (t.isLiquid()) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
-    }
-
     /** Ghi block và cấp phát hoặc giải phóng chunk khi nó chuyển trạng thái rỗng. */
     private boolean setBlockInternal(int worldX, int worldY, int worldZ, byte blockId) {
+        return setBlockInternal(worldX, worldY, worldZ, blockId, 0);
+    }
+
+    /** Ghi trạng thái mà không chạy luật lân cận, dùng để sinh địa hình và ghi theo nhóm. */
+    boolean setBlockInternal(int worldX, int worldY, int worldZ, byte blockId, int state) {
         if (!isInsideWorld(worldX, worldY, worldZ)) {
             return false;
         }
@@ -405,7 +253,7 @@ public class World implements Disposable {
             chunk = new Chunk(cx, cy, cz);
             chunks[cx][cy][cz] = chunk;
         }
-        if (!chunk.setBlockLocal(lx, ly, lz, blockId)) {
+        if (!chunk.setBlockLocal(lx, ly, lz, blockId, state)) {
             return false;
         }
         if (chunk.isEmpty()) {
@@ -441,16 +289,53 @@ public class World implements Disposable {
     }
 
     public boolean isSolidBlock(int worldX, int worldY, int worldZ) {
-        Block block = Block.fromId(getBlock(worldX, worldY, worldZ));
-        return block.isSolid();
+        return getCollisionBounds(worldX, worldY, worldZ) != null;
     }
 
-    /** Ghi block khi chơi và đánh dấu các chunk đã có dữ liệu nếu chung mặt biên. */
+    /** Đọc metadata dạng không dấu. Ô mặc định và chunk rỗng trả về 0. */
+    public int getBlockState(int x, int y, int z) {
+        if (!isInsideWorld(x, y, z)) {
+            return 0;
+        }
+        Chunk chunk = chunks[x / Chunk.SIZE][y / Chunk.SIZE][z / Chunk.SIZE];
+        return chunk == null ? 0 : chunk.getStateLocal(x % Chunk.SIZE, y % Chunk.SIZE, z % Chunk.SIZE);
+    }
+
+    /** Lấy hộp cục bộ đúng theo loại block và trạng thái hiện tại. */
+    public Block.Bounds getCollisionBounds(int x, int y, int z) {
+        return Block.fromId(getBlock(x, y, z)).getCollisionBounds(getBlockState(x, y, z));
+    }
+
+    /** Ghi block mặc định khi chơi rồi xử lý chuỗi thay đổi. */
     public void setBlock(int worldX, int worldY, int worldZ, byte blockId) {
-        if (!setBlockInternal(worldX, worldY, worldZ, blockId)) {
+        setBlock(worldX, worldY, worldZ, blockId, 0);
+    }
+
+    /** Ghi block có metadata rồi xử lý lân cận sau khi các ô đã nhất quán. */
+    public void setBlock(int x, int y, int z, byte blockId, int state) {
+        writeGameplayBlock(x, y, z, blockId, state);
+        drainBlockUpdates();
+    }
+
+    /** Ghi một ô, dọn nửa cỏ cũ nếu có và xếp lịch các luật phụ thuộc. */
+    private void writeGameplayBlock(int x, int y, int z, byte blockId, int state) {
+        byte oldId = getBlock(x, y, z);
+        int oldState = getBlockState(x, y, z);
+        if (!setBlockInternal(x, y, z, blockId, Block.fromId(blockId).normalizeState(state))) {
             return;
         }
+        scheduleChangedBlock(x, y, z, oldId, blockId);
+        if (oldId == Block.TALL_GRASS.getId() && (blockId != oldId || oldState != state)) {
+            int otherY = oldState == 0 ? y + 1 : y - 1;
+            if (getBlock(x, otherY, z) == oldId && getBlockState(x, otherY, z) == 1 - oldState
+                    && setBlockInternal(x, otherY, z, Block.AIR.getId())) {
+                scheduleChangedBlock(x, otherY, z, oldId, Block.AIR.getId());
+            }
+        }
+    }
 
+    /** Đánh dấu mesh và đưa các ô phụ thuộc vào hàng đợi FIFO. */
+    private void scheduleChangedBlock(int worldX, int worldY, int worldZ, byte oldId, byte newId) {
         int cx = worldX / Chunk.SIZE;
         int cy = worldY / Chunk.SIZE;
         int cz = worldZ / Chunk.SIZE;
@@ -476,6 +361,134 @@ public class World implements Disposable {
         } else if (lz == Chunk.SIZE - 1 && cz < WORLD_CHUNKS_Z - 1) {
             markChunkDirty(cx, cy, cz + 1);
         }
+
+        // Mặt bên chất lỏng một ô dưới có thể đổi độ cao qua cả biên ngang lẫn biên đứng.
+        if (ly == 0 && cy > 0 && Block.fromId(getBlock(worldX, worldY - 1, worldZ)).isLiquid()) {
+            if (lx == 0 && cx > 0) {
+                markChunkDirty(cx - 1, cy - 1, cz);
+            } else if (lx == Chunk.SIZE - 1 && cx < WORLD_CHUNKS_X - 1) {
+                markChunkDirty(cx + 1, cy - 1, cz);
+            }
+            if (lz == 0 && cz > 0) {
+                markChunkDirty(cx, cy - 1, cz - 1);
+            } else if (lz == Chunk.SIZE - 1 && cz < WORLD_CHUNKS_Z - 1) {
+                markChunkDirty(cx, cy - 1, cz + 1);
+            }
+        }
+
+        blockUpdates.add(worldX, worldY, worldZ);
+        blockUpdates.add(worldX - 1, worldY, worldZ);
+        blockUpdates.add(worldX + 1, worldY, worldZ);
+        blockUpdates.add(worldX, worldY - 1, worldZ);
+        blockUpdates.add(worldX, worldY + 1, worldZ);
+        blockUpdates.add(worldX, worldY, worldZ - 1);
+        blockUpdates.add(worldX, worldY, worldZ + 1);
+        if (oldId == Block.WATER.getId() || newId == Block.WATER.getId()) {
+            // Nước cạnh ô nền nằm thấp hơn gốc mía một ô.
+            blockUpdates.add(worldX - 1, worldY + 1, worldZ);
+            blockUpdates.add(worldX + 1, worldY + 1, worldZ);
+            blockUpdates.add(worldX, worldY + 1, worldZ - 1);
+            blockUpdates.add(worldX, worldY + 1, worldZ + 1);
+        }
+        if (newId == Block.LAVA.getId()) {
+            for (int dx = -2; dx <= 2; dx++) {
+                for (int dy = -2; dy <= 2; dy++) {
+                    int reach = 2 - Math.abs(dx) - Math.abs(dy);
+                    for (int dz = -reach; dz <= reach; dz++) {
+                        blockUpdates.add(worldX + dx, worldY + dy, worldZ + dz);
+                    }
+                }
+            }
+        }
+    }
+
+    /** Xử lý cho đến khi các thay đổi dây chuyền kết thúc, tránh gọi đệ quy. */
+    private void drainBlockUpdates() {
+        if (drainingBlockUpdates) {
+            return;
+        }
+        drainingBlockUpdates = true;
+        try {
+            while (blockUpdates.hasNext()) {
+                int packed = blockUpdates.next();
+                int x = packed >>> 19;
+                int y = packed & 0xff;
+                int z = (packed >>> 8) & 0x7ff;
+                Block block = Block.fromId(getBlock(x, y, z));
+                if ((block == Block.ICE || block == Block.SNOW_LAYER) && hasLavaNear(x, y, z)) {
+                    Block melted = block == Block.ICE ? Block.WATER : Block.AIR;
+                    writeGameplayBlock(x, y, z, melted.getId(), 0);
+                } else if (block.isGravityBlock() && getCollisionBounds(x, y - 1, z) == null) {
+                    writeGameplayBlock(x, y, z, Block.AIR.getId(), 0);
+                    entities.add(new FallingBlockEntity(x, y, z, block));
+                } else if (block != Block.AIR) {
+                    block.onNeighborChange(this, x, y, z);
+                }
+            }
+        } finally {
+            blockUpdates.clear();
+            drainingBlockUpdates = false;
+        }
+    }
+
+    /** Tìm dung nham trong bán kính Manhattan hai ô. */
+    boolean hasLavaNear(int x, int y, int z) {
+        for (int dx = -2; dx <= 2; dx++) {
+            for (int dy = -2; dy <= 2; dy++) {
+                int reach = 2 - Math.abs(dx) - Math.abs(dy);
+                for (int dz = -reach; dz <= reach; dz++) {
+                    if (getBlock(x + dx, y + dy, z + dz) == Block.LAVA.getId()) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /** Kiểm tra và cam kết thao tác đặt, kể cả hai ô đồng thời của cỏ cao. */
+    public boolean tryPlaceBlock(int x, int y, int z, Block block, Player placingPlayer) {
+        if (!isInsideWorld(x, y, z) || block == Block.AIR || !block.canPlaceAt(this, x, y, z)
+                || !canReplace(x, y, z, block) || intersectsPlayer(placingPlayer, block, 0, x, y, z)) {
+            return false;
+        }
+        if (block == Block.TALL_GRASS && (!isInsideWorld(x, y + 1, z)
+                || getBlock(x, y + 1, z) != Block.AIR.getId())) {
+            return false;
+        }
+        writeGameplayBlock(x, y, z, block.getId(), 0);
+        if (block == Block.TALL_GRASS) {
+            writeGameplayBlock(x, y + 1, z, block.getId(), 1);
+        }
+        drainBlockUpdates();
+        return true;
+    }
+
+    /** Chỉ lớp tuyết mỏng và thực vật có thể nhường chỗ cho khối rắn. */
+    private boolean canReplace(int x, int y, int z, Block placed) {
+        Block existing = Block.fromId(getBlock(x, y, z));
+        return existing == Block.AIR || existing != placed
+                && existing.isReplaceable(getBlockState(x, y, z))
+                && (existing.isLiquid() || placed.getCollisionBounds(0) != null);
+    }
+
+    /** Tăng độ dày của lớp tuyết hiện có nếu còn chỗ. */
+    public boolean tryStackSnow(int x, int y, int z, Player placingPlayer) {
+        if (getBlock(x, y, z) != Block.SNOW_LAYER.getId()) {
+            return false;
+        }
+        int state = getBlockState(x, y, z);
+        if (state == 7 || intersectsPlayer(placingPlayer, Block.SNOW_LAYER, state + 1, x, y, z)) {
+            return false;
+        }
+        setBlock(x, y, z, Block.SNOW_LAYER.getId(), state + 1);
+        return true;
+    }
+
+    /** Chỉ hộp va chạm của block mới có thể cản người chơi. */
+    private boolean intersectsPlayer(Player placingPlayer, Block block, int state, int x, int y, int z) {
+        Block.Bounds bounds = block.getCollisionBounds(state);
+        return placingPlayer != null && bounds != null && placingPlayer.intersectsBlock(x, y, z, bounds);
     }
 
     /** Đánh dấu mesh lân cận cần dựng lại, giữ nguyên các ô chỉ chứa không khí. */
@@ -499,11 +512,10 @@ public class World implements Disposable {
             return;
         }
 
-        // 1. Đổi ô tại vị trí đó thành Không khí (Block.AIR)
-        setBlock(worldX, worldY, worldZ, Block.AIR.getId());
-
-        // 2. Kích hoạt đa hình hành vi khi vỡ (GrassBlock rơi ra Block.DIRT, các khối khác rơi ra chính nó)
+        Block replacement = target.getBreakReplacement(this, worldX, worldY, worldZ);
+        writeGameplayBlock(worldX, worldY, worldZ, replacement.getId(), 0);
         target.onBreak(this, worldX, worldY, worldZ);
+        drainBlockUpdates();
     }
 
     /**
@@ -514,6 +526,11 @@ public class World implements Disposable {
      * @param view ma trận nhìn đã truyền vào shader
      */
     public void render(ShaderProgram shader, Matrix4 projection, Matrix4 view) {
+        render(shader, projection, view, null);
+    }
+
+    /** Dựng các chunk gần camera rồi vẽ pha đục và pha trong suốt theo thứ tự. */
+    public void render(ShaderProgram shader, Matrix4 projection, Matrix4 view, Vector3 cameraPosition) {
         // libGDX dùng nghịch đảo của Projection × View để dựng sáu mặt phẳng khung nhìn.
         inverseViewProjection.set(projection).mul(view).inv();
         frustum.update(inverseViewProjection);
@@ -521,30 +538,62 @@ public class World implements Disposable {
         nearCenter.set(0, 0, -1).prj(inverseViewProjection);
         renderFrame++;
         pendingMeshCount = 0;
+        visibleChunkCount = 0;
 
-        shader.setUniformMatrix4f("uModel", identityMatrix);
-        renderVisibleChunks(shader);
+        collectVisibleChunks();
         for (int i = 0; i < pendingMeshCount; i++) {
             Chunk chunk = pendingMeshes[i];
             pendingMeshes[i] = null;
-            boolean alreadyDrawn = chunk.hasMesh();
             rebuildChunkMesh(chunk);
-            if (!alreadyDrawn) {
-                chunk.render(shader);
-            }
         }
         releaseOffscreenMeshes();
 
-        // Duyệt danh sách đa hình List<Entity> và gọi entity.render(shader)
+        int translucentCount = 0;
+        Vector3 eye = cameraPosition == null ? nearCenter : cameraPosition;
+        shader.setUniformMatrix4f("uModel", identityMatrix);
+        for (int i = 0; i < visibleChunkCount; i++) {
+            Chunk chunk = visibleChunks[i];
+            visibleChunks[i] = null;
+            chunk.render(shader);
+            if (chunk.hasTranslucentMesh()) {
+                translucentChunks[translucentCount] = chunk;
+                translucentDistances[translucentCount] = chunk.centerDistanceSquaredTo(eye);
+                translucentKeys[translucentCount] = i;
+                translucentCount++;
+            }
+        }
+        // Thực thể đục phải ghi chiều sâu trước khi vẽ nước và băng.
         for (int i = 0; i < entities.size(); i++) {
             entities.get(i).render(shader);
         }
-
         shader.setUniformMatrix4f("uModel", identityMatrix);
+        renderTranslucent(shader, translucentCount);
     }
 
-    /** Thu hẹp vùng quét bằng hộp bao khung nhìn, rồi kiểm tra chính xác từng chunk. */
-    private void renderVisibleChunks(ShaderProgram shader) {
+    /** Sắp xếp xa tới gần và vẽ pha trong suốt bằng các mảng dùng lại. */
+    private void renderTranslucent(ShaderProgram shader, int count) {
+        if (count == 0) {
+            return;
+        }
+        TranslucentChunkSort.sort(translucentChunks, translucentDistances, translucentKeys, count);
+        Gdx.gl.glDepthMask(false);
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        try {
+            for (int i = 0; i < count; i++) {
+                translucentChunks[i].renderTranslucent(shader);
+            }
+        } finally {
+            Gdx.gl.glDepthMask(true);
+            Gdx.gl.glDisable(GL20.GL_BLEND);
+            for (int i = 0; i < count; i++) {
+                translucentChunks[i] = null;
+            }
+        }
+    }
+
+    /** Duyệt khung nhìn theo thứ tự tọa độ X, Y, Z để khóa hòa ổn định. */
+    private void collectVisibleChunks() {
         float minX = Float.POSITIVE_INFINITY;
         float minZ = Float.POSITIVE_INFINITY;
         float maxX = Float.NEGATIVE_INFINITY;
@@ -569,7 +618,7 @@ public class World implements Disposable {
                         if (chunk.isDirty()) {
                             queueMeshBuild(chunk);
                         }
-                        chunk.render(shader);
+                        visibleChunks[visibleChunkCount++] = chunk;
                     }
                 }
             }
@@ -600,7 +649,7 @@ public class World implements Disposable {
     /** Dựng mesh và đồng bộ danh sách tài nguyên đang được giữ. */
     private void rebuildChunkMesh(Chunk chunk) {
         boolean hadMesh = chunk.hasMesh();
-        chunk.rebuildMesh(this, meshVertices);
+        chunk.rebuildMesh(this, meshVertices, translucentVertices);
         if (!hadMesh && chunk.hasMesh()) {
             residentMeshes.add(chunk);
         } else if (hadMesh && !chunk.hasMesh()) {

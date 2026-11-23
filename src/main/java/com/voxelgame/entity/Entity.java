@@ -36,6 +36,11 @@ import com.voxelgame.engine.World;
  */
 public abstract class Entity {
 
+    /** Khe nhỏ để thực thể không dính vào bề mặt va chạm. */
+    protected static final float CONTACT_EPSILON = 0.0001f;
+    /** Đỉnh vật cản của lần quét gần nhất, dùng khi thử bước lên tuyết. */
+    protected float obstacleTop;
+
     // Tọa độ điểm chính giữa dưới đáy (Bottom-Center) của hộp va chạm AABB (sử dụng
     // Vector3 của libGDX)
     protected final Vector3 position;
@@ -92,23 +97,88 @@ public abstract class Entity {
      *         block
      */
     public boolean intersectsBlock(int blockX, int blockY, int blockZ) {
-        float entityMinX = position.x - halfWidth;
-        float entityMaxX = position.x + halfWidth;
-        float entityMinY = position.y;
-        float entityMaxY = position.y + height;
-        float entityMinZ = position.z - halfWidth;
-        float entityMaxZ = position.z + halfWidth;
+        return intersectsBlock(blockX, blockY, blockZ, Block.FULL_BOUNDS);
+    }
 
-        float bMinX = blockX;
-        float bMaxX = blockX + 1.0f;
-        float bMinY = blockY;
-        float bMaxY = blockY + 1.0f;
-        float bMinZ = blockZ;
-        float bMaxZ = blockZ + 1.0f;
+    /** Kiểm tra hộp tùy chỉnh của block tại tọa độ trong thế giới. */
+    public boolean intersectsBlock(int blockX, int blockY, int blockZ, Block.Bounds bounds) {
+        return bounds != null && bounds.intersects(blockX, blockY, blockZ,
+                position.x - halfWidth, position.y, position.z - halfWidth,
+                position.x + halfWidth, position.y + height, position.z + halfWidth);
+    }
 
-        return (entityMinX < bMaxX && entityMaxX > bMinX) &&
-                (entityMinY < bMaxY && entityMaxY > bMinY) &&
-                (entityMinZ < bMaxZ && entityMaxZ > bMinZ);
+    /** Quét một trục của hộp thực thể qua địa hình và dừng tại mặt gần nhất. */
+    protected Block moveAxis(World world, int axis, float distance) {
+        if (distance == 0) {
+            return null;
+        }
+        float left = position.x - halfWidth;
+        float right = position.x + halfWidth;
+        float base = position.y;
+        float top = position.y + height;
+        float back = position.z - halfWidth;
+        float front = position.z + halfWidth;
+        float low = Math.min(0, distance);
+        float high = Math.max(0, distance);
+        int minX = (int) Math.floor(left + (axis == 0 ? low : 0));
+        int maxX = (int) Math.floor(right + (axis == 0 ? high : 0));
+        int minY = (int) Math.floor(base + (axis == 1 ? low : 0));
+        int maxY = (int) Math.floor(top + (axis == 1 ? high : 0));
+        int minZ = (int) Math.floor(back + (axis == 2 ? low : 0));
+        int maxZ = (int) Math.floor(front + (axis == 2 ? high : 0));
+        boolean positive = distance > 0;
+        float entityEdge = axis == 0 ? (positive ? right : left)
+                : axis == 1 ? (positive ? top : base) : (positive ? front : back);
+        float limit = distance;
+        Block hit = null;
+        for (int x = minX; x <= maxX; x++) {
+            for (int y = minY; y <= maxY; y++) {
+                for (int z = minZ; z <= maxZ; z++) {
+                    Block.Bounds b = world.getCollisionBounds(x, y, z);
+                    if (b == null || (axis != 0 && (right <= x + b.minX() || left >= x + b.maxX()))
+                            || (axis != 1 && (top <= y + b.minY() || base >= y + b.maxY()))
+                            || (axis != 2 && (front <= z + b.minZ() || back >= z + b.maxZ()))) {
+                        continue;
+                    }
+                    float edge = axis == 0 ? x + (positive ? b.minX() : b.maxX())
+                            : axis == 1 ? y + (positive ? b.minY() : b.maxY())
+                            : z + (positive ? b.minZ() : b.maxZ());
+                    float gap = edge - entityEdge;
+                    if (positive ? gap >= -CONTACT_EPSILON && gap <= limit
+                            : gap <= CONTACT_EPSILON && gap >= limit) {
+                        limit = gap;
+                        hit = Block.fromId(world.getBlock(x, y, z));
+                        obstacleTop = y + b.maxY();
+                    }
+                }
+            }
+        }
+        if (hit != null) {
+            limit = positive ? Math.max(0, limit - CONTACT_EPSILON)
+                    : Math.min(0, limit + (axis == 1 ? 0 : CONTACT_EPSILON));
+        }
+        if (axis == 0) {
+            position.x += limit;
+        } else if (axis == 1) {
+            position.y += limit;
+        } else {
+            position.z += limit;
+        }
+        return hit;
+    }
+
+    /** Kiểm tra hộp thực thể tại vị trí hiện tại trước khi cam kết một bước. */
+    protected boolean overlapsTerrain(World world) {
+        for (int x = (int) Math.floor(position.x - halfWidth); x <= (int) Math.floor(position.x + halfWidth); x++) {
+            for (int y = (int) Math.floor(position.y); y <= (int) Math.floor(position.y + height); y++) {
+                for (int z = (int) Math.floor(position.z - halfWidth); z <= (int) Math.floor(position.z + halfWidth); z++) {
+                    if (intersectsBlock(x, y, z, world.getCollisionBounds(x, y, z))) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -119,6 +189,11 @@ public abstract class Entity {
      */
     public Vector3 getPosition() {
         return new Vector3(position);
+    }
+
+    /** Chép tâm thực thể vào bộ đệm có sẵn để cập nhật vật lý mỗi khung hình. */
+    public Vector3 copyCenterPosition(Vector3 target) {
+        return target.set(position.x, position.y + height * 0.5f, position.z);
     }
 
     /**

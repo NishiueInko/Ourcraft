@@ -34,6 +34,28 @@ public class GrassBlock extends Block {
     }
 
     @Override
+    /** Chọn mặt phủ tuyết theo block bên trên. */
+    public int getTileIndex(Face face, int state, Block above) {
+        if (above == SNOW_LAYER || above == SNOW_BLOCK) {
+            return switch (face) {
+                case TOP -> Texture.TILE_SNOW;
+                case BOTTOM -> Texture.TILE_DIRT;
+                default -> Texture.TILE_GRASS_SNOW_SIDE;
+            };
+        }
+        return getTileIndex(face);
+    }
+
+    @Override
+    /** Cỏ mất khi bị che bởi một khối đục đầy, riêng tuyết vẫn giữ lớp cỏ. */
+    public void onNeighborChange(World world, int x, int y, int z) {
+        Block above = fromId(world.getBlock(x, y + 1, z));
+        if (above != SNOW_BLOCK && above.isOpaque() && above.getGeometryType() == GeometryType.FULL_CUBE) {
+            world.setBlock(x, y, z, DIRT.getId());
+        }
+    }
+
+    @Override
     public void onBreak(World world, int x, int y, int z) {
         if (world != null) {
             // Đập vỡ khối cỏ bằng tay không sẽ rơi ra khối Đất (Block.DIRT)

@@ -12,9 +12,6 @@ import com.voxelgame.entity.Block;
 import com.voxelgame.entity.Hotbar;
 import com.voxelgame.entity.Player;
 
-import java.util.ArrayList;
-import java.util.List;
-
 /**
  * Hệ thống Kết xuất Giao diện Người dùng 2D & Hiệu ứng Tương tác 3D (UI & HUD Renderer),
  * triển khai giao diện {@link Disposable}.
@@ -28,7 +25,7 @@ import java.util.List;
  *    - Truy xuất thông tin khối đang ngắm thông qua các phương thức getter đóng gói của `Raycast.HitResult`
  *      (`hit.isHit()`, `hit.getBlockX()`, `hit.getBlockY()`, `hit.getBlockZ()`) thay vì truy cập trường trực tiếp.
  * 3. Tính Đa hình (Polymorphism):
- *    - Sử dụng `itemType.getFaceUV(Block.Face.SOUTH)` để lấy đúng tọa độ UV trên Texture Atlas cho bất kỳ
+ *    - Sử dụng tile mặt nam trên atlas để vẽ biểu tượng của từng
  *      loại `Block` nào đang nằm trong 9 ô `Hotbar`.
  */
 public class UIRenderer implements Disposable {
@@ -58,6 +55,26 @@ public class UIRenderer implements Disposable {
     private static final float HOTBAR_SLOT_SIZE = 50.0f;
     private static final float HOTBAR_SLOT_PADDING = 4.0f;
 
+    // Hộp mặc định cho đường gọi cũ và bộ đệm đỉnh dùng lại cho lớp phủ, viền và biểu tượng.
+    private static final Block.Bounds DEFAULT_TARGET_BOUNDS = new Block.Bounds(0, 0, 0, 1, 1, 1);
+    private final float[] rectVertices = new float[6 * 6];
+    private final float[] boxVertices = new float[6 * 6 * 6];
+    /** Bộ đệm đủ cho nhãn dài nhất của HUD và chữ 5×7 dày tối đa. */
+    private final float[] textVertices = new float[32 * 5 * 7 * 36];
+    private static final int[][] GLYPHS = createGlyphs();
+    private static final String[] NUMBER_LABELS = new String[101];
+    private static final String[] VOLUME_LABELS = new String[101];
+    static {
+        for (int i = 0; i < NUMBER_LABELS.length; i++) {
+            NUMBER_LABELS[i] = Integer.toString(i);
+            VOLUME_LABELS[i] = "MUSIC VOLUME: " + i + "%";
+        }
+    }
+    /** Bốn hộp màn tạm dùng chung cho vẽ và kiểm tra click trên luồng chính. */
+    private final float[] resumeButtonBounds = new float[4];
+    private final float[] volumeMinusBounds = new float[4];
+    private final float[] volumeSliderBounds = new float[4];
+    private final float[] volumePlusBounds = new float[4];
     private final Matrix4 modelMatrix = new Matrix4();
 
     public UIRenderer() {
@@ -78,7 +95,17 @@ public class UIRenderer implements Disposable {
             Raycast.HitResult hit,
             float miningProgress
     ) {
-        if (hit == null || !hit.isHit()) {
+        renderTargetBlockOverlay3D(shader, hit, miningProgress, DEFAULT_TARGET_BOUNDS);
+    }
+
+    /** Vẽ lớp phủ đào và ngắm đúng hộp chọn cục bộ của block đang trúng tia. */
+    public void renderTargetBlockOverlay3D(
+            ShaderProgram shader,
+            Raycast.HitResult hit,
+            float miningProgress,
+            Block.Bounds bounds
+    ) {
+        if (hit == null || !hit.isHit() || bounds == null) {
             return;
         }
 
@@ -96,12 +123,18 @@ public class UIRenderer implements Disposable {
 
         // Phóng to nhẹ khối bọc ngoài thêm 0.004f mỗi bên để không bị trùng mặt phẳng (Z-Fighting) với Block gốc
         float expand = 0.004f;
-        float x0 = bx - expand;
-        float y0 = by - expand;
-        float z0 = bz - expand;
-        float x1 = bx + 1.0f + expand;
-        float y1 = by + 1.0f + expand;
-        float z1 = bz + 1.0f + expand;
+        float minX = bx + bounds.minX();
+        float minY = by + bounds.minY();
+        float minZ = bz + bounds.minZ();
+        float maxX = bx + bounds.maxX();
+        float maxY = by + bounds.maxY();
+        float maxZ = bz + bounds.maxZ();
+        float x0 = minX - expand;
+        float y0 = minY - expand;
+        float z0 = minZ - expand;
+        float x1 = maxX + expand;
+        float y1 = maxY + expand;
+        float z1 = maxZ + expand;
 
         modelMatrix.idt();
         shader.setUniformMatrix4f("uModel", modelMatrix);
@@ -115,14 +148,17 @@ public class UIRenderer implements Disposable {
             // Vẽ thêm lõi chỉ báo vết nứt co dần ở tâm mỗi mặt
             float crackRatio = Math.min(1.0f, miningProgress);
             float pad = (1.0f - crackRatio) * 0.45f;
+            float padX = pad * (maxX - minX);
+            float padY = pad * (maxY - minY);
+            float padZ = pad * (maxZ - minZ);
             shader.setUniformVec4("uTintColor", 1.0f, 0.92f, 0.25f, 0.35f);
             draw3DBoxSolid(
-                    bx + pad - expand * 2,
-                    by + pad - expand * 2,
-                    bz + pad - expand * 2,
-                    bx + 1.0f - pad + expand * 2,
-                    by + 1.0f - pad + expand * 2,
-                    bz + 1.0f - pad + expand * 2
+                    minX + padX - expand * 2,
+                    minY + padY - expand * 2,
+                    minZ + padZ - expand * 2,
+                    maxX - padX + expand * 2,
+                    maxY - padY + expand * 2,
+                    maxZ - padZ + expand * 2
             );
         } else {
             // Khi chỉ đang nhìn vào block: phủ lớp sáng mờ cực nhẹ để người chơi biết đang chọn trúng ô nào
@@ -140,6 +176,35 @@ public class UIRenderer implements Disposable {
     // =========================================================================
     // 2. VẼ TOÀN BỘ GIAO DIỆN 2D (CROSSHAIR, 9 Ô HOTBAR, TIẾN TRÌNH ĐẬP & PAUSE MENU)
     // =========================================================================
+
+    /** Vẽ viền đỏ mờ dần theo cường độ 0–1 ngay trước lượt vẽ HUD. */
+    public void renderCactusFlash(ShaderProgram shader, Camera camera, int windowWidth, int windowHeight,
+                                  float intensity) {
+        if (intensity <= 0.0f) {
+            return;
+        }
+
+        currentShader = shader;
+        Gdx.gl.glDisable(GL20.GL_DEPTH_TEST);
+        Gdx.gl.glDisable(GL20.GL_CULL_FACE);
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        shader.enable2DUIMode(camera.getOrthoMatrix(windowWidth, windowHeight));
+        shader.setUniform1i("uUseTexture", 0);
+        shader.setUniformVec4("uTintColor", 0.9f, 0.04f, 0.04f, 0.55f * Math.min(1.0f, intensity));
+
+        // Hai dải ngang phủ góc. Hai dải dọc chỉ phủ phần ở giữa để góc có cùng độ mờ.
+        float thickness = 0.07f * Math.min(windowWidth, windowHeight);
+        drawRect2D(0.0f, 0.0f, windowWidth, thickness);
+        drawRect2D(0.0f, windowHeight - thickness, windowWidth, thickness);
+        drawRect2D(0.0f, thickness, thickness, windowHeight - 2.0f * thickness);
+        drawRect2D(windowWidth - thickness, thickness, thickness, windowHeight - 2.0f * thickness);
+
+        shader.enable3DWorldMode();
+        Gdx.gl.glDisable(GL20.GL_BLEND);
+        Gdx.gl.glEnable(GL20.GL_CULL_FACE);
+        Gdx.gl.glEnable(GL20.GL_DEPTH_TEST);
+    }
 
     /**
      * Phương thức nạp chồng tiện ích nhận trực tiếp đối tượng {@link Player} và lấy `player.getHotbar()`.
@@ -299,26 +364,34 @@ public class UIRenderer implements Disposable {
 
             // Số thứ tự phím (1..9) nhỏ ở góc trái-trên của ô
             shader.setUniformVec4("uTintColor", 0.72f, 0.74f, 0.78f, 0.85f);
-            drawPixelText(String.valueOf(i + 1), slotX + 4.0f, slotY + 4.0f, 1.5f);
+            drawPixelText(NUMBER_LABELS[i + 1], slotX + 4.0f, slotY + 4.0f, 1.5f);
 
             Block itemBlock = hotbar.getSlotBlock(i);
             int count = hotbar.getSlotCount(i);
 
             if (itemBlock != Block.AIR && count > 0) {
                 float iconSize = 28.0f;
-                float iconX = slotX + (HOTBAR_SLOT_SIZE - iconSize) * 0.5f;
-                float iconY = slotY + (HOTBAR_SLOT_SIZE - iconSize) * 0.5f;
+                float iconWidth = iconSize;
+                float iconHeight = iconSize;
+                if (itemBlock.getGeometryType() == Block.GeometryType.CACTUS) {
+                    Block.Bounds shape = itemBlock.getSelectionBounds(0);
+                    iconWidth *= shape.maxX() - shape.minX();
+                } else if (itemBlock.getGeometryType() == Block.GeometryType.SNOW_LAYER) {
+                    iconHeight *= itemBlock.getSelectionBounds(0).maxY();
+                }
+                float iconX = slotX + (HOTBAR_SLOT_SIZE - iconWidth) * 0.5f;
+                float iconY = slotY + (HOTBAR_SLOT_SIZE - iconHeight) * 0.5f;
 
-                float[] uv = itemBlock.getFaceUV(Block.Face.SOUTH);
+                float[] uv = Chunk.tileUv(itemBlock.getTileIndex(Block.Face.SOUTH));
                 textureAtlas.bind();
                 shader.setUniform1i("uUseTexture", 1);
                 shader.setUniformVec4("uTintColor", 1.0f, 1.0f, 1.0f, 1.0f);
-                drawTexturedRect2D(iconX, iconY, iconSize, iconSize, uv[0], uv[1], uv[2], uv[3]);
+                drawTexturedRect2D(iconX, iconY, iconWidth, iconHeight, uv[0], uv[1], uv[2], uv[3]);
                 textureAtlas.unbind();
 
                 // Vẽ số lượng item hiện có ở góc phải-dưới của ô
                 shader.setUniform1i("uUseTexture", 0);
-                String countStr = String.valueOf(count);
+                String countStr = NUMBER_LABELS[count];
                 float textScale = 2.0f;
                 float textW = countStr.length() * 6.0f * textScale;
                 float tx = slotX + HOTBAR_SLOT_SIZE - textW - 3.0f;
@@ -335,7 +408,7 @@ public class UIRenderer implements Disposable {
         // Hiển thị tên loại Block đang cầm ngay phía trên thanh Hotbar
         Block selectedBlock = hotbar.getSelectedBlock();
         if (selectedBlock != Block.AIR && hotbar.getSelectedCount() > 0) {
-            String label = selectedBlock.getDisplayName().toUpperCase();
+            String label = selectedBlock.getDisplayName();
             float scale = 2.0f;
             float labelW = label.length() * 6.0f * scale;
             float lx = (windowWidth - labelW) * 0.5f;
@@ -416,7 +489,7 @@ public class UIRenderer implements Disposable {
 
         // 5. Khu vực Điều chỉnh Âm lượng Nhạc nền (Volume Control: Nút [-], Thanh trượt, Nút [+])
         int volPercent = (audioManager != null) ? audioManager.getVolumePercent() : 70;
-        String volLabel = "MUSIC VOLUME: " + volPercent + "%";
+        String volLabel = VOLUME_LABELS[volPercent];
         float volLabelScale = 2.0f;
         float volLabelW = volLabel.length() * 6.0f * volLabelScale;
         shader.setUniformVec4("uTintColor", 0.88f, 0.90f, 0.95f, 1.0f);
@@ -474,7 +547,7 @@ public class UIRenderer implements Disposable {
         float panelY = (windowHeight - PANEL_HEIGHT) * 0.5f;
         float bx = (windowWidth - RESUME_BTN_WIDTH) * 0.5f;
         float by = panelY + 72.0f;
-        return new float[]{bx, by, RESUME_BTN_WIDTH, RESUME_BTN_HEIGHT};
+        return setBounds(resumeButtonBounds, bx, by, RESUME_BTN_WIDTH, RESUME_BTN_HEIGHT);
     }
 
     private float[] getVolumeMinusBounds(int windowWidth, int windowHeight) {
@@ -482,21 +555,30 @@ public class UIRenderer implements Disposable {
         float totalRowW = VOL_BTN_SIZE + 12.0f + SLIDER_WIDTH + 12.0f + VOL_BTN_SIZE;
         float startX = (windowWidth - totalRowW) * 0.5f;
         float by = panelY + 168.0f;
-        return new float[]{startX, by, VOL_BTN_SIZE, VOL_BTN_SIZE};
+        return setBounds(volumeMinusBounds, startX, by, VOL_BTN_SIZE, VOL_BTN_SIZE);
     }
 
     private float[] getVolumeSliderBounds(int windowWidth, int windowHeight) {
         float[] minus = getVolumeMinusBounds(windowWidth, windowHeight);
         float sx = minus[0] + VOL_BTN_SIZE + 12.0f;
         float sy = minus[1] + (VOL_BTN_SIZE - SLIDER_HEIGHT) * 0.5f;
-        return new float[]{sx, sy, SLIDER_WIDTH, SLIDER_HEIGHT};
+        return setBounds(volumeSliderBounds, sx, sy, SLIDER_WIDTH, SLIDER_HEIGHT);
     }
 
     private float[] getVolumePlusBounds(int windowWidth, int windowHeight) {
         float[] slider = getVolumeSliderBounds(windowWidth, windowHeight);
         float[] minus = getVolumeMinusBounds(windowWidth, windowHeight);
         float px = slider[0] + SLIDER_WIDTH + 12.0f;
-        return new float[]{px, minus[1], VOL_BTN_SIZE, VOL_BTN_SIZE};
+        return setBounds(volumePlusBounds, px, minus[1], VOL_BTN_SIZE, VOL_BTN_SIZE);
+    }
+
+    /** Cập nhật bốn thành phần của hộp thử chuột mà không tạo mảng. */
+    private static float[] setBounds(float[] bounds, float x, float y, float width, float height) {
+        bounds[0] = x;
+        bounds[1] = y;
+        bounds[2] = width;
+        bounds[3] = height;
+        return bounds;
     }
 
     private boolean isPointInRect(double mx, double my, float[] rect) {
@@ -530,45 +612,49 @@ public class UIRenderer implements Disposable {
     // CÁC HÀM VẼ HÌNH HỌC CƠ SỞ (2D RECTANGLE, 3D BOX, 5x7 PIXEL FONT)
     // =========================================================================
 
+    /** Vẽ hình chữ nhật bằng màu đồng nhất của shader. */
     private void drawRect2D(float x, float y, float w, float h) {
         drawTexturedRect2D(x, y, w, h, 0.0f, 0.0f, 1.0f, 1.0f);
     }
 
+    /** Cập nhật bộ đệm sáu đỉnh dùng lại cho hình chữ nhật và biểu tượng. */
     private void drawTexturedRect2D(float x, float y, float w, float h, float u0, float v0, float u1, float v1) {
-        float[] verts = new float[]{
-                x,     y + h, 0.0f, u0, v1, 1.0f,
-                x + w, y + h, 0.0f, u1, v1, 1.0f,
-                x + w, y,     0.0f, u1, v0, 1.0f,
-
-                x,     y + h, 0.0f, u0, v1, 1.0f,
-                x + w, y,     0.0f, u1, v0, 1.0f,
-                x,     y,     0.0f, u0, v0, 1.0f
-        };
-        uploadAndDrawTriangles(verts);
+        writeQuad(rectVertices, 0, x, y + h, 0.0f, x + w, y + h, 0.0f,
+                x + w, y, 0.0f, x, y, 0.0f, u0, v0, u1, v1);
+        uploadAndDrawTriangles(rectVertices);
     }
 
+    /** Ghi sáu mặt hộp vào bộ đệm sử dụng lại cho ngắm và đào block. */
     private void draw3DBoxSolid(float x0, float y0, float z0, float x1, float y1, float z1) {
-        float[] verts = new float[]{
-                // Top (+Y)
-                x0, y1, z1, 0, 0, 1,  x1, y1, z1, 0, 0, 1,  x1, y1, z0, 0, 0, 1,
-                x0, y1, z1, 0, 0, 1,  x1, y1, z0, 0, 0, 1,  x0, y1, z0, 0, 0, 1,
-                // Bottom (-Y)
-                x0, y0, z0, 0, 0, 1,  x1, y0, z0, 0, 0, 1,  x1, y0, z1, 0, 0, 1,
-                x0, y0, z0, 0, 0, 1,  x1, y0, z1, 0, 0, 1,  x0, y0, z1, 0, 0, 1,
-                // Front (+Z)
-                x0, y0, z1, 0, 0, 1,  x1, y0, z1, 0, 0, 1,  x1, y1, z1, 0, 0, 1,
-                x0, y0, z1, 0, 0, 1,  x1, y1, z1, 0, 0, 1,  x0, y1, z1, 0, 0, 1,
-                // Back (-Z)
-                x1, y0, z0, 0, 0, 1,  x0, y0, z0, 0, 0, 1,  x0, y1, z0, 0, 0, 1,
-                x1, y0, z0, 0, 0, 1,  x0, y1, z0, 0, 0, 1,  x1, y1, z0, 0, 0, 1,
-                // Right (+X)
-                x1, y0, z1, 0, 0, 1,  x1, y0, z0, 0, 0, 1,  x1, y1, z0, 0, 0, 1,
-                x1, y0, z1, 0, 0, 1,  x1, y1, z0, 0, 0, 1,  x1, y1, z1, 0, 0, 1,
-                // Left (-X)
-                x0, y0, z0, 0, 0, 1,  x0, y0, z1, 0, 0, 1,  x0, y1, z1, 0, 0, 1,
-                x0, y0, z0, 0, 0, 1,  x0, y1, z1, 0, 0, 1,  x0, y1, z0, 0, 0, 1
-        };
-        uploadAndDrawTriangles(verts);
+        writeQuad(boxVertices, 0, x0, y1, z1, x1, y1, z1, x1, y1, z0, x0, y1, z0, 0, 0, 0, 0);
+        writeQuad(boxVertices, 36, x0, y0, z0, x1, y0, z0, x1, y0, z1, x0, y0, z1, 0, 0, 0, 0);
+        writeQuad(boxVertices, 72, x0, y0, z1, x1, y0, z1, x1, y1, z1, x0, y1, z1, 0, 0, 0, 0);
+        writeQuad(boxVertices, 108, x1, y0, z0, x0, y0, z0, x0, y1, z0, x1, y1, z0, 0, 0, 0, 0);
+        writeQuad(boxVertices, 144, x1, y0, z1, x1, y0, z0, x1, y1, z0, x1, y1, z1, 0, 0, 0, 0);
+        writeQuad(boxVertices, 180, x0, y0, z0, x0, y0, z1, x0, y1, z1, x0, y1, z0, 0, 0, 0, 0);
+        uploadAndDrawTriangles(boxVertices);
+    }
+
+    /** Ghi bốn góc thành hai tam giác, với cùng thứ tự thuộc tính cho UI 2D và lớp phủ 3D. */
+    private static void writeQuad(float[] data, int offset, float ax, float ay, float az,
+                                  float bx, float by, float bz, float cx, float cy, float cz,
+                                  float dx, float dy, float dz, float u0, float v0, float u1, float v1) {
+        writeVertex(data, offset, ax, ay, az, u0, v1);
+        writeVertex(data, offset + 6, bx, by, bz, u1, v1);
+        writeVertex(data, offset + 12, cx, cy, cz, u1, v0);
+        writeVertex(data, offset + 18, ax, ay, az, u0, v1);
+        writeVertex(data, offset + 24, cx, cy, cz, u1, v0);
+        writeVertex(data, offset + 30, dx, dy, dz, u0, v0);
+    }
+
+    /** Ghi vị trí và UV với độ sáng đầy đủ, vì giao diện tự chọn màu riêng. */
+    private static void writeVertex(float[] data, int offset, float x, float y, float z, float u, float v) {
+        data[offset] = x;
+        data[offset + 1] = y;
+        data[offset + 2] = z;
+        data[offset + 3] = u;
+        data[offset + 4] = v;
+        data[offset + 5] = 1.0f;
     }
 
     private void drawPixelText(String text, float startX, float startY, float pixelScale) {
@@ -576,12 +662,12 @@ public class UIRenderer implements Disposable {
             return;
         }
 
-        List<Float> verts = new ArrayList<>(text.length() * 90);
+        int length = 0;
         float cursorX = startX;
 
         for (int i = 0; i < text.length(); i++) {
             char c = Character.toUpperCase(text.charAt(i));
-            int[] glyph = getGlyph5x7(c);
+            int[] glyph = c < GLYPHS.length ? GLYPHS[c] : null;
             if (glyph != null) {
                 for (int row = 0; row < 7; row++) {
                     int rowBits = glyph[row];
@@ -589,7 +675,15 @@ public class UIRenderer implements Disposable {
                         if (((rowBits >> (4 - col)) & 1) == 1) {
                             float px = cursorX + col * pixelScale;
                             float py = startY + row * pixelScale;
-                            addQuadToList(verts, px, py, pixelScale, pixelScale);
+                            float right = px + pixelScale;
+                            float bottom = py + pixelScale;
+                            if (length == textVertices.length) {
+                                uploadAndDrawTriangles(textVertices, length);
+                                length = 0;
+                            }
+                            writeQuad(textVertices, length, px, bottom, 0, right, bottom, 0,
+                                    right, py, 0, px, py, 0, 0, 0, 1, 1);
+                            length += 36;
                         }
                     }
                 }
@@ -597,42 +691,20 @@ public class UIRenderer implements Disposable {
             cursorX += 6.0f * pixelScale;
         }
 
-        if (verts.isEmpty()) {
-            return;
-        }
-
-        float[] arr = new float[verts.size()];
-        for (int i = 0; i < verts.size(); i++) {
-            arr[i] = verts.get(i);
-        }
-        uploadAndDrawTriangles(arr);
-    }
-
-    private void addQuadToList(List<Float> list, float x, float y, float w, float h) {
-        putV(list, x, y + h);
-        putV(list, x + w, y + h);
-        putV(list, x + w, y);
-
-        putV(list, x, y + h);
-        putV(list, x + w, y);
-        putV(list, x, y);
-    }
-
-    private void putV(List<Float> list, float x, float y) {
-        list.add(x);
-        list.add(y);
-        list.add(0.0f);
-        list.add(0.0f);
-        list.add(0.0f);
-        list.add(1.0f);
+        uploadAndDrawTriangles(textVertices, length);
     }
 
     private void uploadAndDrawTriangles(float[] vertices) {
-        if (currentShader == null || vertices == null || vertices.length == 0) {
+        uploadAndDrawTriangles(vertices, vertices.length);
+    }
+
+    /** Chỉ tải phần đỉnh có dữ liệu trong bộ đệm tái sử dụng. */
+    private void uploadAndDrawTriangles(float[] vertices, int length) {
+        if (currentShader == null || length == 0) {
             return;
         }
 
-        int count = vertices.length / 6;
+        int count = length / 6;
         if (uiMesh == null || uiMesh.getMaxVertices() < count) {
             if (uiMesh != null) {
                 uiMesh.dispose();
@@ -640,11 +712,21 @@ public class UIRenderer implements Disposable {
             uiMesh = new Mesh(false, Math.max(count, 4096), 0, VERTEX_ATTRIBUTES);
         }
 
-        uiMesh.setVertices(vertices, 0, vertices.length);
+        uiMesh.setVertices(vertices, 0, length);
         uiMesh.render(currentShader.getGdxShader(), GL20.GL_TRIANGLES, 0, count);
     }
 
-    private int[] getGlyph5x7(char c) {
+    /** Tạo mỗi bitmap một lần thay vì cấp phát lại cho từng chữ. */
+    private static int[][] createGlyphs() {
+        int[][] glyphs = new int[128][];
+        for (char c = 0; c < glyphs.length; c++) {
+            glyphs[c] = createGlyph5x7(c);
+        }
+        return glyphs;
+    }
+
+    /** Sơ đồ bit gốc của font tích hợp. */
+    private static int[] createGlyph5x7(char c) {
         return switch (c) {
             case 'A' -> new int[]{0b01110, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001};
             case 'B' -> new int[]{0b11110, 0b10001, 0b10001, 0b11110, 0b10001, 0b10001, 0b11110};

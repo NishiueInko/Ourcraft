@@ -120,6 +120,11 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
 
     /** Tầm với tối đa của tia bắn Raycast khi đào/đặt Block (5 ô voxel) */
     private static final float RAYCAST_REACH = 5.0f;
+    /** Bộ đệm riêng cho lần ngắm trong render và lần bấm đặt block. */
+    private final Vector3 eyePosition = new Vector3();
+    private final Vector3 aimDirection = new Vector3();
+    private final Raycast.HitResult renderHit = Raycast.HitResult.miss();
+    private final Raycast.HitResult placementHit = Raycast.HitResult.miss();
 
     // =====================================================================
     // VÒNG ĐỜI ỨNG DỤNG LIBGDX
@@ -238,7 +243,8 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
             world.updateEntities(deltaTime);
 
             // Bắn tia từ mắt Camera theo hướng nhìn để tìm block đang ngắm
-            currentHit = Raycast.cast(world, camera.getPosition(), camera.getFront(), RAYCAST_REACH);
+            currentHit = Raycast.cast(world, camera.copyPosition(eyePosition), camera.copyFront(aimDirection),
+                    RAYCAST_REACH, renderHit);
 
             // Cập nhật tiến trình đào block nếu đang giữ chuột trái
             miningProgressRatio = updateMiningProgress(currentHit, deltaTime);
@@ -267,19 +273,27 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
 
         // Kết xuất các chunk giao khung nhìn và toàn bộ thực thể trong thế giới.
         textureAtlas.bind();
-        world.render(shaderProgram, projection, view);
+        world.render(shaderProgram, projection, view, camera.copyPosition(eyePosition));
         textureAtlas.unbind();
 
         // =================================================================
         // BƯỚC 6: Vẽ hiệu ứng Overlay 3D quanh block đang ngắm/đào
         // =================================================================
         if (!isPaused && currentHit != null && currentHit.isHit()) {
-            uiRenderer.renderTargetBlockOverlay3D(shaderProgram, currentHit, miningProgressRatio);
+            int x = currentHit.getBlockX();
+            int y = currentHit.getBlockY();
+            int z = currentHit.getBlockZ();
+            Block current = Block.fromId(world.getBlock(x, y, z));
+            if (current == currentHit.getBlock()) {
+                uiRenderer.renderTargetBlockOverlay3D(shaderProgram, currentHit, miningProgressRatio,
+                        current.getSelectionBounds(world.getBlockState(x, y, z)));
+            }
         }
 
         // =================================================================
         // BƯỚC 7: Kết xuất Giao diện 2D (Crosshair, Hotbar, Thanh đào, Pause Menu)
         // =================================================================
+        uiRenderer.renderCactusFlash(shaderProgram, camera, screenWidth, screenHeight, player.getCactusFlash());
         uiRenderer.render2DHUD(
                 shaderProgram,
                 textureAtlas,
@@ -515,22 +529,27 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         }
 
         // Bắn tia từ mắt Camera theo hướng nhìn, tầm với 5.0 ô voxel
-        Raycast.HitResult hit = Raycast.cast(world, camera.getPosition(), camera.getFront(), RAYCAST_REACH);
+        Raycast.HitResult hit = Raycast.cast(world, camera.copyPosition(eyePosition), camera.copyFront(aimDirection),
+                RAYCAST_REACH, placementHit);
         if (!hit.isHit()) {
             return;
         }
 
-        // Vị trí đặt block = tọa độ ô trước mặt block bị tia chạm (prevBlock)
-        int placeX = hit.getPrevBlockX();
-        int placeY = hit.getPrevBlockY();
-        int placeZ = hit.getPrevBlockZ();
-
-        // Chỉ đặt nếu tọa độ nằm trong biên thế giới VÀ không trùng hộp va chạm người chơi
-        if (world.isInsideWorld(placeX, placeY, placeZ) && !player.intersectsBlock(placeX, placeY, placeZ)) {
-            Block consumed = hotbar.consumeSelectedItem();
-            if (consumed != Block.AIR) {
-                world.setBlock(placeX, placeY, placeZ, consumed.getId());
+        int x = hit.getBlockX();
+        int y = hit.getBlockY();
+        int z = hit.getBlockZ();
+        if (selectedBlock == Block.SNOW_LAYER && hit.getBlock() == Block.SNOW_LAYER
+                && world.getBlockState(x, y, z) < 7) {
+            if (world.tryStackSnow(x, y, z, player)) {
+                hotbar.consumeSelectedItem();
             }
+            return;
+        }
+
+        // Ưu tiên thay thế ô đang ngắm, sau đó thử ô sát mặt mà tia chạm.
+        if (world.tryPlaceBlock(x, y, z, selectedBlock, player)
+                || world.tryPlaceBlock(hit.getPrevBlockX(), hit.getPrevBlockY(), hit.getPrevBlockZ(), selectedBlock, player)) {
+            hotbar.consumeSelectedItem();
         }
     }
 

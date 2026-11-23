@@ -55,7 +55,31 @@ src\main\java\com\voxelgame\entity\WaterBlock.java
 src\main\resources\audio
 src\main\resources\textures
 src\main\resources\audio\.gitkeep
+src\main\resources\textures\environment
 src\main\resources\textures\.gitkeep
+src\main\resources\textures\bedrock.png
+src\main\resources\textures\cactus_bottom.png
+src\main\resources\textures\cactus_side.png
+src\main\resources\textures\cactus_top.png
+src\main\resources\textures\dead_bush.png
+src\main\resources\textures\dirt.png
+src\main\resources\textures\grass_block_side.png
+src\main\resources\textures\grass_block_side_overlay.png
+src\main\resources\textures\grass_block_snow.png
+src\main\resources\textures\grass_block_top.png
+src\main\resources\textures\ice.png
+src\main\resources\textures\lava_still.png
+src\main\resources\textures\oak_leaves.png
+src\main\resources\textures\oak_log.png
+src\main\resources\textures\oak_log_top.png
+src\main\resources\textures\sand.png
+src\main\resources\textures\snow.png
+src\main\resources\textures\spruce_leaves.png
+src\main\resources\textures\spruce_log.png
+src\main\resources\textures\stone.png
+src\main\resources\textures\water_still.png
+src\main\resources\textures\environment\rain.png
+src\main\resources\textures\environment\snow.png
 
 
 ==================== FILE: D:\VoxelGame\src\main\java\com\voxelgame\engine\AudioManager.java ====================
@@ -377,7 +401,8 @@ public class Camera {
     private static final float BASE_FOV_DEG = 70.0f;
     private float currentFovDeg = BASE_FOV_DEG;
     private static final float NEAR_PLANE = 0.08f;
-    private static final float FAR_PLANE = 160.0f;
+    // Giới hạn chiều sâu kết xuất để giữ ngân sách vẽ khi thế giới mở rộng.
+    private static final float FAR_PLANE = 1024.0f;
 
     // Bộ đệm ma trận được tái sử dụng mỗi khung hình để tránh tạo rác bộ nhớ (Garbage Collection)
     private final Matrix4 viewMatrix = new Matrix4();
@@ -466,7 +491,7 @@ public class Camera {
      * @return ma trận chiếu phối cảnh Matrix4
      */
     public Matrix4 getProjectionMatrix(int windowWidth, int windowHeight) {
-        float aspectRatio = (float) windowWidth / (float) Math.max(1, windowHeight);
+        float aspectRatio = (float) Math.max(1, windowWidth) / Math.max(1, windowHeight);
         return projectionMatrix.setToProjection(NEAR_PLANE, FAR_PLANE, currentFovDeg, aspectRatio);
     }
 
@@ -541,11 +566,11 @@ import com.badlogic.gdx.graphics.Mesh;
 import com.badlogic.gdx.graphics.VertexAttribute;
 import com.badlogic.gdx.graphics.VertexAttributes;
 import com.badlogic.gdx.graphics.VertexAttributes.Usage;
+import com.badlogic.gdx.math.Frustum;
+import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Disposable;
+import com.badlogic.gdx.utils.FloatArray;
 import com.voxelgame.entity.Block;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Quản lý một phân vùng không gian 16x16x16 Blocks (Chunk) và bộ đệm lưới đỉnh (libGDX Mesh),
@@ -559,12 +584,16 @@ import java.util.List;
  *      vào mảng dữ liệu và quá trình tái tạo lưới đỉnh Mesh của Chunk.
  * 2. Tính Đa hình (Polymorphism):
  *    - Trong `rebuildMesh(World)`, Chunk gọi trực tiếp phương thức đa hình `block.getTopHeight(world, wx, wy, wz)`
- *      và `block.getFaceUV(Block.Face.*)` để mỗi loại khối tự quyết định hình học và tọa độ chất liệu.
+ *      và `block.getTileIndex(Block.Face.*)` để mỗi loại khối tự quyết định hình học và chất liệu.
  */
 public class Chunk implements Disposable {
 
     public static final int SIZE = 16;
+    // Bán kích thước hộp bao của chunk theo từng trục.
+    private static final float HALF_SIZE = SIZE / 2.0f;
     private static final int FLOATS_PER_VERTEX = 6; // [x, y, z, u, v, shade]
+    // Tọa độ UV dùng chung cho tất cả chunk, tính một lần theo từng ô Atlas.
+    private static final float[][] TILE_UVS = createTileUvs();
 
     // Định nghĩa cấu trúc thuộc tính đỉnh của libGDX: vị trí vec3 (0), uv vec2 (1), shade float (2)
     private static final VertexAttributes VERTEX_ATTRIBUTES = new VertexAttributes(
@@ -573,16 +602,20 @@ public class Chunk implements Disposable {
             new VertexAttribute(Usage.Generic, 1, "aShade")
     );
 
-    private final int chunkX;
-    private final int chunkY;
-    private final int chunkZ;
+    // Tọa độ góc nhỏ nhất của chunk trong thế giới.
+    private final int baseWorldX;
+    private final int baseWorldY;
+    private final int baseWorldZ;
 
-    // Mảng 3D lưu trữ mã ID (1 byte/ô) của các Block trong Chunk
-    private final byte[][][] blocks = new byte[SIZE][SIZE][SIZE];
+    // Mảng liên tục lưu một byte mỗi block. Số ô có block dùng để nhận diện chunk rỗng.
+    private final byte[] blocks = new byte[SIZE * SIZE * SIZE];
+    private int blockCount;
 
     private Mesh mesh;
     private int vertexCount = 0;
     private boolean dirty = true;
+    // Khung hình gần nhất mà hộp bao chunk giao khung nhìn.
+    long lastVisibleFrame;
 
     // Hệ số độ sáng theo hướng mặt (Directional Face Shading)
     private static final float SHADE_TOP = 1.00f;
@@ -590,24 +623,79 @@ public class Chunk implements Disposable {
     private static final float SHADE_NORTH_SOUTH = 0.85f;
     private static final float SHADE_EAST_WEST = 0.72f;
 
+    /** Khởi tạo chunk theo chỉ số lưới và tính trước tọa độ dùng để dựng, kiểm tra mesh. */
     public Chunk(int chunkX, int chunkY, int chunkZ) {
-        this.chunkX = chunkX;
-        this.chunkY = chunkY;
-        this.chunkZ = chunkZ;
+        baseWorldX = chunkX * SIZE;
+        baseWorldY = chunkY * SIZE;
+        baseWorldZ = chunkZ * SIZE;
+    }
+
+    /** Tính chỉ số mảng phẳng với trục Z nằm liền kề trong bộ nhớ. */
+    private static int blockIndex(int x, int y, int z) {
+        return (x * SIZE + y) * SIZE + z;
+    }
+
+    /** Chuẩn bị bảng UV từ công thức Atlas dùng chung của các loại block. */
+    private static float[][] createTileUvs() {
+        float[][] tileUvs = new float[Texture.ATLAS_COLS * Texture.ATLAS_ROWS][];
+        for (int tile = 0; tile < tileUvs.length; tile++) {
+            tileUvs[tile] = Block.getTileUV(tile);
+        }
+        return tileUvs;
     }
 
     byte getBlockLocal(int x, int y, int z) {
         if (x < 0 || x >= SIZE || y < 0 || y >= SIZE || z < 0 || z >= SIZE) {
             return 0;
         }
-        return blocks[x][y][z];
+        return blocks[blockIndex(x, y, z)];
     }
 
-    void setBlockLocal(int x, int y, int z, byte blockId) {
-        if (x >= 0 && x < SIZE && y >= 0 && y < SIZE && z >= 0 && z < SIZE) {
-            blocks[x][y][z] = blockId;
-            dirty = true;
+    /** Ghi mã block theo tọa độ cục bộ hợp lệ và trả về trạng thái có thay đổi. */
+    boolean setBlockLocal(int x, int y, int z, byte blockId) {
+        int index = blockIndex(x, y, z);
+        byte previous = blocks[index];
+        if (previous == blockId) {
+            return false;
         }
+        if (previous == 0) {
+            blockCount++;
+        } else if (blockId == 0) {
+            blockCount--;
+        }
+        blocks[index] = blockId;
+        dirty = true;
+        return true;
+    }
+
+    /** Kiểm tra chunk đã trở lại trạng thái chỉ chứa không khí hay chưa. */
+    boolean isEmpty() {
+        return blockCount == 0;
+    }
+
+    /** Giữ cả các chunk cắt qua rìa khung nhìn để tránh làm mất mặt block đang thấy. */
+    boolean intersectsFrustum(Frustum frustum) {
+        return frustum.boundsInFrustum(baseWorldX + HALF_SIZE, baseWorldY + HALF_SIZE, baseWorldZ + HALF_SIZE,
+                HALF_SIZE, HALF_SIZE, HALF_SIZE);
+    }
+
+    /** Tính khoảng cách bình phương từ camera đến hộp bao để ưu tiên dựng mesh gần nhất. */
+    float distanceSquaredTo(Vector3 point) {
+        float dx = Math.max(0, Math.max(baseWorldX - point.x, point.x - (baseWorldX + SIZE)));
+        float dy = Math.max(0, Math.max(baseWorldY - point.y, point.y - (baseWorldY + SIZE)));
+        float dz = Math.max(0, Math.max(baseWorldZ - point.z, point.z - (baseWorldZ + SIZE)));
+        return dx * dx + dy * dy + dz * dz;
+    }
+
+    /** Cho biết chunk đang giữ tài nguyên mesh. */
+    boolean hasMesh() {
+        return mesh != null;
+    }
+
+    /** Thu hồi mesh ngoài khung nhìn và cho phép dựng lại từ dữ liệu block khi quay lại. */
+    void releaseCachedMesh() {
+        dispose();
+        markDirty();
     }
 
     boolean isDirty() {
@@ -623,18 +711,15 @@ public class Chunk implements Disposable {
      * Chỉ cho phép gọi trong nội bộ package `com.voxelgame.engine`.
      *
      * @param world thế giới voxel cung cấp dữ liệu các khối lân cận
+     * @param vertices bộ đệm đỉnh dùng chung, được xóa trước khi dựng chunk kế tiếp
      */
-    void rebuildMesh(World world) {
-        List<Float> vertices = new ArrayList<>(4096);
-
-        int baseWorldX = chunkX * SIZE;
-        int baseWorldY = chunkY * SIZE;
-        int baseWorldZ = chunkZ * SIZE;
+    void rebuildMesh(World world, FloatArray vertices) {
+        vertices.clear();
 
         for (int x = 0; x < SIZE; x++) {
             for (int y = 0; y < SIZE; y++) {
                 for (int z = 0; z < SIZE; z++) {
-                    byte blockId = blocks[x][y][z];
+                    byte blockId = blocks[blockIndex(x, y, z)];
                     if (blockId == 0) {
                         continue;
                     }
@@ -653,57 +738,47 @@ public class Chunk implements Disposable {
 
                     // 1. Mặt Trên (+Y)
                     if (shouldRenderFace(block, Block.fromId(world.getBlock(wx, wy + 1, wz)))) {
-                        addTopFace(vertices, wx, wy, wz, topHeight, block.getFaceUV(Block.Face.TOP));
+                        addTopFace(vertices, wx, wy, wz, topHeight, TILE_UVS[block.getTileIndex(Block.Face.TOP)]);
                     }
 
                     // 2. Mặt Dưới (-Y)
                     if (shouldRenderFace(block, Block.fromId(world.getBlock(wx, wy - 1, wz)))) {
-                        addBottomFace(vertices, wx, wy, wz, block.getFaceUV(Block.Face.BOTTOM));
+                        addBottomFace(vertices, wx, wy, wz, TILE_UVS[block.getTileIndex(Block.Face.BOTTOM)]);
                     }
 
                     // 3. Mặt Trước / Nam (+Z)
                     if (shouldRenderFace(block, Block.fromId(world.getBlock(wx, wy, wz + 1)))) {
-                        addFrontFace(vertices, wx, wy, wz, topHeight, block.getFaceUV(Block.Face.SOUTH));
+                        addFrontFace(vertices, wx, wy, wz, topHeight, TILE_UVS[block.getTileIndex(Block.Face.SOUTH)]);
                     }
 
                     // 4. Mặt Sau / Bắc (-Z)
                     if (shouldRenderFace(block, Block.fromId(world.getBlock(wx, wy, wz - 1)))) {
-                        addBackFace(vertices, wx, wy, wz, topHeight, block.getFaceUV(Block.Face.NORTH));
+                        addBackFace(vertices, wx, wy, wz, topHeight, TILE_UVS[block.getTileIndex(Block.Face.NORTH)]);
                     }
 
                     // 5. Mặt Phải / Đông (+X)
                     if (shouldRenderFace(block, Block.fromId(world.getBlock(wx + 1, wy, wz)))) {
-                        addRightFace(vertices, wx, wy, wz, topHeight, block.getFaceUV(Block.Face.EAST));
+                        addRightFace(vertices, wx, wy, wz, topHeight, TILE_UVS[block.getTileIndex(Block.Face.EAST)]);
                     }
 
                     // 6. Mặt Trái / Tây (-X)
                     if (shouldRenderFace(block, Block.fromId(world.getBlock(wx - 1, wy, wz)))) {
-                        addLeftFace(vertices, wx, wy, wz, topHeight, block.getFaceUV(Block.Face.WEST));
+                        addLeftFace(vertices, wx, wy, wz, topHeight, TILE_UVS[block.getTileIndex(Block.Face.WEST)]);
                     }
                 }
             }
         }
 
-        this.vertexCount = vertices.size() / FLOATS_PER_VERTEX;
+        this.vertexCount = vertices.size / FLOATS_PER_VERTEX;
 
         if (vertexCount > 0) {
-            float[] vertexArray = new float[vertices.size()];
-            for (int i = 0; i < vertices.size(); i++) {
-                vertexArray[i] = vertices.get(i);
-            }
-
             if (mesh == null || mesh.getMaxVertices() < vertexCount) {
-                if (mesh != null) {
-                    mesh.dispose();
-                }
+                dispose();
                 mesh = new Mesh(true, vertexCount, 0, VERTEX_ATTRIBUTES);
             }
-            mesh.setVertices(vertexArray, 0, vertexArray.length);
+            mesh.setVertices(vertices.items, 0, vertices.size);
         } else {
-            if (mesh != null) {
-                mesh.dispose();
-                mesh = null;
-            }
+            dispose();
         }
 
         this.dirty = false;
@@ -730,16 +805,13 @@ public class Chunk implements Disposable {
         }
     }
 
-    private void putVertex(List<Float> list, float x, float y, float z, float u, float v, float shade) {
-        list.add(x);
-        list.add(y);
-        list.add(z);
-        list.add(u);
-        list.add(v);
-        list.add(shade);
+    /** Ghi một đỉnh vào bộ đệm số thực theo đúng thứ tự thuộc tính của shader. */
+    private void putVertex(FloatArray vertices, float x, float y, float z, float u, float v, float shade) {
+        vertices.add(x, y, z);
+        vertices.add(u, v, shade);
     }
 
-    private void addTopFace(List<Float> v, float x, float y, float z, float h, float[] uv) {
+    private void addTopFace(FloatArray v, float x, float y, float z, float h, float[] uv) {
         float u0 = uv[0], v0 = uv[1], u1 = uv[2], v1 = uv[3];
         putVertex(v, x,     y + h, z + 1, u0, v1, SHADE_TOP);
         putVertex(v, x + 1, y + h, z + 1, u1, v1, SHADE_TOP);
@@ -750,7 +822,7 @@ public class Chunk implements Disposable {
         putVertex(v, x,     y + h, z,     u0, v0, SHADE_TOP);
     }
 
-    private void addBottomFace(List<Float> v, float x, float y, float z, float[] uv) {
+    private void addBottomFace(FloatArray v, float x, float y, float z, float[] uv) {
         float u0 = uv[0], v0 = uv[1], u1 = uv[2], v1 = uv[3];
         putVertex(v, x,     y, z,     u0, v1, SHADE_BOTTOM);
         putVertex(v, x + 1, y, z,     u1, v1, SHADE_BOTTOM);
@@ -761,7 +833,7 @@ public class Chunk implements Disposable {
         putVertex(v, x,     y, z + 1, u0, v0, SHADE_BOTTOM);
     }
 
-    private void addFrontFace(List<Float> v, float x, float y, float z, float h, float[] uv) {
+    private void addFrontFace(FloatArray v, float x, float y, float z, float h, float[] uv) {
         float u0 = uv[0], v0 = uv[1], u1 = uv[2], v1 = uv[3];
         putVertex(v, x,     y,     z + 1, u0, v1, SHADE_NORTH_SOUTH);
         putVertex(v, x + 1, y,     z + 1, u1, v1, SHADE_NORTH_SOUTH);
@@ -772,7 +844,7 @@ public class Chunk implements Disposable {
         putVertex(v, x,     y + h, z + 1, u0, v0, SHADE_NORTH_SOUTH);
     }
 
-    private void addBackFace(List<Float> v, float x, float y, float z, float h, float[] uv) {
+    private void addBackFace(FloatArray v, float x, float y, float z, float h, float[] uv) {
         float u0 = uv[0], v0 = uv[1], u1 = uv[2], v1 = uv[3];
         putVertex(v, x + 1, y,     z, u0, v1, SHADE_NORTH_SOUTH);
         putVertex(v, x,     y,     z, u1, v1, SHADE_NORTH_SOUTH);
@@ -783,7 +855,7 @@ public class Chunk implements Disposable {
         putVertex(v, x + 1, y + h, z, u0, v0, SHADE_NORTH_SOUTH);
     }
 
-    private void addRightFace(List<Float> v, float x, float y, float z, float h, float[] uv) {
+    private void addRightFace(FloatArray v, float x, float y, float z, float h, float[] uv) {
         float u0 = uv[0], v0 = uv[1], u1 = uv[2], v1 = uv[3];
         putVertex(v, x + 1, y,     z + 1, u0, v1, SHADE_EAST_WEST);
         putVertex(v, x + 1, y,     z,     u1, v1, SHADE_EAST_WEST);
@@ -794,7 +866,7 @@ public class Chunk implements Disposable {
         putVertex(v, x + 1, y + h, z + 1, u0, v0, SHADE_EAST_WEST);
     }
 
-    private void addLeftFace(List<Float> v, float x, float y, float z, float h, float[] uv) {
+    private void addLeftFace(FloatArray v, float x, float y, float z, float h, float[] uv) {
         float u0 = uv[0], v0 = uv[1], u1 = uv[2], v1 = uv[3];
         putVertex(v, x, y,     z,     u0, v1, SHADE_EAST_WEST);
         putVertex(v, x, y,     z + 1, u1, v1, SHADE_EAST_WEST);
@@ -1032,7 +1104,6 @@ public class ShaderProgram implements Disposable {
 
             out vec2 vTexCoord;
             out float vShade;
-            out float vFogDist;
 
             uniform mat4 uModel;
             uniform mat4 uView;
@@ -1046,8 +1117,6 @@ public class ShaderProgram implements Disposable {
 
                 vTexCoord = aTexCoord;
                 vShade = aShade;
-                // Khoảng cách Euclid từ mắt Camera (gốc tọa độ trong View Space) tới điểm hiện tại
-                vFogDist = length(viewPos.xyz);
             }
             """;
 
@@ -1058,18 +1127,12 @@ public class ShaderProgram implements Disposable {
             #version 330 core
             in vec2 vTexCoord;
             in float vShade;
-            in float vFogDist;
 
             out vec4 FragColor;
 
             uniform sampler2D uTexture;
             uniform int uUseTexture;
-            uniform int uUseFog;
             uniform vec4 uTintColor;
-
-            uniform vec3 uFogColor;
-            uniform float uFogStart;
-            uniform float uFogEnd;
 
             void main() {
                 // 1. Xác định màu cơ sở (lấy từ Texture Atlas hoặc dùng màu thuần túy cho 2D UI)
@@ -1088,15 +1151,7 @@ public class ShaderProgram implements Disposable {
                 // 2. Nhân với hệ số độ sáng theo hướng mặt khối (Ambient/Directional Face Shading)
                 vec3 litColor = baseColor.rgb * vShade;
 
-                // 3. Nếu đang bật sương mù (khi vẽ 3D World), hòa trộn màu khối với màu bầu trời ở xa
-                vec3 finalRgb = litColor;
-                if (uUseFog == 1) {
-                    float denom = max(0.0001, uFogEnd - uFogStart);
-                    float fogFactor = clamp((uFogEnd - vFogDist) / denom, 0.0, 1.0);
-                    finalRgb = mix(uFogColor, litColor, fogFactor);
-                }
-
-                FragColor = vec4(finalRgb, baseColor.a);
+                FragColor = vec4(litColor, baseColor.a);
             }
             """;
 
@@ -1117,7 +1172,6 @@ public class ShaderProgram implements Disposable {
         bind();
         setUniform1i("uTexture", 0);
         setUniform1i("uUseTexture", 1);
-        setUniform1i("uUseFog", 1);
         setUniformVec4("uTintColor", 1.0f, 1.0f, 1.0f, 1.0f);
         unbind();
     }
@@ -1147,22 +1201,20 @@ public class ShaderProgram implements Disposable {
     }
 
     /**
-     * Chuyển nhanh Shader sang chế độ vẽ Thế giới 3D (Bật Texture Atlas, bật Sương mù, màu gốc).
+     * Chuyển Shader sang chế độ vẽ thế giới 3D với Texture Atlas và màu gốc.
      */
     public void enable3DWorldMode() {
         setUniform1i("uUseTexture", 1);
-        setUniform1i("uUseFog", 1);
         setUniformVec4("uTintColor", 1.0f, 1.0f, 1.0f, 1.0f);
     }
 
     /**
-     * Chuyển nhanh Shader sang chế độ vẽ Giao diện 2D (Tắt Sương mù, đặt View & Model về ma trận đơn vị).
+     * Chuyển Shader sang phép chiếu 2D và đặt View, Model về ma trận đơn vị.
      */
     public void enable2DUIMode(Matrix4 orthoProjectionMatrix) {
         setUniformMatrix4f("uProjection", orthoProjectionMatrix);
         setUniformMatrix4f("uView", identityMatrix);
         setUniformMatrix4f("uModel", identityMatrix);
-        setUniform1i("uUseFog", 0);
     }
 
     public void bind() {
@@ -1207,7 +1259,7 @@ import java.util.stream.Stream;
 
 /**
  * Quản lý việc đọc các file ảnh (.png, .jpg), tự động chuẩn hóa về kích thước 16x16 pixel
- * và đóng gói thành một tấm ảnh "Texture Atlas" 64x64 duy nhất trên VRAM GPU thông qua
+ * và đóng gói thành một tấm ảnh "Texture Atlas" 64x80 duy nhất trên VRAM GPU thông qua
  * thư viện đồ họa libGDX, triển khai {@link Disposable}.
  *
  * THỂ HIỆN CÁC TÍNH CHẤT OOP:
@@ -1223,10 +1275,10 @@ public class Texture implements Disposable {
 
     // Kích thước của 1 ô chất liệu tiêu chuẩn (16x16 pixel)
     public static final int TILE_SIZE = 16;
-    // Số cột và số hàng của lưới Texture Atlas (4x4 = 16 ô)
+    // Số cột và số hàng của lưới Texture Atlas (4x5 = 20 ô)
     public static final int ATLAS_COLS = 4;
-    public static final int ATLAS_ROWS = 4;
-    // Kích thước tổng thể của tấm ảnh Texture Atlas (64x64 pixel)
+    public static final int ATLAS_ROWS = 5;
+    // Kích thước tổng thể của tấm ảnh Texture Atlas (64x80 pixel)
     public static final int ATLAS_WIDTH = TILE_SIZE * ATLAS_COLS;
     public static final int ATLAS_HEIGHT = TILE_SIZE * ATLAS_ROWS;
 
@@ -1242,126 +1294,139 @@ public class Texture implements Disposable {
     public static final int TILE_WATER = 8;
     public static final int TILE_LAVA = 9;
 
-    // Đối tượng Texture của libGDX đại diện cho Texture Atlas 64x64 trên VRAM
+    // Các ô dành cho block sẽ bổ sung. Snow Block và Snow Layers dùng chung TILE_SNOW.
+    public static final int TILE_SAND = 10;
+    public static final int TILE_GRASS_SNOW_SIDE = 11;
+    public static final int TILE_DEAD_BUSH = 12;
+    public static final int TILE_CACTUS_SIDE = 13;
+    public static final int TILE_CACTUS_TOP = 14;
+    public static final int TILE_CACTUS_BOTTOM = 15;
+    public static final int TILE_SPRUCE_WOOD = 16;
+    public static final int TILE_SPRUCE_LEAVES = 17;
+    public static final int TILE_ICE = 18;
+    public static final int TILE_SNOW = 19;
+
+    /** Quy tắc lấy mẫu và xử lý màu theo từng loại ảnh nguồn. */
+    private enum TileStyle {
+        OPAQUE, // Giữ RGB và đặt alpha tối đa cho các mặt đang được vẽ đục.
+        GRASS,  // Nhuộm xanh ảnh cỏ thang xám và giữ alpha của lớp phủ.
+        RGBA,   // Giữ nguyên cả bốn kênh của ảnh nguồn.
+        WATER,  // Lấy khung đầu và nhuộm xanh ảnh nước thang xám.
+        LAVA    // Lấy khung đầu của ảnh dung nham và vẽ đục.
+    }
+
+    // Đối tượng Texture của libGDX đại diện cho Texture Atlas 64x80 trên VRAM
     private final com.badlogic.gdx.graphics.Texture gdxTexture;
 
+    /** Dựng atlas một lần khi khởi động và giải phóng bộ đệm ảnh CPU sau khi tải lên GPU. */
     public Texture() {
-        // Khởi tạo Pixmap 64x64 định dạng RGBA8888 trên bộ nhớ RAM
         Pixmap atlasPixmap = new Pixmap(ATLAS_WIDTH, ATLAS_HEIGHT, Pixmap.Format.RGBA8888);
-
-        // 1. Vẽ sẵn toàn bộ 10 ô bằng thuật toán Procedural Pixel Art sắc nét làm nền dự phòng
-        populateProceduralFallbacks(atlasPixmap);
-
-        // 2. Đọc các file ảnh thật (.png / .jpg) và ghi đè lên từng ô trong Atlas
-        loadExternalTexturesIntoAtlas(atlasPixmap);
-
-        // 3. Khởi tạo đối tượng OpenGL Texture 2D của libGDX và nạp tấm Atlas lên VRAM
-        gdxTexture = new com.badlogic.gdx.graphics.Texture(atlasPixmap);
+        try {
+            // Ghi đè trực tiếp để giữ alpha gốc, chỉ pha trộn ở lớp phủ cỏ.
+            atlasPixmap.setBlending(Pixmap.Blending.None);
+            populateProceduralFallbacks(atlasPixmap);
+            loadExternalTexturesIntoAtlas(atlasPixmap);
+            gdxTexture = new com.badlogic.gdx.graphics.Texture(atlasPixmap);
+        } finally {
+            atlasPixmap.dispose();
+        }
         gdxTexture.setFilter(TextureFilter.Nearest, TextureFilter.Nearest);
         gdxTexture.setWrap(TextureWrap.ClampToEdge, TextureWrap.ClampToEdge);
-
-        // Giải phóng ngay Pixmap trên CPU sau khi đã đẩy dữ liệu lên VRAM
-        atlasPixmap.dispose();
     }
 
+    /** Nạp các ảnh đóng gói vào đúng ô, ưu tiên tên PNG mới trước tên tệp cũ. */
     private void loadExternalTexturesIntoAtlas(Pixmap atlasPixmap) {
-        // 1. Nạp ảnh BEDROCK (bedrock.png) -> Ô 4
-        Pixmap bedrockImg = loadPixmapFlexible(
-                "bedrock.png",
-                "textures/bedrock.png"
-        );
-        if (bedrockImg != null) {
-            blitResizedToTile(atlasPixmap, bedrockImg, 0, 0, bedrockImg.getWidth(), bedrockImg.getHeight(), TILE_BEDROCK, false);
-            bedrockImg.dispose();
+        boolean grassTopLoaded = loadTile(atlasPixmap, TILE_GRASS_TOP, TileStyle.GRASS,
+                "textures/grass_block_top.png");
+        boolean grassSideLoaded = loadTile(atlasPixmap, TILE_GRASS_SIDE, TileStyle.OPAQUE,
+                "textures/grass_block_side.png");
+        if (!grassTopLoaded || !grassSideLoaded) {
+            loadLegacyGrass(atlasPixmap, grassTopLoaded, grassSideLoaded);
         }
-
-        // 2. Nạp ảnh STONE (stone.png) -> Ô 3
-        Pixmap stoneImg = loadPixmapFlexible(
-                "stone.png",
-                "textures/stone.png"
-        );
-        if (stoneImg != null) {
-            blitResizedToTile(atlasPixmap, stoneImg, 0, 0, stoneImg.getWidth(), stoneImg.getHeight(), TILE_STONE, false);
-            stoneImg.dispose();
-        }
-
-        // 3. Nạp ảnh GRASS BLOCK (grass-block.png) -> Ô 1 (GRASS_TOP) và Ô 2 (GRASS_SIDE)
-        Pixmap grassImg = loadPixmapFlexible(
-                "grass-block.png",
-                "textures/grass-block.png",
-                "grass_block.png"
-        );
-        if (grassImg != null) {
-            if (grassImg.getWidth() == 32 && grassImg.getHeight() == 32) {
-                blitResizedToTile(atlasPixmap, grassImg, 16, 16, 16, 16, TILE_GRASS_TOP, false);
-                blitResizedToTile(atlasPixmap, grassImg, 0, 16, 16, 16, TILE_GRASS_SIDE, false);
-                blitResizedToTile(atlasPixmap, grassImg, 0, 0, 16, 16, TILE_DIRT, false);
-            } else {
-                blitResizedToTile(atlasPixmap, grassImg, 0, 0, grassImg.getWidth(), grassImg.getHeight(), TILE_GRASS_TOP, false);
+        if (grassSideLoaded) {
+            // Ảnh lớp phủ chỉ chứa viền cỏ, các pixel trong suốt để lộ lớp đất bên dưới.
+            atlasPixmap.setBlending(Pixmap.Blending.SourceOver);
+            try {
+                loadTile(atlasPixmap, TILE_GRASS_SIDE, TileStyle.GRASS, "textures/grass_block_side_overlay.png");
+            } finally {
+                atlasPixmap.setBlending(Pixmap.Blending.None);
             }
-            grassImg.dispose();
         }
 
-        // 4. Nạp ảnh DIRT -> Ô 0
-        Pixmap dirtImg = loadPixmapFlexible(
-                "Minecraft Dirt Small by terridee, click to purchase fabric.jpg",
-                "textures/Minecraft Dirt Small by terridee, click to purchase fabric.jpg",
-                "dirt.jpg",
-                "dirt.png"
-        );
-        if (dirtImg != null) {
-            blitResizedToTile(atlasPixmap, dirtImg, 0, 0, dirtImg.getWidth(), dirtImg.getHeight(), TILE_DIRT, false);
-            dirtImg.dispose();
-        }
-
-        // 5. Nạp ảnh OAK LOG -> Ô 5 (OAK_LOG_SIDE)
-        Pixmap oakLogImg = loadPixmapFlexible(
-                "Minecraft Oak Log Block Texture Pixel Art.jpg",
-                "textures/Minecraft Oak Log Block Texture Pixel Art.jpg",
-                "oak_log.jpg",
-                "oak_log.png"
-        );
-        if (oakLogImg != null) {
-            blitResizedToTile(atlasPixmap, oakLogImg, 0, 0, oakLogImg.getWidth(), oakLogImg.getHeight(), TILE_OAK_LOG_SIDE, false);
-            oakLogImg.dispose();
-        }
-
-        // 6. Nạp ảnh OAK LEAVES (nếu có) -> Ô 7
-        Pixmap leavesImg = loadPixmapFlexible(
-                "oak_leaves.png",
-                "textures/oak_leaves.png"
-        );
-        if (leavesImg != null) {
-            blitResizedToTile(atlasPixmap, leavesImg, 0, 0, leavesImg.getWidth(), leavesImg.getHeight(), TILE_OAK_LEAVES, false);
-            leavesImg.dispose();
-        }
-
-        // 7. Nạp ảnh WATER (water_still.png) -> Ô 8
-        Pixmap waterImg = loadPixmapFlexible(
-                "water_still.png",
-                "textures/water_still.png",
+        loadTile(atlasPixmap, TILE_DIRT, TileStyle.OPAQUE, "textures/dirt.png", "dirt.png",
+                "Minecraft Dirt Small by terridee, click to purchase fabric.jpg", "dirt.jpg");
+        loadTile(atlasPixmap, TILE_STONE, TileStyle.OPAQUE, "textures/stone.png", "stone.png");
+        loadTile(atlasPixmap, TILE_BEDROCK, TileStyle.OPAQUE, "textures/bedrock.png", "bedrock.png");
+        loadTile(atlasPixmap, TILE_OAK_LOG_SIDE, TileStyle.OPAQUE, "textures/oak_log.png", "oak_log.png",
+                "Minecraft Oak Log Block Texture Pixel Art.jpg", "oak_log.jpg");
+        loadTile(atlasPixmap, TILE_OAK_LOG_TOP, TileStyle.OPAQUE, "textures/oak_log_top.png");
+        loadTile(atlasPixmap, TILE_OAK_LEAVES, TileStyle.OPAQUE, "textures/oak_leaves.png", "oak_leaves.png");
+        loadTile(atlasPixmap, TILE_WATER, TileStyle.WATER, "textures/water_still.png", "water_still.png",
                 "fliflight-clear-water-1.0.0-resourcepack-1.21.4/assets/minecraft/textures/block/water_still.png",
-                "textures/fliflight-clear-water-1.0.0-resourcepack-1.21.4/assets/minecraft/textures/block/water_still.png"
-        );
-        if (waterImg != null) {
-            int frameSize = Math.min(waterImg.getWidth(), waterImg.getHeight());
-            blitResizedToTile(atlasPixmap, waterImg, 0, 0, frameSize, frameSize, TILE_WATER, true);
-            waterImg.dispose();
+                "textures/fliflight-clear-water-1.0.0-resourcepack-1.21.4/assets/minecraft/textures/block/water_still.png");
+        if (!loadTile(atlasPixmap, TILE_LAVA, TileStyle.LAVA, "textures/lava_still.png")) {
+            loadTile(atlasPixmap, TILE_LAVA, TileStyle.OPAQUE, "download.jpg", "textures/download.jpg",
+                    "lava.jpg", "lava.png");
         }
 
-        // 8. Nạp ảnh LAVA (download.jpg) -> Ô 9
-        Pixmap lavaImg = loadPixmapFlexible(
-                "download.jpg",
-                "textures/download.jpg",
-                "lava.jpg",
-                "lava.png"
-        );
-        if (lavaImg != null) {
-            blitResizedToTile(atlasPixmap, lavaImg, 0, 0, lavaImg.getWidth(), lavaImg.getHeight(), TILE_LAVA, false);
-            lavaImg.dispose();
+        // Giữ alpha của ảnh nguồn cho các block dự kiến dùng mặt cắt hoặc độ trong suốt.
+        loadTile(atlasPixmap, TILE_SAND, TileStyle.RGBA, "textures/sand.png");
+        loadTile(atlasPixmap, TILE_GRASS_SNOW_SIDE, TileStyle.RGBA, "textures/grass_block_snow.png");
+        loadTile(atlasPixmap, TILE_DEAD_BUSH, TileStyle.RGBA, "textures/dead_bush.png");
+        loadTile(atlasPixmap, TILE_CACTUS_SIDE, TileStyle.RGBA, "textures/cactus_side.png");
+        loadTile(atlasPixmap, TILE_CACTUS_TOP, TileStyle.RGBA, "textures/cactus_top.png");
+        loadTile(atlasPixmap, TILE_CACTUS_BOTTOM, TileStyle.RGBA, "textures/cactus_bottom.png");
+        loadTile(atlasPixmap, TILE_SPRUCE_WOOD, TileStyle.RGBA, "textures/spruce_log.png");
+        loadTile(atlasPixmap, TILE_SPRUCE_LEAVES, TileStyle.RGBA, "textures/spruce_leaves.png");
+        loadTile(atlasPixmap, TILE_ICE, TileStyle.RGBA, "textures/ice.png");
+        loadTile(atlasPixmap, TILE_SNOW, TileStyle.RGBA, "textures/snow.png");
+    }
+
+    /** Tận dụng sheet cỏ cũ cho mặt còn thiếu và lấy ô đất của sheet làm dự phòng. */
+    private void loadLegacyGrass(Pixmap atlasPixmap, boolean topLoaded, boolean sideLoaded) {
+        Pixmap grass = loadPixmapFlexible("grass-block.png", "textures/grass-block.png", "grass_block.png");
+        if (grass == null) {
+            return;
+        }
+        try {
+            if (grass.getWidth() == 32 && grass.getHeight() == 32) {
+                if (!topLoaded) {
+                    blitResizedToTile(atlasPixmap, grass, 16, 16, 16, 16, TILE_GRASS_TOP, TileStyle.OPAQUE);
+                }
+                if (!sideLoaded) {
+                    blitResizedToTile(atlasPixmap, grass, 0, 16, 16, 16, TILE_GRASS_SIDE, TileStyle.OPAQUE);
+                }
+                blitResizedToTile(atlasPixmap, grass, 0, 0, 16, 16, TILE_DIRT, TileStyle.OPAQUE);
+            } else if (!topLoaded) {
+                blitResizedToTile(atlasPixmap, grass, 0, 0, grass.getWidth(), grass.getHeight(),
+                        TILE_GRASS_TOP, TileStyle.OPAQUE);
+            }
+        } finally {
+            grass.dispose();
         }
     }
 
+    /** Nạp một ô atlas và lấy khung đầu đối với dải hoạt ảnh chất lỏng. */
+    private boolean loadTile(Pixmap atlasPixmap, int tile, TileStyle style, String... names) {
+        Pixmap source = loadPixmapFlexible(names);
+        if (source == null) {
+            return false;
+        }
+        try {
+            int width = source.getWidth();
+            int height = source.getHeight();
+            if (style == TileStyle.WATER || style == TileStyle.LAVA) {
+                width = Math.min(width, height);
+                height = width;
+            }
+            blitResizedToTile(atlasPixmap, source, 0, 0, width, height, tile, style);
+            return true;
+        } finally {
+            source.dispose();
+        }
+    }
+
+    /** Lấy mẫu pixel gần nhất và xử lý màu, alpha trước khi ghi vào ô atlas. */
     private void blitResizedToTile(
             Pixmap atlasPixmap,
             Pixmap src,
@@ -1370,7 +1435,7 @@ public class Texture implements Disposable {
             int srcW,
             int srcH,
             int tileIndex,
-            boolean tintWaterBlue
+            TileStyle style
     ) {
         for (int ty = 0; ty < TILE_SIZE; ty++) {
             for (int tx = 0; tx < TILE_SIZE; tx++) {
@@ -1383,12 +1448,17 @@ public class Texture implements Disposable {
                 int b = (pixel >>> 8) & 0xFF;
                 int a = pixel & 0xFF;
 
-                if (tintWaterBlue && Math.abs(r - g) < 10 && Math.abs(g - b) < 10) {
+                if (style == TileStyle.GRASS) {
+                    // PNG cỏ thang xám cần nhân màu xanh, gồm cả viền cỏ ở mặt bên.
+                    r = r * 145 / 255;
+                    g = g * 189 / 255;
+                    b = b * 89 / 255;
+                } else if (style == TileStyle.WATER && Math.abs(r - g) < 10 && Math.abs(g - b) < 10) {
                     r = clamp((int) (r * 0.22f + 18));
                     g = clamp((int) (g * 0.58f + 45));
                     b = clamp((int) (b * 0.98f + 70));
                     a = 225;
-                } else {
+                } else if (style != TileStyle.RGBA) {
                     a = 255;
                 }
 
@@ -1397,6 +1467,7 @@ public class Texture implements Disposable {
         }
     }
 
+    /** Chuyển tọa độ trong ô sang tọa độ pixel toàn atlas. */
     private void putAtlasPixel(Pixmap atlasPixmap, int tileIndex, int tx, int ty, int r, int g, int b, int a) {
         int tileCol = tileIndex % ATLAS_COLS;
         int tileRow = tileIndex / ATLAS_COLS;
@@ -1408,6 +1479,7 @@ public class Texture implements Disposable {
         atlasPixmap.drawPixel(atlasX, atlasY, rgba);
     }
 
+    /** Tìm và giải mã ảnh từ classpath, thư mục cục bộ hoặc kết quả quét sâu. */
     private Pixmap loadPixmapFlexible(String... candidateNames) {
         byte[] rawBytes = null;
         String matchedPath = null;
@@ -1474,6 +1546,7 @@ public class Texture implements Disposable {
         }
     }
 
+    /** Quét có giới hạn theo tên ảnh và bỏ qua các thư mục quản lý Git, Gradle. */
     private Path findFileByName(Path rootDir, String fileNameLower, int maxDepth) {
         if (!Files.exists(rootDir)) {
             return null;
@@ -1493,6 +1566,7 @@ public class Texture implements Disposable {
         }
     }
 
+    /** Dựng 10 ô dự phòng cho các block đang dùng khi ảnh nguồn bị thiếu. */
     private void populateProceduralFallbacks(Pixmap atlasPixmap) {
         Random rng = new Random(20261114L);
 
@@ -1564,6 +1638,7 @@ public class Texture implements Disposable {
         }
     }
 
+    /** Giới hạn giá trị kênh màu vào phạm vi một byte. */
     private int clamp(int val) {
         return Math.max(0, Math.min(255, val));
     }
@@ -1582,10 +1657,12 @@ public class Texture implements Disposable {
         Gdx.gl.glBindTexture(GL20.GL_TEXTURE_2D, 0);
     }
 
+    /** Trả về atlas dùng chung để các bộ kết xuất có thể lấy texture libGDX. */
     public com.badlogic.gdx.graphics.Texture getGdxTexture() {
         return gdxTexture;
     }
 
+    /** Giải phóng atlas trên GPU khi ứng dụng đóng. */
     @Override
     public void dispose() {
         if (gdxTexture != null) {
@@ -2303,8 +2380,12 @@ public class UIRenderer implements Disposable {
 ==================== FILE: D:\VoxelGame\src\main\java\com\voxelgame\engine\World.java ====================
 package com.voxelgame.engine;
 
+import com.badlogic.gdx.math.Frustum;
 import com.badlogic.gdx.math.Matrix4;
+import com.badlogic.gdx.math.Vector3;
+import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Disposable;
+import com.badlogic.gdx.utils.FloatArray;
 import com.voxelgame.entity.Block;
 import com.voxelgame.entity.Entity;
 import com.voxelgame.entity.Hotbar;
@@ -2322,7 +2403,7 @@ import java.util.Random;
  * THỂ HIỆN CÁC TÍNH CHẤT OOP:
  * 1. Tính Đa hình (Runtime Polymorphism):
  *    - Quản lý chung cả `Player` lẫn mọi `ItemEntity` trong một danh sách duy nhất `List<Entity> entities`.
- *    - Trong `updateEntities(float deltaTime)` và `render(ShaderProgram shader)`, `World` duyệt qua
+ *    - Trong `updateEntities` và `render`, `World` duyệt qua
  *      danh sách `entities` và gọi đa hình `entity.update(this, deltaTime)` và `entity.render(shader)`.
  *    - Trong `breakBlockAndSpawnDrop(int, int, int)`, `World` gọi đa hình `target.onBreak(this, worldX, worldY, worldZ)`
  *      để mỗi loại `Block` tự quyết định vật phẩm rơi ra (ví dụ: `GrassBlock` rơi ra `Block.DIRT`).
@@ -2332,19 +2413,29 @@ import java.util.Random;
  */
 public class World implements Disposable {
 
-    // Kích thước thế giới: 20 x 2 x 20 Chunks = 320 x 32 x 320 Blocks
-    public static final int WORLD_CHUNKS_X = 20;
-    public static final int WORLD_CHUNKS_Y = 2;
-    public static final int WORLD_CHUNKS_Z = 20;
+    // Kích thước thế giới: 112 × 16 × 112 chunk, tương ứng 1792 × 256 × 1792 block.
+    public static final int WORLD_CHUNKS_X = 112;
+    public static final int WORLD_CHUNKS_Y = 16;
+    public static final int WORLD_CHUNKS_Z = 112;
 
     public static final int WORLD_SIZE_X = WORLD_CHUNKS_X * Chunk.SIZE;
     public static final int WORLD_SIZE_Y = WORLD_CHUNKS_Y * Chunk.SIZE;
     public static final int WORLD_SIZE_Z = WORLD_CHUNKS_Z * Chunk.SIZE;
 
+    // Tâm hình học của bản đồ theo phương ngang, dùng chung cho spawn và hồi vị trí.
+    public static final int CENTER_X = WORLD_SIZE_X / 2;
+    public static final int CENTER_Z = WORLD_SIZE_Z / 2;
+    // Dựng sẵn khu vực 5 × 5 cột chunk quanh spawn.
+    private static final int SPAWN_MESH_RADIUS = 2;
+    // Giới hạn công việc dựng mesh mỗi khung hình và thời gian giữ mesh ngoài khung nhìn.
+    private static final int MESH_BUILDS_PER_FRAME = 16;
+    private static final int MESH_RETENTION_FRAMES = 120;
+
     // Giới hạn nghiêm ngặt: Tổng số lớp địa hình từ đáy (y = 0) đến đỉnh cao nhất <= 20 lớp (tức y <= 19)
     public static final int MAX_TERRAIN_LAYERS = 20;
     public static final int MAX_TERRAIN_Y = MAX_TERRAIN_LAYERS - 1; // y = 19
 
+    // Một ô null biểu thị chunk chỉ chứa không khí, chưa cần mảng block hay mesh.
     private final Chunk[][][] chunks = new Chunk[WORLD_CHUNKS_X][WORLD_CHUNKS_Y][WORLD_CHUNKS_Z];
     private final int[][] surfaceHeights = new int[WORLD_SIZE_X][WORLD_SIZE_Z];
 
@@ -2353,18 +2444,49 @@ public class World implements Disposable {
     private final List<Entity> entities = new ArrayList<>();
 
     private final Matrix4 identityMatrix = new Matrix4();
+    // Khung nhìn và bộ đệm dựng mesh được tái sử dụng trên luồng kết xuất.
+    private final Matrix4 inverseViewProjection = new Matrix4();
+    private final Frustum frustum = new Frustum();
+    private final FloatArray meshVertices = new FloatArray(4096);
+    private final Vector3 nearCenter = new Vector3();
+    // Hàng đợi nhỏ tái sử dụng để ưu tiên các chunk gần camera.
+    private final Chunk[] pendingMeshes = new Chunk[MESH_BUILDS_PER_FRAME];
+    private final float[] pendingDistances = new float[MESH_BUILDS_PER_FRAME];
+    private int pendingMeshCount;
+    // Theo dõi riêng các chunk có mesh để thu hồi tài nguyên mà không quét cả lưới lần nữa.
+    private final Array<Chunk> residentMeshes = new Array<>(false, WORLD_CHUNKS_X * WORLD_CHUNKS_Z);
+    private long renderFrame;
+    private final int spawnY;
 
+    /** Sinh địa hình và dựng trước mesh quanh điểm xuất phát. */
     public World() {
-        for (int cx = 0; cx < WORLD_CHUNKS_X; cx++) {
-            for (int cy = 0; cy < WORLD_CHUNKS_Y; cy++) {
-                for (int cz = 0; cz < WORLD_CHUNKS_Z; cz++) {
-                    chunks[cx][cy][cz] = new Chunk(cx, cy, cz);
+        generateTerrainAndEcosystem();
+        // Tâm nằm trên giao điểm bốn cột block. Lấy cột cao nhất dưới chân người chơi.
+        int groundY = 0;
+        for (int x = CENTER_X - 1; x <= CENTER_X; x++) {
+            for (int z = CENTER_Z - 1; z <= CENTER_Z; z++) {
+                groundY = Math.max(groundY, findHighestBlockY(x, z));
+            }
+        }
+        spawnY = groundY + 1;
+
+        int spawnChunkX = CENTER_X / Chunk.SIZE;
+        int spawnChunkZ = CENTER_Z / Chunk.SIZE;
+        for (int cx = spawnChunkX - SPAWN_MESH_RADIUS; cx <= spawnChunkX + SPAWN_MESH_RADIUS; cx++) {
+            for (int cz = spawnChunkZ - SPAWN_MESH_RADIUS; cz <= spawnChunkZ + SPAWN_MESH_RADIUS; cz++) {
+                for (int cy = 0; cy < WORLD_CHUNKS_Y; cy++) {
+                    Chunk chunk = chunks[cx][cy][cz];
+                    if (chunk != null) {
+                        rebuildChunkMesh(chunk);
+                    }
                 }
             }
         }
+    }
 
-        generateTerrainAndEcosystem();
-        rebuildAllDirtyChunks();
+    /** Trả về vị trí chân người chơi ở tâm bản đồ, ngay trên mặt đất khi tạo thế giới. */
+    public Vector3 getSpawnPosition() {
+        return new Vector3(CENTER_X, spawnY, CENTER_Z);
     }
 
     /**
@@ -2475,7 +2597,7 @@ public class World implements Disposable {
                 int tx = wx + rng.nextInt(3) - 1;
                 int tz = wz + rng.nextInt(3) - 1;
 
-                if (Math.abs(tx - 32) <= 4 && Math.abs(tz - 32) <= 4) {
+                if (Math.abs(tx - CENTER_X) <= 4 && Math.abs(tz - CENTER_Z) <= 4) {
                     continue;
                 }
 
@@ -2608,10 +2730,21 @@ public class World implements Disposable {
         }
     }
 
+    /** Tìm mặt đất khi sinh cây, bỏ qua các tầng chunk còn trống phía trên. */
     private int findHighestBlockY(int wx, int wz) {
-        for (int y = WORLD_SIZE_Y - 1; y >= 0; y--) {
-            if (getBlock(wx, y, wz) != Block.AIR.getId()) {
-                return y;
+        int cx = wx / Chunk.SIZE;
+        int cz = wz / Chunk.SIZE;
+        int lx = wx % Chunk.SIZE;
+        int lz = wz % Chunk.SIZE;
+        for (int cy = WORLD_CHUNKS_Y - 1; cy >= 0; cy--) {
+            Chunk chunk = chunks[cx][cy][cz];
+            if (chunk == null) {
+                continue;
+            }
+            for (int y = Chunk.SIZE - 1; y >= 0; y--) {
+                if (chunk.getBlockLocal(lx, y, lz) != Block.AIR.getId()) {
+                    return cy * Chunk.SIZE + y;
+                }
             }
         }
         return 0;
@@ -2631,9 +2764,10 @@ public class World implements Disposable {
         return false;
     }
 
-    private void setBlockInternal(int worldX, int worldY, int worldZ, byte blockId) {
+    /** Ghi block và cấp phát hoặc giải phóng chunk khi nó chuyển trạng thái rỗng. */
+    private boolean setBlockInternal(int worldX, int worldY, int worldZ, byte blockId) {
         if (!isInsideWorld(worldX, worldY, worldZ)) {
-            return;
+            return false;
         }
         int cx = worldX / Chunk.SIZE;
         int cy = worldY / Chunk.SIZE;
@@ -2643,7 +2777,25 @@ public class World implements Disposable {
         int ly = worldY % Chunk.SIZE;
         int lz = worldZ % Chunk.SIZE;
 
-        chunks[cx][cy][cz].setBlockLocal(lx, ly, lz, blockId);
+        Chunk chunk = chunks[cx][cy][cz];
+        if (chunk == null) {
+            if (blockId == Block.AIR.getId()) {
+                return false;
+            }
+            chunk = new Chunk(cx, cy, cz);
+            chunks[cx][cy][cz] = chunk;
+        }
+        if (!chunk.setBlockLocal(lx, ly, lz, blockId)) {
+            return false;
+        }
+        if (chunk.isEmpty()) {
+            if (chunk.hasMesh()) {
+                residentMeshes.removeValue(chunk, true);
+            }
+            chunk.dispose();
+            chunks[cx][cy][cz] = null;
+        }
+        return true;
     }
 
     public boolean isInsideWorld(int worldX, int worldY, int worldZ) {
@@ -2664,7 +2816,8 @@ public class World implements Disposable {
         int ly = worldY % Chunk.SIZE;
         int lz = worldZ % Chunk.SIZE;
 
-        return chunks[cx][cy][cz].getBlockLocal(lx, ly, lz);
+        Chunk chunk = chunks[cx][cy][cz];
+        return chunk == null ? Block.AIR.getId() : chunk.getBlockLocal(lx, ly, lz);
     }
 
     public boolean isSolidBlock(int worldX, int worldY, int worldZ) {
@@ -2672,8 +2825,9 @@ public class World implements Disposable {
         return block.isSolid();
     }
 
+    /** Ghi block khi chơi và đánh dấu các chunk đã có dữ liệu nếu chung mặt biên. */
     public void setBlock(int worldX, int worldY, int worldZ, byte blockId) {
-        if (!isInsideWorld(worldX, worldY, worldZ)) {
+        if (!setBlockInternal(worldX, worldY, worldZ, blockId)) {
             return;
         }
 
@@ -2685,24 +2839,30 @@ public class World implements Disposable {
         int ly = worldY % Chunk.SIZE;
         int lz = worldZ % Chunk.SIZE;
 
-        chunks[cx][cy][cz].setBlockLocal(lx, ly, lz, blockId);
-
         if (lx == 0 && cx > 0) {
-            chunks[cx - 1][cy][cz].markDirty();
+            markChunkDirty(cx - 1, cy, cz);
         } else if (lx == Chunk.SIZE - 1 && cx < WORLD_CHUNKS_X - 1) {
-            chunks[cx + 1][cy][cz].markDirty();
+            markChunkDirty(cx + 1, cy, cz);
         }
 
         if (ly == 0 && cy > 0) {
-            chunks[cx][cy - 1][cz].markDirty();
+            markChunkDirty(cx, cy - 1, cz);
         } else if (ly == Chunk.SIZE - 1 && cy < WORLD_CHUNKS_Y - 1) {
-            chunks[cx][cy + 1][cz].markDirty();
+            markChunkDirty(cx, cy + 1, cz);
         }
 
         if (lz == 0 && cz > 0) {
-            chunks[cx][cy][cz - 1].markDirty();
+            markChunkDirty(cx, cy, cz - 1);
         } else if (lz == Chunk.SIZE - 1 && cz < WORLD_CHUNKS_Z - 1) {
-            chunks[cx][cy][cz + 1].markDirty();
+            markChunkDirty(cx, cy, cz + 1);
+        }
+    }
+
+    /** Đánh dấu mesh lân cận cần dựng lại, giữ nguyên các ô chỉ chứa không khí. */
+    private void markChunkDirty(int cx, int cy, int cz) {
+        Chunk chunk = chunks[cx][cy][cz];
+        if (chunk != null) {
+            chunk.markDirty();
         }
     }
 
@@ -2726,55 +2886,126 @@ public class World implements Disposable {
         target.onBreak(this, worldX, worldY, worldZ);
     }
 
-    private void rebuildAllDirtyChunks() {
-        for (int cx = 0; cx < WORLD_CHUNKS_X; cx++) {
-            for (int cy = 0; cy < WORLD_CHUNKS_Y; cy++) {
-                for (int cz = 0; cz < WORLD_CHUNKS_Z; cz++) {
-                    Chunk chunk = chunks[cx][cy][cz];
-                    if (chunk.isDirty()) {
-                        chunk.rebuildMesh(this);
-                    }
-                }
-            }
-        }
-    }
-
     /**
-     * Vẽ toàn bộ các Chunk địa hình và duyệt danh sách đa hình `entities` để vẽ các thực thể 3D.
+     * Vẽ các chunk giao khung nhìn và duyệt danh sách đa hình để vẽ các thực thể 3D.
      *
      * @param shader chương trình Shader đang kích hoạt
+     * @param projection ma trận chiếu phối cảnh đã truyền vào shader
+     * @param view ma trận nhìn đã truyền vào shader
      */
-    public void render(ShaderProgram shader) {
-        rebuildAllDirtyChunks();
+    public void render(ShaderProgram shader, Matrix4 projection, Matrix4 view) {
+        // libGDX dùng nghịch đảo của Projection × View để dựng sáu mặt phẳng khung nhìn.
+        inverseViewProjection.set(projection).mul(view).inv();
+        frustum.update(inverseViewProjection);
+        // Tâm mặt phẳng gần xấp xỉ vị trí mắt và ưu tiên được cả các chunk theo độ cao.
+        nearCenter.set(0, 0, -1).prj(inverseViewProjection);
+        renderFrame++;
+        pendingMeshCount = 0;
 
         shader.setUniformMatrix4f("uModel", identityMatrix);
-        for (int cx = 0; cx < WORLD_CHUNKS_X; cx++) {
-            for (int cy = 0; cy < WORLD_CHUNKS_Y; cy++) {
-                for (int cz = 0; cz < WORLD_CHUNKS_Z; cz++) {
-                    chunks[cx][cy][cz].render(shader);
-                }
+        renderVisibleChunks(shader);
+        for (int i = 0; i < pendingMeshCount; i++) {
+            Chunk chunk = pendingMeshes[i];
+            pendingMeshes[i] = null;
+            boolean alreadyDrawn = chunk.hasMesh();
+            rebuildChunkMesh(chunk);
+            if (!alreadyDrawn) {
+                chunk.render(shader);
             }
         }
+        releaseOffscreenMeshes();
 
         // Duyệt danh sách đa hình List<Entity> và gọi entity.render(shader)
-        for (Entity entity : entities) {
-            entity.render(shader);
+        for (int i = 0; i < entities.size(); i++) {
+            entities.get(i).render(shader);
         }
 
         shader.setUniformMatrix4f("uModel", identityMatrix);
     }
 
-    @Override
-    public void dispose() {
-        for (int cx = 0; cx < WORLD_CHUNKS_X; cx++) {
+    /** Thu hẹp vùng quét bằng hộp bao khung nhìn, rồi kiểm tra chính xác từng chunk. */
+    private void renderVisibleChunks(ShaderProgram shader) {
+        float minX = Float.POSITIVE_INFINITY;
+        float minZ = Float.POSITIVE_INFINITY;
+        float maxX = Float.NEGATIVE_INFINITY;
+        float maxZ = Float.NEGATIVE_INFINITY;
+        for (Vector3 corner : frustum.planePoints) {
+            minX = Math.min(minX, corner.x);
+            minZ = Math.min(minZ, corner.z);
+            maxX = Math.max(maxX, corner.x);
+            maxZ = Math.max(maxZ, corner.z);
+        }
+        // Mở rộng thêm một ô ở mép dưới để tính cả chunk tiếp xúc mặt hộp bao.
+        int firstX = Math.max(0, (int) Math.floor(minX / Chunk.SIZE) - 1);
+        int firstZ = Math.max(0, (int) Math.floor(minZ / Chunk.SIZE) - 1);
+        int lastX = Math.min(WORLD_CHUNKS_X - 1, (int) Math.floor(maxX / Chunk.SIZE));
+        int lastZ = Math.min(WORLD_CHUNKS_Z - 1, (int) Math.floor(maxZ / Chunk.SIZE));
+        for (int cx = firstX; cx <= lastX; cx++) {
             for (int cy = 0; cy < WORLD_CHUNKS_Y; cy++) {
-                for (int cz = 0; cz < WORLD_CHUNKS_Z; cz++) {
-                    if (chunks[cx][cy][cz] != null) {
-                        chunks[cx][cy][cz].dispose();
+                for (int cz = firstZ; cz <= lastZ; cz++) {
+                    Chunk chunk = chunks[cx][cy][cz];
+                    if (chunk != null && chunk.intersectsFrustum(frustum)) {
+                        chunk.lastVisibleFrame = renderFrame;
+                        if (chunk.isDirty()) {
+                            queueMeshBuild(chunk);
+                        }
+                        chunk.render(shader);
                     }
                 }
             }
         }
+    }
+
+    /** Giữ danh sách hữu hạn các mesh cần dựng, sắp theo khoảng cách tới camera. */
+    private void queueMeshBuild(Chunk chunk) {
+        float distance = chunk.distanceSquaredTo(nearCenter);
+        int index = pendingMeshCount;
+        if (index == pendingMeshes.length) {
+            index--;
+            if (distance >= pendingDistances[index]) {
+                return;
+            }
+        } else {
+            pendingMeshCount++;
+        }
+        while (index > 0 && distance < pendingDistances[index - 1]) {
+            pendingMeshes[index] = pendingMeshes[index - 1];
+            pendingDistances[index] = pendingDistances[index - 1];
+            index--;
+        }
+        pendingMeshes[index] = chunk;
+        pendingDistances[index] = distance;
+    }
+
+    /** Dựng mesh và đồng bộ danh sách tài nguyên đang được giữ. */
+    private void rebuildChunkMesh(Chunk chunk) {
+        boolean hadMesh = chunk.hasMesh();
+        chunk.rebuildMesh(this, meshVertices);
+        if (!hadMesh && chunk.hasMesh()) {
+            residentMeshes.add(chunk);
+        } else if (hadMesh && !chunk.hasMesh()) {
+            residentMeshes.removeValue(chunk, true);
+        }
+    }
+
+    /** Thu hồi mesh đã ở ngoài khung nhìn đủ lâu, giữ dữ liệu block và các sửa đổi. */
+    private void releaseOffscreenMeshes() {
+        for (int i = residentMeshes.size - 1; i >= 0; i--) {
+            Chunk chunk = residentMeshes.get(i);
+            if (renderFrame - chunk.lastVisibleFrame >= MESH_RETENTION_FRAMES) {
+                chunk.releaseCachedMesh();
+                residentMeshes.removeIndex(i);
+            }
+        }
+    }
+
+    /** Giải phóng các mesh đang còn trong bộ nhớ và tài nguyên dùng chung của vật phẩm. */
+    @Override
+    public void dispose() {
+        for (int i = 0; i < residentMeshes.size; i++) {
+            residentMeshes.get(i).dispose();
+        }
+        residentMeshes.clear();
         ItemEntity.cleanupSharedMeshes();
     }
 }
@@ -3972,8 +4203,8 @@ import com.voxelgame.engine.World;
  * 1. Kế thừa (Inheritance): Tái sử dụng `position`, `velocity`, `halfWidth`, `height`, `onGround`
  *    và phương thức kiểm tra va chạm `intersectsBlock` từ lớp cha `Entity`.
  * 2. Hợp thành & Đóng gói (Composition & Encapsulation): Sở hữu `private final Hotbar hotbar = new Hotbar();`
- *    và quản lý toàn bộ trạng thái chuyển động nội bộ (Bay Double-tap Space, Chạy nhanh Left Ctrl,
- *    Đi rón rén giữ mép block Left Shift).
+ *    và quản lý trạng thái di chuyển, bao gồm bật/tắt bay bằng Space, hạ độ cao và thoát bay bằng
+ *    Left Shift, chạy nhanh bằng Left Ctrl và rón rén giữ mép block.
  * 3. Đa hình (Polymorphism): Ghi đè `update(World, float)` và `render(ShaderProgram)` của `Entity`.
  */
 public class Player extends Entity {
@@ -3993,12 +4224,14 @@ public class Player extends Entity {
     private static final float SNEAK_MULTIPLIER = 0.5f;
     private static final float FLY_SPEED_MULTIPLIER = 1.8f;
     private static final float FLY_ASCEND_SPEED = 7.0f;
+    // Tốc độ hạ độ cao chủ động khi giữ Left Shift trong chế độ bay (block/giây).
+    private static final float FLY_DESCEND_SPEED = 4.0f;
 
     private static final float GRAVITY = -26.0f;
     private static final float JUMP_VELOCITY = 8.6f;
     private static final float TERMINAL_VELOCITY = -45.0f;
 
-    // Khoảng thời gian tối đa giữa 2 lần bấm Space để kích hoạt chế độ Bay (0.30 giây)
+    // Khoảng thời gian tối đa giữa hai lần nhấn Space hoặc Left Shift (0.30 giây).
     private static final float DOUBLE_TAP_THRESHOLD = 0.30f;
 
     // Quan hệ Hợp thành (Composition - Player "has-a" Hotbar)
@@ -4015,6 +4248,9 @@ public class Player extends Entity {
     // Biến phục vụ nhận diện thao tác bấm đúp phím Space (Double-tap Space)
     private boolean wasSpacePressed = false;
     private float lastSpaceTapTime = -1.0f;
+    // Chỉ tính cạnh nhấn Left Shift trong cùng một lần bay, kể cả khi giữ phím qua nhiều khung hình.
+    private boolean wasShiftPressed;
+    private float lastShiftTapTime = Float.NEGATIVE_INFINITY;
     private float playerElapsedTime = 0.0f;
 
     public Player(Vector3 startPosition) {
@@ -4067,9 +4303,10 @@ public class Player extends Entity {
 
         // Nếu rơi xuống dưới đáy bản đồ, đưa người chơi trở lại vị trí an toàn trên mặt đất
         if (position.y < -25.0f) {
-            position.set(World.WORLD_SIZE_X / 2.0f, 22.0f, World.WORLD_SIZE_Z / 2.0f);
+            position.set(World.CENTER_X, 22.0f, World.CENTER_Z);
             velocity.set(0.0f, 0.0f, 0.0f);
             isFlying = false;
+            lastShiftTapTime = Float.NEGATIVE_INFINITY;
         }
 
         // Nội suy mượt mà chiều cao tầm mắt Camera khi chuyển đổi giữa Đứng thẳng (1.62f) và Sneak (1.45f)
@@ -4091,6 +4328,7 @@ public class Player extends Entity {
         // Góc nhìn thứ nhất: không vẽ mô hình 3D của chính người chơi
     }
 
+    /** Đọc phím, xử lý thao tác nhấn đúp và đặt vận tốc trước khi giải quyết va chạm. */
     private void handleInput(World world, Camera camera) {
         boolean spaceDown = Gdx.input.isKeyPressed(Input.Keys.SPACE);
         boolean shiftDown = Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT);
@@ -4102,6 +4340,7 @@ public class Player extends Entity {
             if (now - lastSpaceTapTime <= DOUBLE_TAP_THRESHOLD) {
                 isFlying = !isFlying;
                 velocity.y = 0.0f;
+                lastShiftTapTime = Float.NEGATIVE_INFINITY;
                 if (isFlying) {
                     onGround = false;
                     isSneaking = false;
@@ -4113,15 +4352,20 @@ public class Player extends Entity {
         }
         wasSpacePressed = spaceDown;
 
-        // 2. Xử lý phím Left Shift (Thoát chế độ Bay hoặc Đi rón rén Sneak)
+        // 2. Nhấn đúp Left Shift để thoát bay, hoặc giữ phím để rón rén ngoài chế độ bay.
         if (isFlying) {
-            if (shiftDown) {
-                isFlying = false;
-                isSneaking = false;
+            if (shiftDown && !wasShiftPressed) {
+                if (playerElapsedTime - lastShiftTapTime <= DOUBLE_TAP_THRESHOLD) {
+                    isFlying = false;
+                    lastShiftTapTime = Float.NEGATIVE_INFINITY;
+                } else {
+                    lastShiftTapTime = playerElapsedTime;
+                }
             }
         } else {
             isSneaking = shiftDown;
         }
+        wasShiftPressed = shiftDown;
 
         // 3. Tính hướng di chuyển trên mặt phẳng ngang XZ
         double yawRad = Math.toRadians(camera.getYaw());
@@ -4171,10 +4415,12 @@ public class Player extends Entity {
         velocity.x = wishDir.x;
         velocity.z = wishDir.z;
 
-        // 5. Xử lý chuyển động dọc (Trục Y: Bay lên, Bơi lên hoặc Nhảy)
+        // 5. Khi bay, Space ưu tiên bay lên. Left Shift hạ dần, thả cả hai phím thì giữ độ cao.
         if (isFlying) {
             if (spaceDown) {
                 velocity.y = FLY_ASCEND_SPEED;
+            } else if (shiftDown) {
+                velocity.y = -FLY_DESCEND_SPEED;
             } else {
                 velocity.y = 0.0f;
             }
@@ -4227,6 +4473,7 @@ public class Player extends Entity {
 
         if (onGround && isFlying) {
             isFlying = false;
+            lastShiftTapTime = Float.NEGATIVE_INFINITY;
         }
     }
 
@@ -4543,10 +4790,10 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.InputProcessor;
 import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Vector3;
 import com.voxelgame.engine.AudioManager;
 import com.voxelgame.engine.Camera;
-import com.voxelgame.engine.Chunk;
 import com.voxelgame.engine.Raycast;
 import com.voxelgame.engine.ShaderProgram;
 import com.voxelgame.engine.Texture;
@@ -4592,7 +4839,7 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
     /** Camera góc nhìn thứ nhất (First-Person), Euler Yaw/Pitch, Dynamic FOV */
     private Camera camera;
 
-    /** Thế giới voxel 20x2x20 Chunks (320x32x320 Blocks), sinh địa hình tự nhiên seed 20261114L */
+    /** Thế giới voxel, sinh địa hình tự nhiên với seed 20261114L. */
     private World world;
 
     /** Người chơi với điều khiển WASD, Nhảy/Bơi, Bay, Rón rén, Sprint và va chạm AABB */
@@ -4653,7 +4900,7 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
     // Hằng số đồ họa và gameplay
     // =====================================================================
 
-    /** Màu bầu trời xanh nhạt, đồng bộ làm màu nền xóa khung hình và màu sương mù khoảng cách */
+    /** Màu bầu trời xanh nhạt dùng khi xóa khung hình. */
     private static final Vector3 SKY_COLOR = new Vector3(0.53f, 0.81f, 0.92f);
 
     /** Tầm với tối đa của tia bắn Raycast khi đào/đặt Block (5 ô voxel) */
@@ -4673,7 +4920,7 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         // 1. Cấu hình trạng thái OpenGL nền tảng
         // -----------------------------------------------------------------
 
-        // Màu xóa nền bầu trời xanh nhạt (đồng bộ với uFogColor trong Shader)
+        // Màu xóa nền bầu trời xanh nhạt.
         Gdx.gl.glClearColor(SKY_COLOR.x, SKY_COLOR.y, SKY_COLOR.z, 1.0f);
 
         // Bật kiểm tra chiều sâu (Depth Test) để các vật thể 3D che khuất chính xác theo khoảng cách
@@ -4700,7 +4947,7 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         // Camera góc nhìn thứ nhất: Quản lý Euler Yaw/Pitch, ma trận View/Projection, Dynamic FOV
         camera = new Camera();
 
-        // Thế giới voxel: Sinh 20x2x20 Chunks với địa hình tự nhiên (seed 20261114L)
+        // Sinh địa hình và chuẩn bị mesh quanh tâm bản đồ.
         world = new World();
 
         // UI Renderer: Chuẩn bị tài nguyên GPU cho Overlay 3D, Crosshair, Hotbar, Pause Menu, font bitmap
@@ -4710,8 +4957,8 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         // 3. Khởi tạo Player, gắn điều khiển và đăng ký vào World
         // -----------------------------------------------------------------
 
-        // Spawn người chơi tại vị trí mặc định (32.0, 16.0, 32.0) - trung tâm thế giới
-        player = new Player(new Vector3(32.0f, 16.0f, 32.0f));
+        // Đặt chân người chơi ngay trên mặt đất tại tâm bản đồ.
+        player = new Player(world.getSpawnPosition());
 
         // Gắn tham chiếu Camera để Player cập nhật hướng nhìn và tầm mắt
         player.attachControls(camera);
@@ -4797,18 +5044,15 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         int screenWidth = Gdx.graphics.getWidth();
         int screenHeight = Gdx.graphics.getHeight();
 
-        // Thiết lập ma trận chiếu phối cảnh (Perspective) và ma trận nhìn (View)
-        shaderProgram.setUniformMatrix4f("uProjection", camera.getProjectionMatrix(screenWidth, screenHeight));
-        shaderProgram.setUniformMatrix4f("uView", camera.getViewMatrix());
+        // Dùng cùng ma trận cho Shader và kiểm tra khung nhìn, kể cả khi FOV thay đổi.
+        Matrix4 projection = camera.getProjectionMatrix(screenWidth, screenHeight);
+        Matrix4 view = camera.getViewMatrix();
+        shaderProgram.setUniformMatrix4f("uProjection", projection);
+        shaderProgram.setUniformMatrix4f("uView", view);
 
-        // Truyền thông số sương mù khoảng cách tuyến tính (Distance Fog)
-        shaderProgram.setUniformVec3("uFogColor", SKY_COLOR);
-        shaderProgram.setUniform1f("uFogStart", 28.0f);
-        shaderProgram.setUniform1f("uFogEnd", 58.0f);
-
-        // Kết xuất các Chunk và toàn bộ Entity trong thế giới
+        // Kết xuất các chunk giao khung nhìn và toàn bộ thực thể trong thế giới.
         textureAtlas.bind();
-        world.render(shaderProgram);
+        world.render(shaderProgram, projection, view);
         textureAtlas.unbind();
 
         // =================================================================
@@ -5481,7 +5725,8 @@ Phần A mô tả **100% tính chất hiện có** của dự án **VoxelGame**.
   - Đã loại bỏ hoàn toàn: LWJGL BOM 3.3.3, JOML 1.10.5, JLayer 1.0.1 (libGDX đã tích hợp sẵn LWJGL 3, GLFW, OpenGL, STB, OpenAL và thư viện toán học).
 - **Tài nguyên (`src/main/resources/`):**
   - **Âm thanh:** `audio/1-08. Minecraft.mp3` (hỗ trợ tìm linh hoạt trong classpath, `src/main/resources/`, `src/main/resources/audio/`, `audio/`, `music/`, thư mục gốc hoặc tự quét sâu tối đa 4 cấp tìm file `.mp3` đầu tiên).
-  - **Texture:** `textures/` gồm `bedrock.png`, `stone.png`, `grass-block.png`, `Minecraft Dirt Small by terridee, click to purchase fabric.jpg`, `Minecraft Oak Log Block Texture Pixel Art.jpg`, `water_still.png`, `download.jpg` và tùy chọn `oak_leaves.png` (hỗ trợ tìm linh hoạt theo nhiều tên dự phòng, tìm trong classpath/thư mục gốc/quét sâu 5 cấp bỏ qua `.gradle`, `.git`, và có nền Procedural Pixel Art fallback).
+  - **Texture đang dùng:** `textures/` chứa các PNG từ `1.21.11.zip` gồm `dirt.png`, `grass_block_top.png`, `grass_block_side.png`, `grass_block_side_overlay.png`, `stone.png`, `bedrock.png`, `oak_log.png`, `oak_log_top.png`, `oak_leaves.png`, `water_still.png` và `lava_still.png`. Bộ nạp hỗ trợ tên tệp cũ, tìm trong classpath/thư mục cục bộ hoặc quét sâu 5 cấp bỏ qua `.gradle` và `.git`.
+  - **Texture chuẩn bị cho block và thời tiết:** `sand.png`, `grass_block_snow.png`, `dead_bush.png`, `cactus_side.png`, `cactus_top.png`, `cactus_bottom.png`, `spruce_log.png`, `spruce_leaves.png`, `ice.png`, `snow.png` tại `textures/`. Hai ảnh hiệu ứng `textures/environment/rain.png` và `textures/environment/snow.png` được đóng gói riêng theo kích thước gốc `64 × 256` cho bộ kết xuất thời tiết sau này.
 
 ---
 
@@ -5493,15 +5738,15 @@ Dự án đã hoàn thành chuyển đổi 100% (23/23 file) từ LWJGL thuần 
 - **`com.voxelgame.engine` (8 file):** *(Đã hoàn thành chuyển đổi 100% 8/8 file sang libGDX)*
   - `Raycast.java`: Thuật toán bắn tia 3D DDA (Amanatides & Woo) dùng `com.badlogic.gdx.math.Vector3` và Value Object bất biến `HitResult`.
   - `Camera.java`: Camera góc nhìn thứ nhất, góc Euler (`yaw`, `pitch`), Dynamic FOV, ma trận View/Perspective/Orthographic bằng `Matrix4`/`Vector3`, áp dụng Defensive Copying và tái sử dụng ma trận tránh GC churn.
-  - `Texture.java`: Nạp ảnh đa tầng và sinh Procedural Pixel Art qua `Pixmap`, bọc thành `com.badlogic.gdx.graphics.Texture` Atlas `64 x 64` duy nhất trên VRAM (`Nearest`, `ClampToEdge`), tự động giải phóng Pixmap trên RAM.
-  - `ShaderProgram.java`: Bao bọc `com.badlogic.gdx.graphics.glutils.ShaderProgram`, biên dịch GLSL 330 Core không tiền tố, hỗ trợ chế độ 3D World (Texture, Fog, Directional Shading) và 2D UI.
-  - `Chunk.java`: Quản lý phân vùng `16 x 16 x 16` block (`byte[][][]`), dựng lưới đỉnh và kết xuất qua `com.badlogic.gdx.graphics.Mesh` (định dạng 6 floats/đỉnh: `aPos`, `aTexCoord`, `aShade`), Directional Face Shading, hạ mặt thoáng chất lỏng `0.88f`.
-  - `World.java`: Quản lý lưới `Chunk[20][2][20]`, sinh địa hình tự nhiên 3 giai đoạn seed `20261114L`, quản lý danh sách thực thể đa hình `List<Entity> entities` (gồm `Player` và các `ItemEntity`), triển khai `Disposable`.
+  - `Texture.java`: Nạp ảnh đa tầng và sinh Procedural Pixel Art qua `Pixmap`, bọc thành `com.badlogic.gdx.graphics.Texture` Atlas `64 x 80` duy nhất trên VRAM (`Nearest`, `ClampToEdge`), tự động giải phóng Pixmap trên RAM.
+  - `ShaderProgram.java`: Bao bọc `com.badlogic.gdx.graphics.glutils.ShaderProgram`, biên dịch GLSL 330 Core không tiền tố, hỗ trợ chế độ 3D World (Texture, Directional Shading) và 2D UI.
+  - `Chunk.java`: Quản lý phân vùng `16 x 16 x 16` block (mảng phẳng `byte[]`), kiểm tra hộp bao với khung nhìn, dựng và kết xuất `Mesh` (6 floats/đỉnh: `aPos`, `aTexCoord`, `aShade`), tô sáng theo hướng mặt và hạ mặt thoáng chất lỏng xuống `0.88f`.
+  - `World.java`: Quản lý lưới thưa `Chunk[112][16][112]`, frustum culling và bộ nhớ đệm mesh cho chunk, sinh địa hình tự nhiên 3 giai đoạn seed `20261114L`, quản lý danh sách thực thể đa hình `List<Entity> entities` (gồm `Player` và các `ItemEntity`), triển khai `Disposable`.
   - `UIRenderer.java`: Vẽ overlay 3D quanh block mục tiêu và toàn bộ giao diện 2D (Crosshair, Mining Bar, Hotbar, Pause Menu, font bitmap 5x7, Hit-Testing chuột) qua `com.badlogic.gdx.graphics.Mesh` và `com.badlogic.gdx.math.Matrix4`, triển khai `Disposable`.
   - `AudioManager.java`: Quản lý phát lặp nhạc nền MP3 và chỉnh âm lượng thời gian thực thông qua `com.badlogic.gdx.audio.Music` (chạy trên OpenAL) và `com.badlogic.gdx.files.FileHandle`, nạp linh hoạt đa tầng, triển khai `Disposable`.
 - **`com.voxelgame.entity` (13 file):** *(Đã hoàn thành chuyển đổi 100% 13/13 file sang libGDX)*
   - `Entity.java`: Lớp cha trừu tượng chứa `position` (Bottom-Center) và `velocity` bằng `com.badlogic.gdx.math.Vector3`, `halfWidth`, `height`, `onGround`, kiểm tra va chạm `intersectsBlock(...)`, Defensive Copying và 2 phương thức trừu tượng `update(World, float)`, `render(ShaderProgram)`.
-  - `Player.java`: Kế thừa `Entity`, sở hữu `Hotbar` theo quan hệ Composition (`private final Hotbar hotbar`), xử lý điều khiển đọc phím qua `Gdx.input.isKeyPressed(Input.Keys.*)`, Bay Double-tap Space (bộ đếm thời gian thực), Chạy nhanh Left Ctrl, Rón rén Left Shift giữ mép block, Bơi trong chất lỏng và va chạm AABB tách trục `X -> Z -> Y`.
+  - `Player.java`: Kế thừa `Entity`, sở hữu `Hotbar` theo quan hệ Composition (`private final Hotbar hotbar`), đọc phím qua `Gdx.input.isKeyPressed(Input.Keys.*)`, bật/tắt bay khi nhấn đúp Space, hạ độ cao hoặc thoát bay bằng Left Shift, chạy nhanh bằng Left Ctrl, rón rén giữ mép block, bơi trong chất lỏng và giải quyết va chạm AABB theo thứ tự `X -> Z -> Y`.
   - `ItemEntity.java`: Kế thừa `Entity`, đại diện vật phẩm 3D thu nhỏ rơi ra khi đập block, dùng chung `com.badlogic.gdx.graphics.Mesh` theo từng `Block` qua `SHARED_MESHES` (`HashMap`), hoạt ảnh xoay 3D `110°/s`, nhấp nhô sin, nam châm hút và tự nhặt vào Hotbar.
   - `Hotbar.java`: Quản lý 9 ô thanh công cụ nhanh (tối đa 64 item/ô), logic cuộn chuột modulo 9, ưu tiên gộp ô cùng loại.
   - `Block.java` (Flyweight Pattern): Khai báo mảng tra cứu `BY_ID = new Block[16]` trước 9 hằng số singleton để constructor `super(...)` tự đăng ký O(1) không gặp `NullPointerException`.
@@ -5527,9 +5772,9 @@ Dự án đã hoàn thành chuyển đổi 100% (23/23 file) từ LWJGL thuần 
 ### 4. Gameplay & Hệ Thống Điều Khiển
 - **Di chuyển & Xoay góc nhìn:** `W, A, S, D` di chuyển 4 hướng trên mặt phẳng ngang XZ theo hướng `yaw`; di chuột xoay góc nhìn 360° với độ nhạy `MOUSE_SENSITIVITY = 0.12f` và giới hạn `pitch` trong `[-89.0°, 89.0°]`[cite: 1].
 - **Nhảy & Bơi (`Space` 1 lần):** Nhảy khi `onGround == true` (`JUMP_VELOCITY = 8.6f`)[cite: 1]; khi đang trong Nước hoặc Lava sẽ bơi nổi lên với vận tốc dọc `4.2f`[cite: 1].
-- **Chế độ Bay (Double-tap `Space` trong `<= 0.30s`):** Bật/tắt Fly Mode, tắt trọng lực; giữ `Space` bay lên với `FLY_ASCEND_SPEED = 7.0f` (nhả `Space` thì `velocity.y = 0`); tốc độ ngang `1.8x` (thêm `1.35x` nếu giữ `Left Ctrl`); chạm mặt đất sẽ tự thoát Fly Mode[cite: 1].
-- **Rón rén & Thoát Bay (`Left Shift`):**
-  - Khi đang Bay: thoát Fly Mode ngay lập tức, bật lại trọng lực[cite: 1].
+- **Chế độ Bay (nhấn đúp `Space` trong tối đa `0.30s`):** Bật/tắt Fly Mode. Khi bay, trọng lực tắt, giữ `Space` để bay lên với tốc độ `7.0` block/s. Giữ cả hai phím thì ưu tiên `Space`. Thả cả `Space` và `Left Shift` để giữ độ cao. Tốc độ ngang là `1.8x`, nhân thêm `1.35x` khi chạy nhanh. Chạm mặt đất sẽ tự thoát Fly Mode.
+- **Hạ độ cao, thoát bay và rón rén (`Left Shift`):**
+  - Khi đang bay, giữ `Left Shift` để hạ độ cao với tốc độ `4.0` block/s. Nhấn đúp `Left Shift` trong tối đa `0.30s` để thoát bay và bật lại trọng lực.
   - Khi đứng/đi trên mặt đất: bật **Sneak**, giảm tốc độ còn `0.5x`, nội suy mượt tầm mắt Camera từ `1.62f` xuống `1.45f` (tốc độ nội suy `deltaTime * 14.0f`), và kích hoạt **giữ mép block** (`preventFallingOffEdgeX/Z` theo bước `0.02f`) không cho rơi xuống vực[cite: 1].
 - **Chạy nhanh (`Left Ctrl`):** Bật **Sprint** khi đang di chuyển ngang và không Sneak; tăng `1.5x` tốc độ đi bộ kèm hiệu ứng mở rộng Dynamic FOV[cite: 1].
 - **9 Ô Hotbar (`1`–`9` hoặc Cuộn chuột):**
@@ -5551,7 +5796,7 @@ Dự án đã hoàn thành chuyển đổi 100% (23/23 file) từ LWJGL thuần 
 
 ### 5. Vật Lý & Thuật Toán Sinh Thế Giới
 - **Vật lý Người chơi (`Player`):**
-  - Spawn tại `(32.0f, 16.0f, 32.0f)`[cite: 1]. Nếu rơi xuống dưới `y < -25.0f` tự động đưa về `(WORLD_SIZE_X / 2.0f, 22.0f, WORLD_SIZE_Z / 2.0f)`, reset vận tốc và tắt bay[cite: 1].
+  - Spawn tại tâm ngang `(x = 896, z = 896)`. Độ cao chân bằng đỉnh cao nhất trong bốn cột block giáp tâm. Nếu rơi xuống dưới `y < -25.0f`, tự động đưa về `(896, 22, 896)`, reset vận tốc và tắt bay.
   - Hộp va chạm AABB: `PLAYER_HALF_WIDTH = 0.3f` (rộng `0.6f`), `PLAYER_HEIGHT = 1.8f`[cite: 1].
   - Thông số vận tốc: `MOVE_SPEED = 5.5f`, `GRAVITY = -26.0f`, `TERMINAL_VELOCITY = -45.0f`[cite: 1].
   - Nhận diện chất lỏng (`isInLiquid`): kiểm tra block tại chân (`y + 0.1f`) và thắt lưng (`y + 0.9f`)[cite: 1]. Trong chất lỏng (không bay): tốc độ ngang `0.65x`, trọng lực `0.25x`, vận tốc chìm tối đa `-3.5f`[cite: 1].
@@ -5566,35 +5811,36 @@ Dự án đã hoàn thành chuyển đổi 100% (23/23 file) từ LWJGL thuần 
   - Tự biến mất sau `MAX_LIFETIME = 300.0s`[cite: 1].
   - Hoạt ảnh 3D: nhấp nhô `sin(age * 3.8f) * 0.07f + 0.08f` và tự xoay quanh trục Y theo góc `age * 110.0f` độ[cite: 1].
 - **Thế giới & Sinh Địa hình (`World`, seed `20261114L`):**
-  - Kích thước: `20 x 2 x 20` Chunks (`Chunk.SIZE = 16`) = **`320 x 32 x 320` Blocks**[cite: 1].
+  - Kích thước: `112 x 16 x 112` chunk (`Chunk.SIZE = 16`) = **`1792 x 256 x 1792` block**, với tọa độ hợp lệ `x, z = 0..1791`, `y = 0..255`. Ô lưới chỉ chứa không khí dùng `null`. Đặt block đầu tiên tạo chunk và xóa block cuối cùng giải phóng chunk cùng mesh của nó.
   - Giới hạn chiều cao địa hình tự nhiên: `MAX_TERRAIN_LAYERS = 20` (`MAX_TERRAIN_Y = 19`)[cite: 1].
   - **Giai đoạn 1 (Phân tầng địa chất):** `surfaceY = clamp(round(10.0 + sin(wx*0.085)*cos(wz*0.085)*2.2 + sin((wx+wz)*0.05)*1.4), 5, 19)`; độ dày đất `2` hoặc `3` lớp (`2 + ((wx*13 + wz*7) & 1)`); `y = 0` Bedrock, dưới lớp đất là Stone, lớp đệm là Dirt, đỉnh `surfaceY` là Grass[cite: 1].
   - **Giai đoạn 2 (Hồ Nước & Dung nham):**
     - 4 hồ nước (đáy `Dirt`, bờ `Grass/Dirt`): `(22, 24, r=6.5, sâu 2)`, `(52, 28, r=7.5, sâu 2)`, `(26, 62, r=7.0, sâu 2)`, `(68, 66, r=8.0, sâu 3)`[cite: 1].
     - 4 hồ dung nham (đáy & bờ `Stone`): `(42, 20, r=4.8, sâu 2)`, `(20, 44, r=4.5, sâu 2)`, `(64, 46, r=5.2, sâu 2)`, `(46, 72, r=5.0, sâu 2)`[cite: 1].
-  - **Giai đoạn 3 (Cây Sồi tự nhiên):** Quét bước 4 trong `[6, WORLD_SIZE - 6)` với lệch ngẫu nhiên `[-1, 1]`, bỏ qua vùng spawn `(32, 32)` bán kính 4, xác suất 28% trên mặt `Grass` (`y ∈ [4, 19]`) không có chất lỏng trong bán kính 2; thân `Oak Log` cao `4..6` block (ô ngay dưới gốc chuyển thành `Dirt`), tán `Oak Leaves` 4 tầng (`radius = 2` ở 2 tầng dưới, `radius = 1` ở 2 tầng trên, tỉa góc tự nhiên)[cite: 1].
+  - **Giai đoạn 3 (Cây Sồi tự nhiên):** Quét bước 4 trong `[6, WORLD_SIZE - 6)` với lệch ngẫu nhiên `[-1, 1]`. Bỏ qua gốc cây trong vùng cách tâm spawn `(896, 896)` tối đa 4 block trên cả hai trục. Xác suất 28% trên mặt `Grass` (`y ∈ [4, 19]`) không có chất lỏng trong bán kính 2. Thân `Oak Log` cao `4..6` block, ô ngay dưới gốc chuyển thành `Dirt`, tán `Oak Leaves` 4 tầng với bán kính 2 ở hai tầng dưới và bán kính 1 ở hai tầng trên, tỉa góc tự nhiên.
 
 ---
 
 ### 6. Đồ Họa, Shader, Texture & Hiệu Năng 60 FPS
 - **OpenGL & Vòng lặp:** OpenGL 3.3 Core Profile trong backend LWJGL 3 của libGDX, bật `GL_DEPTH_TEST`, `GL_CULL_FACE` (`GL_BACK`, `GL_CCW`), bật V-Sync `config.useVsync(true)` đạt 60 FPS mượt mà, giới hạn `deltaTime <= 0.05f`.
-- **Màu trời, Sương mù & Ống kính:**
-  - `SKY_COLOR = (0.53f, 0.81f, 0.92f)` dùng chung cho màu xóa nền và `uFogColor`.
-  - Sương mù khoảng cách tuyến tính trong View Space: `uFogStart = 28.0f`, `uFogEnd = 58.0f`.
-  - Camera: `BASE_FOV_DEG = 70.0f` (`+8.0f` khi Sprint, `+5.0f` khi Fly, nội suy `deltaTime * 10.0f`), `NEAR_PLANE = 0.08f`, `FAR_PLANE = 160.0f`, ma trận tính qua `Matrix4.setToProjection` và `setToLookAt`.
+- **Màu trời & Ống kính:**
+  - `SKY_COLOR = (0.53f, 0.81f, 0.92f)` dùng cho màu xóa nền.
+  - Camera: `BASE_FOV_DEG = 70.0f` (`+8.0f` khi Sprint, `+5.0f` khi Fly, nội suy `deltaTime * 10.0f`), `NEAR_PLANE = 0.08f`, `FAR_PLANE = 1024.0f`, ma trận tính qua `Matrix4.setToProjection` và `setToLookAt`.
 - **Định dạng Đỉnh & Shader (`ShaderProgram`):**
   - 6 floats/đỉnh: `[x, y, z, u, v, shade]` (`location 0: vec3 aPos`, `location 1: vec2 aTexCoord`, `location 2: float aShade`) quản lý qua `VertexAttributes` của libGDX.
-  - Fragment Shader: chọn màu từ `uTexture * uTintColor` (`uUseTexture == 1`) hoặc `uTintColor` (`uUseTexture == 0`); loại bỏ pixel trong suốt (`alpha < 0.05 -> discard`); nhân `vShade`; hòa trộn sương mù nếu `uUseFog == 1`.
+  - Fragment Shader chọn màu từ `uTexture * uTintColor` hoặc `uTintColor`, loại bỏ pixel có `alpha < 0.05`, rồi nhân màu RGB với `vShade`.
   - Xóa tiền tố `prependVertexCode`/`prependFragmentCode` để giữ `#version 330 core` ở dòng đầu tiên.
 - **Ánh sáng & Face Culling (`Chunk`):**
   - Directional Face Shading: `SHADE_TOP = 1.00f`, `SHADE_BOTTOM = 0.55f`, `SHADE_NORTH_SOUTH = 0.85f`, `SHADE_EAST_WEST = 0.72f`.
   - Face Culling: Khối lỏng chỉ vẽ mặt tiếp giáp `Block.AIR`; khối rắn chỉ vẽ mặt tiếp giáp `!neighbor.isSolid()`.
   - Kết xuất thông qua `com.badlogic.gdx.graphics.Mesh`.
-  - Khi `World.setBlock(...)` sửa block ở biên Chunk (`0` hoặc `15`), tự động `markDirty()` các Chunk lân cận và chỉ rebuild những Chunk có `dirty == true`.
+  - Khi `World.setBlock(...)` sửa block ở biên chunk (`0` hoặc `15`), mesh của các chunk lân cận đã có dữ liệu được đánh dấu `dirty`.
+- **Frustum culling và bộ nhớ đệm mesh (`World`):** Giới hạn vùng quét bằng hộp bao khung nhìn, rồi kiểm tra hộp bao từng chunk bằng sáu mặt phẳng khung nhìn từ ma trận của shader. Khi tải, dựng trước mesh trong vùng 5 × 5 cột chunk quanh spawn. Trong lúc chơi, mỗi khung hình dựng hoặc cập nhật tối đa 16 mesh giao khung nhìn, ưu tiên chunk gần camera. Thu hồi mesh sau 120 khung hình liên tiếp ngoài khung nhìn, giữ dữ liệu block và các sửa đổi để dựng lại khi cần. Bộ đệm đỉnh `FloatArray` và bảng UV được dùng lại khi dựng mesh.
 - **Texture Atlas (`Texture`):**
-  - Lưới `4 x 4` tile, mỗi tile `16 x 16` pixel -> Atlas `64 x 64` RGBA, lọc `TextureFilter.Nearest`, bao biên `TextureWrap.ClampToEdge`, lùi biên UV `eps = 0.0008f` chống Texture Bleeding.
+  - Lưới `4 x 5` tile, mỗi tile `16 x 16` pixel -> Atlas `64 x 80` RGBA, lọc `TextureFilter.Nearest`, bao biên `TextureWrap.ClampToEdge`, lùi biên UV `eps = 0.0008f` chống Texture Bleeding.
   - Thứ tự 10 tile đang dùng: `0=DIRT`, `1=GRASS_TOP`, `2=GRASS_SIDE`, `3=STONE`, `4=BEDROCK`, `5=OAK_LOG_SIDE`, `6=OAK_LOG_TOP`, `7=OAK_LEAVES`, `8=WATER`, `9=LAVA`.
-  - Xử lý ảnh thông minh bằng `Pixmap`: tự tách sheet `32x32` của `grass-block.png` thành 3 tile (`GRASS_TOP`, `GRASS_SIDE`, `DIRT`); cắt khung vuông đầu tiên của `water_still.png` và nhuộm xanh nước biển (`alpha = 225`) nếu ảnh nguồn là thang xám; có đầy đủ 10 tile Procedural Pixel Art (seed `20261114L`) làm nền dự phòng; tự động `dispose()` Pixmap sau khi nạp lên GPU.
+  - Thứ tự 10 tile dành cho block sẽ bổ sung: `10=SAND`, `11=GRASS_SNOW_SIDE`, `12=DEAD_BUSH`, `13=CACTUS_SIDE`, `14=CACTUS_TOP`, `15=CACTUS_BOTTOM`, `16=SPRUCE_WOOD`, `17=SPRUCE_LEAVES`, `18=ICE`, `19=SNOW`. Snowy Grass Block dùng chung mặt trên với Grass Block và mặt đáy với Dirt. Spruce Wood dùng vỏ `spruce_log.png` cho mọi mặt. Snowy Leaves dùng ảnh nền `spruce_leaves.png` vì ZIP không có ảnh lá phủ tuyết riêng. Snow Block và Snow Layers dùng chung tile `SNOW`.
+  - Xử lý ảnh một lần khi khởi tạo qua `Pixmap`: nhuộm xanh mặt trên và lớp phủ mặt bên của cỏ, rồi ghép lớp phủ lên mặt bên. Nước và dung nham dùng khung vuông đầu tiên của ảnh động. Nước thang xám được nhuộm xanh và đặt `alpha = 225`, lá sồi đang dùng được vẽ đục. Mười tile dành cho block sẽ bổ sung giữ RGBA gốc. Sheet `grass-block.png` cũ và 10 tile Procedural Pixel Art (seed `20261114L`) vẫn dùng làm dự phòng cho các block hiện có. Bộ nạp giải phóng các Pixmap nguồn sau khi chép và giải phóng Pixmap atlas sau khi tải lên GPU.
 - **Tối ưu Hiệu năng & Quản lý Bộ nhớ:**
   - Tái sử dụng các `Matrix4` làm trường thành viên để tránh sinh rác GC trong Game Loop.
   - Dùng chung `Mesh` theo loại `Block` cho mọi `ItemEntity` (`SHARED_MESHES`).
@@ -5675,7 +5921,8 @@ VoxelGame/
 | **`W, A, S, D` + Di chuột** | Di chuyển 4 hướng và xoay góc nhìn 360 độ. |
 | **Nhấn `Space` 1 lần** | Nhảy lên khi đang đứng trên mặt đất (hoặc bơi nổi lên khi đang ở dưới Hồ Nước / Lava). |
 | **Nhấn đúp `Space` 2 lần (`< 0.3s`)** | **Bật / Tắt Chế độ Bay (Fly Mode)**: Vô hiệu hóa trọng lực, giữ `Space` để bay lên cao. |
-| **Nhấn `Left Shift` (khi đang Bay)** | **Thoát Chế độ Bay** ngay lập tức và bật lại trọng lực rơi tự nhiên. |
+| **Giữ `Left Shift` (khi đang bay)** | Hạ độ cao với tốc độ 4 block/giây. |
+| **Nhấn đúp `Left Shift` trong tối đa 0,3 giây (khi đang bay)** | Thoát chế độ bay và bật lại trọng lực. |
 | **Giữ `Left Shift` (trên mặt đất)** | **Đi rón rén (Sneak)**: Giảm 50% tốc độ, hạ thấp tầm mắt Camera và **giữ mép block không bị rơi xuống vực**. |
 | **Giữ `Left Ctrl` khi di chuyển** | **Chạy nhanh (Sprint)**: Tăng 1.5 lần tốc độ di chuyển kèm hiệu ứng mở rộng nhẹ góc nhìn (Dynamic FOV). |
 | **Phím số `1` – `9` hoặc Cuộn chuột** | Chọn ô trên **9 Thanh Công Cụ Nhanh (Hotbar HUD)** ở cạnh dưới màn hình. |

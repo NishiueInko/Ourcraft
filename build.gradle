@@ -60,4 +60,21 @@ java {
 // Đảm bảo trình biên dịch đọc đúng bảng mã UTF-8 (không bị lỗi font tiếng Việt trong chú thích)
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
+    options.release = 17
+}
+
+// Chạy các kiểm tra thế giới và vật lý trên CPU, không cần tạo cửa sổ đồ họa.
+tasks.register('regressionChecks', JavaExec) {
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.voxelgame.engine.VoxelRegressionChecks'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('regressionChecks')
+}
+
+// Các ca CPU chạy bằng JavaExec, nên test chuẩn có thể chưa có bộ phát hiện ca kiểm thử.
+tasks.named('test') {
+    failOnNoDiscoveredTests = false
 }

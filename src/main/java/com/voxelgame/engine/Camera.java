@@ -149,6 +149,11 @@ public class Camera {
         return new Vector3(position);
     }
 
+    /** Chép vị trí mắt vào bộ đệm của vòng lặp kết xuất. */
+    public Vector3 copyPosition(Vector3 target) {
+        return target.set(position);
+    }
+
     public void setPosition(float x, float y, float z) {
         this.position.set(x, y, z);
     }
@@ -160,6 +165,11 @@ public class Camera {
      */
     public Vector3 getFront() {
         return new Vector3(front);
+    }
+
+    /** Chép hướng nhìn vào bộ đệm dùng lại cho raycast. */
+    public Vector3 copyFront(Vector3 target) {
+        return target.set(front);
     }
 
     /**

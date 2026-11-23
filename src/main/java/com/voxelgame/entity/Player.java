@@ -44,6 +44,19 @@ public class Player extends Entity {
 
     // Khoảng thời gian tối đa giữa hai lần nhấn Space hoặc Left Shift (0.30 giây).
     private static final float DOUBLE_TAP_THRESHOLD = 0.30f;
+    /** Giới hạn bước tuyết và phản hồi khi chạm gai. */
+    private static final float MAX_SNOW_STEP = 0.5f;
+    private static final float CACTUS_COOLDOWN = 0.5f;
+    private static final float CACTUS_FLASH_DURATION = 0.25f;
+    private static final float CACTUS_PUSH = 2.0f;
+    /** Bộ đệm điều khiển dùng lại mỗi khung hình. */
+    private final Vector3 forwardXZ = new Vector3();
+    private final Vector3 rightXZ = new Vector3();
+    private final Vector3 wishDir = new Vector3();
+    private float cactusCooldown;
+    private float cactusFlash;
+    private float pushX;
+    private float pushZ;
 
     // Quan hệ Hợp thành (Composition - Player "has-a" Hotbar)
     private final Hotbar hotbar = new Hotbar();
@@ -109,7 +122,9 @@ public class Player extends Entity {
 
         playerElapsedTime += deltaTime;
 
-        handleInput(world, camera);
+        cactusCooldown = Math.max(0, cactusCooldown - deltaTime);
+        cactusFlash = Math.max(0, cactusFlash - deltaTime);
+        handleInput(world, camera, deltaTime);
         applyPhysicsAndCollision(world, deltaTime);
 
         // Nếu rơi xuống dưới đáy bản đồ, đưa người chơi trở lại vị trí an toàn trên mặt đất
@@ -140,7 +155,7 @@ public class Player extends Entity {
     }
 
     /** Đọc phím, xử lý thao tác nhấn đúp và đặt vận tốc trước khi giải quyết va chạm. */
-    private void handleInput(World world, Camera camera) {
+    private void handleInput(World world, Camera camera, float deltaTime) {
         boolean spaceDown = Gdx.input.isKeyPressed(Input.Keys.SPACE);
         boolean shiftDown = Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT);
         boolean ctrlDown = Gdx.input.isKeyPressed(Input.Keys.CONTROL_LEFT);
@@ -180,10 +195,10 @@ public class Player extends Entity {
 
         // 3. Tính hướng di chuyển trên mặt phẳng ngang XZ
         double yawRad = Math.toRadians(camera.getYaw());
-        Vector3 forwardXZ = new Vector3((float) Math.cos(yawRad), 0.0f, (float) Math.sin(yawRad)).nor();
-        Vector3 rightXZ = new Vector3(-forwardXZ.z, 0.0f, forwardXZ.x).nor();
+        forwardXZ.set((float) Math.cos(yawRad), 0, (float) Math.sin(yawRad)).nor();
+        rightXZ.set(-forwardXZ.z, 0, forwardXZ.x).nor();
 
-        Vector3 wishDir = new Vector3(0.0f, 0.0f, 0.0f);
+        wishDir.setZero();
         if (Gdx.input.isKeyPressed(Input.Keys.W)) {
             wishDir.add(forwardXZ);
         }
@@ -223,8 +238,16 @@ public class Player extends Entity {
             wishDir.nor().scl(currentSpeed);
         }
 
-        velocity.x = wishDir.x;
-        velocity.z = wishDir.z;
+        float friction = surfaceFriction(world);
+        if (!isFlying && !inLiquid && onGround && friction > 0.6f) {
+            // Quy đổi độ giữ đà từ bước tham chiếu 60 Hz theo thời gian thực.
+            float blend = 1.0f - (float) Math.pow(isMovingHorizontally ? 0.90f : friction, deltaTime * 60.0f);
+            velocity.x += (wishDir.x - velocity.x) * blend;
+            velocity.z += (wishDir.z - velocity.z) * blend;
+        } else {
+            velocity.x = wishDir.x;
+            velocity.z = wishDir.z;
+        }
 
         // 5. Khi bay, Space ưu tiên bay lên. Left Shift hạ dần, thả cả hai phím thì giữ độ cao.
         if (isFlying) {
@@ -262,8 +285,11 @@ public class Player extends Entity {
             }
         }
 
-        float dx = velocity.x * deltaTime;
-        float dz = velocity.z * deltaTime;
+        float dx = (velocity.x + pushX) * deltaTime;
+        float dz = (velocity.z + pushZ) * deltaTime;
+        float decay = Math.max(0, 1.0f - deltaTime * 12.0f);
+        pushX *= decay;
+        pushZ *= decay;
 
         // Nếu đang giữ Left Shift (Sneak) trên mặt đất, kích hoạt bảo vệ chống rơi khỏi mép block
         if (isSneaking && onGround && !isFlying) {
@@ -272,20 +298,92 @@ public class Player extends Entity {
         }
 
         // Di chuyển và giải quyết va chạm tách trục (X -> Z -> Y)
-        position.x += dx;
-        resolveCollisionX(world);
-
-        position.z += dz;
-        resolveCollisionZ(world);
-
+        if (moveHorizontal(world, 0, dx)) {
+            velocity.x = 0;
+        }
+        if (moveHorizontal(world, 2, dz)) {
+            velocity.z = 0;
+        }
         onGround = false;
-        position.y += velocity.y * deltaTime;
-        resolveCollisionY(world);
+        Block verticalHit = moveAxis(world, 1, velocity.y * deltaTime);
+        if (verticalHit != null) {
+            onGround = velocity.y < 0;
+            velocity.y = 0;
+            if (verticalHit == Block.CACTUS) {
+                touchCactus(0, 0, onGround);
+            }
+        }
 
         if (onGround && isFlying) {
             isFlying = false;
             lastShiftTapTime = Float.NEGATIVE_INFINITY;
         }
+    }
+
+    /** Thử bước lên mép tuyết thấp nếu phía trên có đủ chỗ. */
+    private boolean moveHorizontal(World world, int axis, float distance) {
+        float origin = axis == 0 ? position.x : position.z;
+        Block hit = moveAxis(world, axis, distance);
+        float rise = obstacleTop - position.y;
+        if (hit == Block.SNOW_LAYER && onGround && !isFlying && rise > 0 && rise <= MAX_SNOW_STEP) {
+            float previousY = position.y;
+            float stopped = axis == 0 ? position.x : position.z;
+            setHorizontal(axis, origin);
+            position.y += rise;
+            if (!overlapsTerrain(world)) {
+                Block raisedHit = moveAxis(world, axis, distance);
+                float raised = axis == 0 ? position.x : position.z;
+                if (Math.abs(raised - origin) > Math.abs(stopped - origin)) {
+                    return raisedHit != null;
+                }
+            }
+            position.y = previousY;
+            setHorizontal(axis, stopped);
+        }
+        if (hit == Block.CACTUS) {
+            float push = distance > 0 ? -CACTUS_PUSH : CACTUS_PUSH;
+            touchCactus(axis == 0 ? push : 0, axis == 2 ? push : 0, false);
+        }
+        return hit != null;
+    }
+
+    /** Đặt tọa độ theo trục đang thử bước lên tuyết. */
+    private void setHorizontal(int axis, float value) {
+        if (axis == 0) {
+            position.x = value;
+        } else {
+            position.z = value;
+        }
+    }
+
+    /** Đẩy nhẹ theo mặt tiếp xúc và giới hạn tần suất phản hồi. */
+    private void touchCactus(float x, float z, boolean above) {
+        if (cactusCooldown > 0) {
+            return;
+        }
+        cactusCooldown = CACTUS_COOLDOWN;
+        cactusFlash = CACTUS_FLASH_DURATION;
+        pushX = x;
+        pushZ = z;
+        if (above && !isFlying) {
+            velocity.y = CACTUS_PUSH;
+            onGround = false;
+        }
+    }
+
+    /** Alpha tương đối của viền đỏ chạm gai. */
+    public float getCactusFlash() {
+        return cactusFlash / CACTUS_FLASH_DURATION;
+    }
+
+    /** Đọc vật liệu dưới tâm chân nếu chân đang ở cạnh mặt nâng đỡ. */
+    private float surfaceFriction(World world) {
+        int x = (int) Math.floor(position.x);
+        int y = (int) Math.floor(position.y - 0.01f);
+        int z = (int) Math.floor(position.z);
+        Block.Bounds bounds = world.getCollisionBounds(x, y, z);
+        return bounds != null && Math.abs(position.y - (y + bounds.maxY())) <= 0.02f
+                ? Block.fromId(world.getBlock(x, y, z)).getFriction() : 0.6f;
     }
 
     private float preventFallingOffEdgeX(World world, float dx) {
@@ -328,7 +426,10 @@ public class Player extends Entity {
 
         for (int x = minX; x <= maxX; x++) {
             for (int z = minZ; z <= maxZ; z++) {
-                if (world.isSolidBlock(x, checkY, z)) {
+                Block.Bounds bounds = world.getCollisionBounds(x, checkY, z);
+                if (bounds != null && bounds.intersects(x, checkY, z,
+                        testX - checkHalfWidth, testY - 0.05f, testZ - checkHalfWidth,
+                        testX + checkHalfWidth, testY + CONTACT_EPSILON, testZ + checkHalfWidth)) {
                     return true;
                 }
             }
@@ -345,85 +446,6 @@ public class Player extends Entity {
         Block feetBlock = Block.fromId(world.getBlock(bx, byFeet, bz));
         Block waistBlock = Block.fromId(world.getBlock(bx, byWaist, bz));
         return feetBlock.isLiquid() || waistBlock.isLiquid();
-    }
-
-    private void resolveCollisionX(World world) {
-        int minX = (int) Math.floor(position.x - halfWidth);
-        int maxX = (int) Math.floor(position.x + halfWidth);
-        int minY = (int) Math.floor(position.y);
-        int maxY = (int) Math.floor(position.y + height - 0.0001f);
-        int minZ = (int) Math.floor(position.z - halfWidth);
-        int maxZ = (int) Math.floor(position.z + halfWidth);
-
-        for (int x = minX; x <= maxX; x++) {
-            for (int y = minY; y <= maxY; y++) {
-                for (int z = minZ; z <= maxZ; z++) {
-                    if (world.isSolidBlock(x, y, z)) {
-                        if (velocity.x > 0) {
-                            position.x = x - halfWidth - 0.0001f;
-                            velocity.x = 0;
-                        } else if (velocity.x < 0) {
-                            position.x = x + 1.0f + halfWidth + 0.0001f;
-                            velocity.x = 0;
-                        }
-                        return;
-                    }
-                }
-            }
-        }
-    }
-
-    private void resolveCollisionZ(World world) {
-        int minX = (int) Math.floor(position.x - halfWidth);
-        int maxX = (int) Math.floor(position.x + halfWidth);
-        int minY = (int) Math.floor(position.y);
-        int maxY = (int) Math.floor(position.y + height - 0.0001f);
-        int minZ = (int) Math.floor(position.z - halfWidth);
-        int maxZ = (int) Math.floor(position.z + halfWidth);
-
-        for (int x = minX; x <= maxX; x++) {
-            for (int y = minY; y <= maxY; y++) {
-                for (int z = minZ; z <= maxZ; z++) {
-                    if (world.isSolidBlock(x, y, z)) {
-                        if (velocity.z > 0) {
-                            position.z = z - halfWidth - 0.0001f;
-                            velocity.z = 0;
-                        } else if (velocity.z < 0) {
-                            position.z = z + 1.0f + halfWidth + 0.0001f;
-                            velocity.z = 0;
-                        }
-                        return;
-                    }
-                }
-            }
-        }
-    }
-
-    private void resolveCollisionY(World world) {
-        int minX = (int) Math.floor(position.x - halfWidth);
-        int maxX = (int) Math.floor(position.x + halfWidth);
-        int minY = (int) Math.floor(position.y);
-        int maxY = (int) Math.floor(position.y + height - 0.0001f);
-        int minZ = (int) Math.floor(position.z - halfWidth);
-        int maxZ = (int) Math.floor(position.z + halfWidth);
-
-        for (int x = minX; x <= maxX; x++) {
-            for (int y = minY; y <= maxY; y++) {
-                for (int z = minZ; z <= maxZ; z++) {
-                    if (world.isSolidBlock(x, y, z)) {
-                        if (velocity.y < 0) {
-                            position.y = y + 1.0f;
-                            velocity.y = 0;
-                            onGround = true;
-                        } else if (velocity.y > 0) {
-                            position.y = y - height - 0.0001f;
-                            velocity.y = 0;
-                        }
-                        return;
-                    }
-                }
-            }
-        }
     }
 
     public Hotbar getHotbar() {

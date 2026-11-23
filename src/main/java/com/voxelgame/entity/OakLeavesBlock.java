@@ -14,7 +14,7 @@ public class OakLeavesBlock extends Block {
                 0.30f,
                 true,
                 false,
-                true,
+                false,
                 new float[]{0.20f, 0.52f, 0.15f}
         );
     }
@@ -22,5 +22,11 @@ public class OakLeavesBlock extends Block {
     @Override
     public int getTileIndex(Face face) {
         return Texture.TILE_OAK_LEAVES;
+    }
+
+    /** Lá giữ vùng trong suốt giữa các cành. */
+    @Override
+    public RenderLayer getRenderLayer() {
+        return RenderLayer.CUTOUT;
     }
 }

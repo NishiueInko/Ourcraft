@@ -15,46 +15,59 @@ Phần A mô tả **100% tính chất hiện có** của dự án **VoxelGame**.
   - Đã loại bỏ hoàn toàn: LWJGL BOM 3.3.3, JOML 1.10.5, JLayer 1.0.1 (libGDX đã tích hợp sẵn LWJGL 3, GLFW, OpenGL, STB, OpenAL và thư viện toán học).
 - **Tài nguyên (`src/main/resources/`):**
   - **Âm thanh:** `audio/1-08. Minecraft.mp3` (hỗ trợ tìm linh hoạt trong classpath, `src/main/resources/`, `src/main/resources/audio/`, `audio/`, `music/`, thư mục gốc hoặc tự quét sâu tối đa 4 cấp tìm file `.mp3` đầu tiên).
-  - **Texture:** `textures/` gồm `bedrock.png`, `stone.png`, `grass-block.png`, `Minecraft Dirt Small by terridee, click to purchase fabric.jpg`, `Minecraft Oak Log Block Texture Pixel Art.jpg`, `water_still.png`, `download.jpg` và tùy chọn `oak_leaves.png` (hỗ trợ tìm linh hoạt theo nhiều tên dự phòng, tìm trong classpath/thư mục gốc/quét sâu 5 cấp bỏ qua `.gradle`, `.git`, và có nền Procedural Pixel Art fallback).
+  - **Texture khối:** `textures/` đóng gói bộ ảnh gốc của dự án và 13 PNG nhập nguyên byte từ `assets/minecraft/textures/block/` trong `1.21.11.zip`. Các tệp mới gồm `sandstone.png`, `sandstone_top.png`, `sandstone_bottom.png`, `spruce_log_top.png`, `short_grass.png`, `tall_grass_bottom.png`, `tall_grass_top.png`, `dandelion.png`, `poppy.png`, `cornflower.png`, `oxeye_daisy.png`, `sugar_cane.png` và `gravel.png`. Game nạp ảnh đã đóng gói và dùng bộ nạp dự phòng khi thiếu tài nguyên.
+  - **Tài nguyên thời tiết:** `textures/environment/rain.png` và `textures/environment/snow.png` giữ kích thước gốc 64 × 256.
+- **Kiểm thử:** Gradle `regressionChecks` chạy bộ kiểm tra CPU về ID block, vòng đời thực thể rơi, cập nhật lân cận, va chạm, raycast, hình học chunk, sắp xếp mesh và sinh địa hình tất định. `check` gọi task này. Trình biên dịch dùng `options.release = 17`.
 
 ---
 
-### 2. Kiến Trúc Mã Nguồn Hiện Tại (23 File Java)
-Dự án đã hoàn thành chuyển đổi 100% (23/23 file) từ LWJGL thuần sang framework libGDX (`gdx-backend-lwjgl3`). Tổ chức theo 4 tính chất OOP (Đóng gói, Kế thừa, Đa hình, Trừu tượng hóa) chia làm 3 vùng:
-- **`com.voxelgame` (2 file):**
-  - `Main.java`: Điểm khởi chạy duy nhất, cấu hình `Lwjgl3ApplicationConfiguration` và tạo `Lwjgl3Application(new VoxelGameApp(), config)`.
-  - `VoxelGameApp.java`: Lớp ứng dụng chính kế thừa `ApplicationAdapter` và triển khai `InputProcessor`. Quản lý toàn bộ vòng lặp Game Loop (`render()`), trạng thái Pause Menu, xử lý sự kiện bàn phím/chuột, đào/đặt block, và giải phóng tài nguyên (`dispose()`). Thay thế hoàn toàn vai trò của `Window.java` cũ.
-- **`com.voxelgame.engine` (8 file):** *(Đã hoàn thành chuyển đổi 100% 8/8 file sang libGDX)*
-  - `Raycast.java`: Thuật toán bắn tia 3D DDA (Amanatides & Woo) dùng `com.badlogic.gdx.math.Vector3` và Value Object bất biến `HitResult`.
-  - `Camera.java`: Camera góc nhìn thứ nhất, góc Euler (`yaw`, `pitch`), Dynamic FOV, ma trận View/Perspective/Orthographic bằng `Matrix4`/`Vector3`, áp dụng Defensive Copying và tái sử dụng ma trận tránh GC churn.
-  - `Texture.java`: Nạp ảnh đa tầng và sinh Procedural Pixel Art qua `Pixmap`, bọc thành `com.badlogic.gdx.graphics.Texture` Atlas `64 x 64` duy nhất trên VRAM (`Nearest`, `ClampToEdge`), tự động giải phóng Pixmap trên RAM.
-  - `ShaderProgram.java`: Bao bọc `com.badlogic.gdx.graphics.glutils.ShaderProgram`, biên dịch GLSL 330 Core không tiền tố, hỗ trợ chế độ 3D World (Texture, Directional Shading) và 2D UI.
-  - `Chunk.java`: Quản lý phân vùng `16 x 16 x 16` block (mảng phẳng `byte[]`), kiểm tra hộp bao với khung nhìn, dựng và kết xuất `Mesh` (6 floats/đỉnh: `aPos`, `aTexCoord`, `aShade`), tô sáng theo hướng mặt và hạ mặt thoáng chất lỏng xuống `0.88f`.
-  - `World.java`: Quản lý lưới thưa `Chunk[112][16][112]`, frustum culling và bộ nhớ đệm mesh cho chunk, sinh địa hình tự nhiên 3 giai đoạn seed `20261114L`, quản lý danh sách thực thể đa hình `List<Entity> entities` (gồm `Player` và các `ItemEntity`), triển khai `Disposable`.
-  - `UIRenderer.java`: Vẽ overlay 3D quanh block mục tiêu và toàn bộ giao diện 2D (Crosshair, Mining Bar, Hotbar, Pause Menu, font bitmap 5x7, Hit-Testing chuột) qua `com.badlogic.gdx.graphics.Mesh` và `com.badlogic.gdx.math.Matrix4`, triển khai `Disposable`.
-  - `AudioManager.java`: Quản lý phát lặp nhạc nền MP3 và chỉnh âm lượng thời gian thực thông qua `com.badlogic.gdx.audio.Music` (chạy trên OpenAL) và `com.badlogic.gdx.files.FileHandle`, nạp linh hoạt đa tầng, triển khai `Disposable`.
-- **`com.voxelgame.entity` (13 file):** *(Đã hoàn thành chuyển đổi 100% 13/13 file sang libGDX)*
-  - `Entity.java`: Lớp cha trừu tượng chứa `position` (Bottom-Center) và `velocity` bằng `com.badlogic.gdx.math.Vector3`, `halfWidth`, `height`, `onGround`, kiểm tra va chạm `intersectsBlock(...)`, Defensive Copying và 2 phương thức trừu tượng `update(World, float)`, `render(ShaderProgram)`.
-  - `Player.java`: Kế thừa `Entity`, sở hữu `Hotbar` theo quan hệ Composition (`private final Hotbar hotbar`), đọc phím qua `Gdx.input.isKeyPressed(Input.Keys.*)`, bật/tắt bay khi nhấn đúp Space, hạ độ cao hoặc thoát bay bằng Left Shift, chạy nhanh bằng Left Ctrl, rón rén giữ mép block, bơi trong chất lỏng và giải quyết va chạm AABB theo thứ tự `X -> Z -> Y`.
-  - `ItemEntity.java`: Kế thừa `Entity`, đại diện vật phẩm 3D thu nhỏ rơi ra khi đập block, dùng chung `com.badlogic.gdx.graphics.Mesh` theo từng `Block` qua `SHARED_MESHES` (`HashMap`), hoạt ảnh xoay 3D `110°/s`, nhấp nhô sin, nam châm hút và tự nhặt vào Hotbar.
-  - `Hotbar.java`: Quản lý 9 ô thanh công cụ nhanh (tối đa 64 item/ô), logic cuộn chuột modulo 9, ưu tiên gộp ô cùng loại.
-  - `Block.java` (Flyweight Pattern): Khai báo mảng tra cứu `BY_ID = new Block[16]` trước 9 hằng số singleton để constructor `super(...)` tự đăng ký O(1) không gặp `NullPointerException`.
-  - **9 lớp con:** `AirBlock`, `DirtBlock`, `GrassBlock`, `StoneBlock`, `BedrockBlock`, `OakLogBlock`, `OakLeavesBlock`, `WaterBlock`, `LavaBlock`.
+### 2. Kiến Trúc Mã Nguồn Hiện Tại (45 File Java)
+- **`com.voxelgame` (2 file):** `Main.java` khởi chạy desktop. `VoxelGameApp.java` quản lý Game Loop, sự kiện đầu vào, Pause Menu, đào/đặt block và vòng đời tài nguyên.
+- **`com.voxelgame.engine` (13 file):**
+  - `Camera.java` quản lý góc nhìn, Dynamic FOV và ma trận. `Raycast.java` duyệt DDA và kiểm tra hộp chọn có thể tái sử dụng kết quả.
+  - `Texture.java` dựng atlas 128 × 80 bằng Pixmap. `ShaderProgram.java` quản lý GLSL 330 cho 3D và UI. `Chunk.java` lưu ID và metadata cấp phát theo nhu cầu, dựng mesh đục/khoét alpha và mesh trong suốt.
+  - `World.java` quản lý chunk, thực thể, gọi bộ sinh và điều phối kết xuất. `BlockUpdateQueue.java` quản lý FIFO tọa độ lân cận. `TranslucentChunkSort.java` sắp xếp mesh nước/băng theo khoảng cách.
+  - `BiomeType.java`, `TerrainNoise.java`, `TerrainGenerator.java` định nghĩa biome, noise tất định và các lượt sinh thế giới.
+  - `UIRenderer.java` vẽ khung ngắm, HUD, hiệu ứng xương rồng và Pause Menu. `AudioManager.java` phát MP3, chỉnh âm lượng và giải phóng tài nguyên âm thanh.
+- **`com.voxelgame.entity` (30 file):**
+  - `Entity.java` chứa tọa độ, vận tốc và quét AABB theo trục. `Player.java` xử lý điều khiển, bảo vệ mép, bước tuyết, quán tính trên băng và phản hồi xương rồng.
+  - `Hotbar.java` quản lý 9 ô. `ItemEntity.java` quản lý vật phẩm rơi và mesh dùng chung. `FallingBlockEntity.java` quản lý trạng thái cát/sỏi đang rơi.
+  - `Block.java` đăng ký 26 singleton vào bảng 256 ID tra theo byte không dấu. `PlantBlock.java` chia sẻ hình học và luật nền thực vật. Các lớp block còn lại được liệt kê trong bảng bên dưới. Bốn hoa dùng chung `FlowerBlock.java`.
+- **Kiểm thử CPU (3 file):** `VoxelRegressionChecks.java`, `ChunkMeshRegressionChecks.java`, `TerrainGenerationChecks.java` thuộc `src/test/java/com/voxelgame/engine/`.
 
 ---
 
-### 3. Hệ Thống Block (9 Loại) & Cơ Chế Đào / Rơi Item
-| ID | Lớp | Tên hiển thị | Độ cứng (giây) | Rắn (`solid`) | Lỏng (`liquid`) | Đục (`opaque`) | Tile Atlas theo mặt | Hành vi đặc biệt |
-| :-: | :--- | :--- | :-: | :-: | :-: | :-: | :--- | :--- |
-| `0` | `AirBlock` | Air[cite: 1] | `-1.0f`[cite: 1] | `false`[cite: 1] | `false`[cite: 1] | `false`[cite: 1] | `0`[cite: 1] | Không thể phá hủy, không rơi item[cite: 1] |
-| `1` | `DirtBlock` | Dirt[cite: 1] | `0.75f`[cite: 1] | `true`[cite: 1] | `false`[cite: 1] | `true`[cite: 1] | 6 mặt: `TILE_DIRT (0)`[cite: 1] | Đập vỡ rơi ra `Dirt`[cite: 1] |
-| `2` | `GrassBlock` | Grass Block[cite: 1] | `0.75f`[cite: 1] | `true`[cite: 1] | `false`[cite: 1] | `true`[cite: 1] | `TOP=1`, `BOTTOM=0`, 4 mặt bên=`2`[cite: 1] | Đập vỡ bằng tay không rơi ra **`Block.DIRT`**[cite: 1] |
-| `3` | `StoneBlock` | Stone[cite: 1] | `5.0f`[cite: 1] | `true`[cite: 1] | `false`[cite: 1] | `true`[cite: 1] | 6 mặt: `TILE_STONE (3)`[cite: 1] | Đập vỡ rơi ra `Stone`[cite: 1] |
-| `4` | `BedrockBlock` | Bedrock[cite: 1] | `-1.0f`[cite: 1] | `true`[cite: 1] | `false`[cite: 1] | `true`[cite: 1] | 6 mặt: `TILE_BEDROCK (4)`[cite: 1] | Nằm ở đáy `y = 0`, không thể phá hủy[cite: 1] |
-| `5` | `OakLogBlock` | Oak Log[cite: 1] | `3.0f`[cite: 1] | `true`[cite: 1] | `false`[cite: 1] | `true`[cite: 1] | `TOP/BOTTOM=6`, 4 mặt bên=`5`[cite: 1] | Đập vỡ rơi ra `Oak Log`[cite: 1] |
-| `6` | `OakLeavesBlock` | Oak Leaves[cite: 1] | `0.30f`[cite: 1] | `true`[cite: 1] | `false`[cite: 1] | `true`[cite: 1] | 6 mặt: `TILE_OAK_LEAVES (7)`[cite: 1] | Đập rất nhanh, rơi ra `Oak Leaves`[cite: 1] |
-| `7` | `WaterBlock` | Water[cite: 1] | `-1.0f`[cite: 1] | `false`[cite: 1] | `true`[cite: 1] | `false`[cite: 1] | 6 mặt: `TILE_WATER (8)`[cite: 1] | Raycast đi xuyên qua; `getTopHeight = 0.88f` nếu trên là `AIR`[cite: 1] |
-| `8` | `LavaBlock` | Lava[cite: 1] | `-1.0f`[cite: 1] | `false`[cite: 1] | `true`[cite: 1] | `false`[cite: 1] | 6 mặt: `TILE_LAVA (9)`[cite: 1] | Raycast đi xuyên qua; `getTopHeight = 0.88f` nếu trên là `AIR`[cite: 1] |
+### 3. Hệ Thống Block (26 Loại) & Cơ Chế Đào / Rơi Item
+
+| ID | Lớp | Độ cứng (giây) | Hình học và lớp vẽ | Tile theo mặt | Hành vi |
+| --- | --- | ---: | --- | --- | --- |
+| 0 | `AirBlock` | −1 | Bỏ qua | 0 | Không khí, thay thế được. |
+| 1 | `DirtBlock` | 0,75 | Khối rắn đục | 0 | Rơi Dirt. |
+| 2 | `GrassBlock` | 0,75 | Khối rắn đục | Trên 1, đáy 0, cạnh 2 | Rơi Dirt. Khi tuyết phủ, trên dùng 19 và cạnh 11. Khối đục đầy khác phía trên chuyển cỏ thành Dirt. |
+| 3 | `StoneBlock` | 5,0 | Khối rắn đục | 3 | Rơi Stone. |
+| 4 | `BedrockBlock` | −1 | Khối rắn đục | 4 | Nền Y=0, không phá được. |
+| 5 | `OakLogBlock` | 3,0 | Khối rắn đục | Đầu 6, cạnh 5 | Rơi Oak Log. |
+| 6 | `OakLeavesBlock` | 0,30 | Khối rắn khoét alpha | 7 | Rơi Oak Leaves. |
+| 7 | `WaterBlock` | −1 | Chất lỏng trong suốt | 8 | Cho tia đi xuyên, thay thế được. |
+| 8 | `LavaBlock` | −1 | Chất lỏng ở pha đầu | 9 | Cho tia đi xuyên, thay thế được. |
+| 9 | `SandBlock` | 0,75 | Khối rắn đục | 10 | Rơi theo trọng lực khi mất nền. |
+| 10 | `GravelBlock` | 0,90 | Khối rắn đục | 32 | Rơi theo trọng lực khi mất nền. |
+| 11 | `SandstoneBlock` | 4,0 | Khối rắn đục | Trên 21, đáy 22, cạnh 20 | Địa tầng sa mạc. |
+| 12 | `CactusBlock` | 0,60 | Khối rắn thu hẹp, pha đầu | Trên 14, đáy 15, cạnh 13 | Nền Sand/Cactus, gãy và rơi item khi mất nền hoặc khối cản/Lava ở ô ngang. |
+| 13 | `DeadBushBlock` | 0,05 | Chữ X khoét alpha | 12 | Cần Sand hoặc Dirt. |
+| 14 | `ShortGrassBlock` | 0,05 | Chữ X khoét alpha | 24 | Cần Grass Block hoặc Dirt, có thể ghi đè. |
+| 15 | `TallGrassBlock` | 0,05 | Chữ X hai ô khoét alpha | Dưới 25, trên 26 | Cần Grass Block hoặc Dirt, dọn hai nửa khi thiếu một nửa hoặc mất nền. |
+| 16–19 | `FlowerBlock` | 0,05 | Chữ X khoét alpha | 27–30 | Dandelion, Poppy, Cornflower, Oxeye Daisy. Cần Grass Block hoặc Dirt và rơi đúng hoa khi gãy. |
+| 20 | `SugarCaneBlock` | 0,05 | Chữ X khoét alpha | 31 | Cần mía hoặc Grass Block/Dirt/Sand có nước cạnh nền, cả cột gãy khi mất điều kiện. |
+| 21 | `SnowLayerBlock` | 0,25 | Lớp thấp đến đầy, pha đầu | 19 | Tám lớp, một lớp đi xuyên và ghi đè được. Cần khối rắn đầy, kể cả lá vân sam. |
+| 22 | `SnowBlock` | 0,35 | Khối rắn đục | 19 | Rơi Snow Block. |
+| 23 | `IceBlock` | 0,75 | Khối rắn trong suốt | 18 | Trơn. Đào tay không thành Water nếu dưới có nền rắn hoặc Water, thành Air nếu thiếu nền. |
+| 24 | `SpruceLogBlock` | 3,0 | Khối rắn đục | Đầu 23, cạnh 16 | Rơi Spruce Log. |
+| 25 | `SpruceLeavesBlock` | 0,30 | Khối rắn khoét alpha | 17 | Có thể đỡ tuyết. |
+
+- Metadata dùng 0–7 cho một đến tám lớp tuyết, 0/1 cho nửa dưới/trên của Tall Grass. ID cũ 0–8 giữ nguyên. Ô mặc định không cần mảng metadata riêng. Chiều cao vẽ tuyết là số lớp × 0,125. Va chạm của lớp 2–7 thấp hơn hình vẽ một lớp. Tám lớp va chạm cao 1 block.
+- Khi sửa block, hàng đợi xử lý ô vừa đổi, sáu ô chung mặt và các phụ thuộc ngoài nhóm này. Mía kiểm tra nước ở cao độ nền. Snow Layer tan thành Air và Ice tan thành Water khi có Lava trong bán kính Manhattan 2. Cát/sỏi tạo thực thể đúng một lần khi mất nền, rồi đặt lại hoặc rơi item tùy mặt đáp.
+- Tia chọn được mọi block trừ Air, Water và Lava. Chỉ block có hộp va chạm thực mới cản chuyển động. Chữ X của cây vẽ hai phía và không có hộp vật lý.
 
 ---
 
@@ -73,10 +86,10 @@ Dự án đã hoàn thành chuyển đổi 100% (23/23 file) từ LWJGL thuần 
   - Cơ chế nhặt đồ (`addItem`): ưu tiên cộng dồn vào các ô có sẵn cùng loại chưa đầy 64, sau đó mới xếp vào ô trống đầu tiên từ trái sang phải[cite: 1].
 - **Đào Block (Giữ Chuột Trái):**
   - Tầm với `RAYCAST_REACH = 5.0f`[cite: 1].
-  - Tích lũy `miningElapsedTime` cho đến khi `>= hardness` sẽ đổi ô thành `Block.AIR` và gọi `target.onBreak(...)` sinh `ItemEntity` tại tâm block `(x + 0.5, y + 0.5, z + 0.5)`[cite: 1].
+  - Tích lũy `miningElapsedTime` cho đến khi `>= hardness` sẽ đổi ô thành `Block.AIR` hoặc Water khi đào Ice có nền phù hợp, sau đó gọi luật rơi vật phẩm tại tâm block `(x + 0.5, y + 0.5, z + 0.5)`[cite: 1].
   - Nhả chuột, nhìn sang ô khác, hoặc ngắm vào khối không phá được sẽ reset tiến trình về `0`[cite: 1].
 - **Đặt Block (Click Chuột Phải):**
-  - Lấy block ở ô Hotbar đang chọn (nếu khác `AIR` và `count > 0`), đặt vào tọa độ `(prevBlockX, prevBlockY, prevBlockZ)` của Raycast nếu nằm trong biên thế giới và `!player.intersectsBlock(...)`, đồng thời trừ 1 item khỏi ô đang chọn[cite: 1].
+  - Ưu tiên tăng lớp tuyết đang ngắm, đặt đè ô có thể thay thế, rồi thử ô kề mặt trúng. Kiểm tra nền, biên, ô phụ và giao cắt hộp người chơi. Chỉ trừ 1 item sau khi đặt thành công.
 - **Tạm dừng & Thoát (`ESC`):**
   - Nhấn `ESC` lần 1: bật `isPaused`, reset tiến trình đào, mở con trỏ chuột (`GLFW_CURSOR_NORMAL`), đóng băng cập nhật thực thể[cite: 1].
   - Nhấn `ESC` lần 2 khi đang Pause: đặt cờ đóng cửa sổ và thoát hoàn toàn khỏi game[cite: 1].
@@ -85,13 +98,13 @@ Dự án đã hoàn thành chuyển đổi 100% (23/23 file) từ LWJGL thuần 
 
 ### 5. Vật Lý & Thuật Toán Sinh Thế Giới
 - **Vật lý Người chơi (`Player`):**
-  - Spawn tại tâm ngang `(x = 896, z = 896)`. Độ cao chân bằng đỉnh cao nhất trong bốn cột block giáp tâm. Nếu rơi xuống dưới `y < -25.0f`, tự động đưa về `(896, 22, 896)`, reset vận tốc và tắt bay.
+  - Spawn tại tâm ngang `(x = 1500, z = 896)`. Độ cao chân bằng đỉnh cao nhất trong bốn cột block giáp tâm. Nếu rơi xuống dưới `y < -25.0f`, tự động đưa về `(1500, 22, 896)`, reset vận tốc và tắt bay.
   - Hộp va chạm AABB: `PLAYER_HALF_WIDTH = 0.3f` (rộng `0.6f`), `PLAYER_HEIGHT = 1.8f`[cite: 1].
   - Thông số vận tốc: `MOVE_SPEED = 5.5f`, `GRAVITY = -26.0f`, `TERMINAL_VELOCITY = -45.0f`[cite: 1].
   - Nhận diện chất lỏng (`isInLiquid`): kiểm tra block tại chân (`y + 0.1f`) và thắt lưng (`y + 0.9f`)[cite: 1]. Trong chất lỏng (không bay): tốc độ ngang `0.65x`, trọng lực `0.25x`, vận tốc chìm tối đa `-3.5f`[cite: 1].
-  - Va chạm AABB tách trục theo đúng thứ tự `X -> Z -> Y` (đẩy ra với sai số `0.0001f`)[cite: 1].
+  - Quét AABB theo thứ tự X → Z → Y trên hộp thực. Bước lên bậc tuyết thấp tối đa 0,5 block khi đủ chỗ. Ice giữ đà ngang với hệ số 0,98. Chạm xương rồng đẩy nhẹ và nháy đỏ 0,25 s, hồi chiêu 0,5 s.
 - **Raycast 3D DDA (`Raycast`):**
-  - Thuật toán Amanatides & Woo duyệt chính xác từng ô voxel dọc tia, bỏ qua `Air` và mọi khối lỏng (`!block.isSolid()`), chỉ dừng khi gặp khối rắn[cite: 1].
+  - DDA duyệt voxel dọc tia, giao cắt hộp chọn trong đoạn đi qua mỗi ô. Tia xuyên Air, Water, Lava và phần ngoài hộp chọn của xương rồng, tuyết hoặc cây.
 - **Vật lý Vật phẩm Rơi (`ItemEntity`):**
   - Kích thước `ITEM_SCALE = 0.28f` (`HALF_SIZE = 0.14f`)[cite: 1].
   - Vận tốc văng ban đầu ngẫu nhiên: `vx, vz ∈ [-0.7, 0.7]`, `vy = 3.2f`[cite: 1].
@@ -100,18 +113,20 @@ Dự án đã hoàn thành chuyển đổi 100% (23/23 file) từ LWJGL thuần 
   - Tự biến mất sau `MAX_LIFETIME = 300.0s`[cite: 1].
   - Hoạt ảnh 3D: nhấp nhô `sin(age * 3.8f) * 0.07f + 0.08f` và tự xoay quanh trục Y theo góc `age * 110.0f` độ[cite: 1].
 - **Thế giới & Sinh Địa hình (`World`, seed `20261114L`):**
-  - Kích thước: `112 x 16 x 112` chunk (`Chunk.SIZE = 16`) = **`1792 x 256 x 1792` block**, với tọa độ hợp lệ `x, z = 0..1791`, `y = 0..255`. Ô lưới chỉ chứa không khí dùng `null`. Đặt block đầu tiên tạo chunk và xóa block cuối cùng giải phóng chunk cùng mesh của nó.
+  - Bản đồ có **`3000 × 256 × 1792` block**, dùng lưới `188 × 16 × 112` chunk (`Chunk.SIZE = 16`). Tọa độ hợp lệ là `x = 0..2999`, `y = 0..255`, `z = 0..1791`. Chunk cuối theo X chỉ chứa tám cột hợp lệ. Ô lưới chỉ chứa không khí dùng `null`. Đặt block đầu tiên tạo chunk và xóa block cuối cùng giải phóng chunk cùng mesh của nó.
   - Giới hạn chiều cao địa hình tự nhiên: `MAX_TERRAIN_LAYERS = 20` (`MAX_TERRAIN_Y = 19`)[cite: 1].
-  - **Giai đoạn 1 (Phân tầng địa chất):** `surfaceY = clamp(round(10.0 + sin(wx*0.085)*cos(wz*0.085)*2.2 + sin((wx+wz)*0.05)*1.4), 5, 19)`; độ dày đất `2` hoặc `3` lớp (`2 + ((wx*13 + wz*7) & 1)`); `y = 0` Bedrock, dưới lớp đất là Stone, lớp đệm là Dirt, đỉnh `surfaceY` là Grass[cite: 1].
-  - **Giai đoạn 2 (Hồ Nước & Dung nham):**
-    - 4 hồ nước (đáy `Dirt`, bờ `Grass/Dirt`): `(22, 24, r=6.5, sâu 2)`, `(52, 28, r=7.5, sâu 2)`, `(26, 62, r=7.0, sâu 2)`, `(68, 66, r=8.0, sâu 3)`[cite: 1].
-    - 4 hồ dung nham (đáy & bờ `Stone`): `(42, 20, r=4.8, sâu 2)`, `(20, 44, r=4.5, sâu 2)`, `(64, 46, r=5.2, sâu 2)`, `(46, 72, r=5.0, sâu 2)`[cite: 1].
-  - **Giai đoạn 3 (Cây Sồi tự nhiên):** Quét bước 4 trong `[6, WORLD_SIZE - 6)` với lệch ngẫu nhiên `[-1, 1]`. Bỏ qua gốc cây trong vùng cách tâm spawn `(896, 896)` tối đa 4 block trên cả hai trục. Xác suất 28% trên mặt `Grass` (`y ∈ [4, 19]`) không có chất lỏng trong bán kính 2. Thân `Oak Log` cao `4..6` block, ô ngay dưới gốc chuyển thành `Dirt`, tán `Oak Leaves` 4 tầng với bán kính 2 ở hai tầng dưới và bán kính 1 ở hai tầng trên, tỉa góc tự nhiên.
+  - Từ tây sang đông là Snowy Plains, Plains và Desert. Mỗi vùng khí hậu rộng 1.000 block theo X và trải dài 1.792 block theo Z. Quanh các mốc X=1000 và X=2000 có dải chuyển tiếp 64 block, dùng tỷ lệ nội suy và noise theo seed để xen mảng cỏ với tuyết hoặc cát. Địa tầng, lớp phủ, cây và thực vật cùng dùng kiểu bề mặt đã trộn. Hồ lạnh và ốc đảo nằm gần giữa biome tương ứng.
+  - `TerrainNoise` dùng value noise 2D ba tầng và hash theo seed/tọa độ. Nhiệt độ dựa trên khoảng cách đến ranh giới và phân loại ở ngưỡng ±0,31. Độ cao trộn qua vùng đệm quanh ngưỡng. Nền địa chất có đỉnh Y=9–19. Nền ngay spawn ở Plains là cỏ phẳng ở Y=12, chân người chơi bắt đầu Y=13.
+  - **Plains:** Bedrock → Stone → 2–3 Dirt → Grass Block. Có sồi thưa, cỏ, hoa và mía, hồ nước có đáy trộn Dirt/Sand/Gravel.
+  - **Desert:** Bedrock → Stone → 3–4 Sandstone → 3–4 Sand. Có cồn cát, cactus cao 1–3 block, bụi khô, ốc đảo và hồ Lava.
+  - **Snowy Plains:** Địa tầng tương tự Plains, phủ Snow Layer thường 1 lớp, có vùng 2–3 lớp và Snow Block. Hồ có mặt Ice và nước bên dưới, cây vân sam có tán hình nón và tuyết trên lá thoáng. Băng và tuyết tránh vùng gần dung nham khi sinh.
+  - Hồ dung nham chọn vật liệu theo kiểu bề mặt ở tâm hồ. Desert có bờ Sand và lót Sandstone. Plains và Snowy Plains có bờ Grass Block và lót Dirt. Quy tắc tránh băng và tuyết gần dung nham áp dụng cả trên bờ.
+  - Các lượt sinh là địa tầng, hồ, băng/tuyết, cây và thực vật. Hai bộ đệm cột kiểu byte phục vụ các lượt sinh và được bỏ sau khi khởi tạo.
 
 ---
 
 ### 6. Đồ Họa, Shader, Texture & Hiệu Năng 60 FPS
-- **OpenGL & Vòng lặp:** OpenGL 3.3 Core Profile trong backend LWJGL 3 của libGDX, bật `GL_DEPTH_TEST`, `GL_CULL_FACE` (`GL_BACK`, `GL_CCW`), bật V-Sync `config.useVsync(true)` đạt 60 FPS mượt mà, giới hạn `deltaTime <= 0.05f`.
+- **OpenGL & Vòng lặp:** OpenGL 3.3 Core Profile trong backend LWJGL 3 của libGDX, bật `GL_DEPTH_TEST`, `GL_CULL_FACE` (`GL_BACK`, `GL_CCW`), bật V-Sync `config.useVsync(true)` với mục tiêu 60 FPS, giới hạn `deltaTime <= 0.05f`.
 - **Màu trời & Ống kính:**
   - `SKY_COLOR = (0.53f, 0.81f, 0.92f)` dùng cho màu xóa nền.
   - Camera: `BASE_FOV_DEG = 70.0f` (`+8.0f` khi Sprint, `+5.0f` khi Fly, nội suy `deltaTime * 10.0f`), `NEAR_PLANE = 0.08f`, `FAR_PLANE = 1024.0f`, ma trận tính qua `Matrix4.setToProjection` và `setToLookAt`.
@@ -121,15 +136,15 @@ Dự án đã hoàn thành chuyển đổi 100% (23/23 file) từ LWJGL thuần 
   - Xóa tiền tố `prependVertexCode`/`prependFragmentCode` để giữ `#version 330 core` ở dòng đầu tiên.
 - **Ánh sáng & Face Culling (`Chunk`):**
   - Directional Face Shading: `SHADE_TOP = 1.00f`, `SHADE_BOTTOM = 0.55f`, `SHADE_NORTH_SOUTH = 0.85f`, `SHADE_EAST_WEST = 0.72f`.
-  - Face Culling: Khối lỏng chỉ vẽ mặt tiếp giáp `Block.AIR`; khối rắn chỉ vẽ mặt tiếp giáp `!neighbor.isSolid()`.
-  - Kết xuất thông qua `com.badlogic.gdx.graphics.Mesh`.
-  - Khi `World.setBlock(...)` sửa block ở biên chunk (`0` hoặc `15`), mesh của các chunk lân cận đã có dữ liệu được đánh dấu `dirty`.
-- **Frustum culling và bộ nhớ đệm mesh (`World`):** Giới hạn vùng quét bằng hộp bao khung nhìn, rồi kiểm tra hộp bao từng chunk bằng sáu mặt phẳng khung nhìn từ ma trận của shader. Khi tải, dựng trước mesh trong vùng 5 × 5 cột chunk quanh spawn. Trong lúc chơi, mỗi khung hình dựng hoặc cập nhật tối đa 16 mesh giao khung nhìn, ưu tiên chunk gần camera. Thu hồi mesh sau 120 khung hình liên tiếp ngoài khung nhìn, giữ dữ liệu block và các sửa đổi để dựng lại khi cần. Bộ đệm đỉnh `FloatArray` và bảng UV được dùng lại khi dựng mesh.
-- **Texture Atlas (`Texture`):**
-  - Lưới `4 x 4` tile, mỗi tile `16 x 16` pixel -> Atlas `64 x 64` RGBA, lọc `TextureFilter.Nearest`, bao biên `TextureWrap.ClampToEdge`, lùi biên UV `eps = 0.0008f` chống Texture Bleeding.
-  - Thứ tự 10 tile đang dùng: `0=DIRT`, `1=GRASS_TOP`, `2=GRASS_SIDE`, `3=STONE`, `4=BEDROCK`, `5=OAK_LOG_SIDE`, `6=OAK_LOG_TOP`, `7=OAK_LEAVES`, `8=WATER`, `9=LAVA`.
-  - Xử lý ảnh thông minh bằng `Pixmap`: tự tách sheet `32x32` của `grass-block.png` thành 3 tile (`GRASS_TOP`, `GRASS_SIDE`, `DIRT`); cắt khung vuông đầu tiên của `water_still.png` và nhuộm xanh nước biển (`alpha = 225`) nếu ảnh nguồn là thang xám; có đầy đủ 10 tile Procedural Pixel Art (seed `20261114L`) làm nền dự phòng; tự động `dispose()` Pixmap sau khi nạp lên GPU.
+  - Khối đục che phần mặt khối kề được phủ kín. Lá khoét alpha cho thấy bề mặt phía sau khe. Xương rồng có bốn mặt ngang lùi 1/16. Mặt bên tuyết chỉ giữ phần vượt chiều cao lớp kề. Cây hình chữ X vẽ cả hai phía. Nước/băng bỏ mặt trong cùng loại và giữ phần lộ ra cạnh loại không đục khác. Mặt thoáng Water/Lava cao 0,88 nếu phía trên là Air.
+  - Sửa ở biên đánh dấu mesh kề bị ảnh hưởng. Đổi độ cao bề mặt chất lỏng tại giao biên ngang và đứng còn làm mới chunk bên cạnh mặt chất lỏng.
+  - Khối xương rồng, vật phẩm rơi và biểu tượng Hotbar dùng chung vùng UV đã bỏ viền trong suốt. Mặt bên lấy vùng 14 × 16 pixel, mặt trên và dưới lấy vùng 14 × 14 pixel từ PNG gốc.
+- **Hai pha vẽ:** Chunk đục/khoét alpha và thực thể ghi depth trước. Nước/băng giữ depth test, tắt depth write, dùng blend `GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA` rồi khôi phục trạng thái. Heapsort tại chỗ sắp xa đến gần theo bình phương khoảng cách mắt–tâm chunk và phá hòa theo tọa độ. Mảng chunk, khoảng cách và khóa được cấp phát trước. Thứ tự giữa các mặt trong một chunk là xấp xỉ.
+- **Frustum culling và bộ nhớ đệm:** Dựng trước 5 × 5 cột quanh spawn, mỗi frame cập nhật tối đa 16 chunk giao khung nhìn, ưu tiên gần camera. Thu hồi cả hai mesh sau 120 frame ngoài khung nhìn và giữ dữ liệu voxel. Hai bộ đệm đỉnh và bảng UV dùng lại.
+- **Texture Atlas:** Lưới 8 × 5 ô 16 × 16, kích thước 128 × 80 RGBA. Dùng Nearest, ClampToEdge và biên UV 0,0008. Các tile 0–19 giữ chỉ số cũ; tile 20–32 tương ứng thứ tự PNG mới ở mục 1. Xử lý một lần khi dựng atlas: nhuộm tông Plains cho cỏ/lá sồi/mía, tông xanh thông cho lá vân sam, giữ alpha nguồn của texture khoét và độ trong của Ice/Water. Nước và dung nham lấy khung đầu. Dùng pixel art dự phòng khi nguồn thiếu hoặc lỗi đọc và giải phóng các Pixmap sau dựng atlas.
+
 - **Tối ưu Hiệu năng & Quản lý Bộ nhớ:**
+  - Mesh chunk dùng VAO qua OpenGL 3.3. Với tối đa 16.384 mặt, mesh nén tại chỗ còn bốn đỉnh mỗi mặt và dùng chung mẫu chỉ số 16 bit cho hai tam giác. Mesh lớn hơn tải đủ sáu đỉnh mỗi mặt.
   - Tái sử dụng các `Matrix4` làm trường thành viên để tránh sinh rác GC trong Game Loop.
   - Dùng chung `Mesh` theo loại `Block` cho mọi `ItemEntity` (`SHARED_MESHES`).
   - Giải phóng triệt để tài nguyên GPU qua `Disposable.dispose()` cho mọi lớp `Chunk`, `World`, `Texture`, `ShaderProgram`, `ItemEntity`.
@@ -137,9 +152,9 @@ Dự án đã hoàn thành chuyển đổi 100% (23/23 file) từ LWJGL thuần 
 ---
 
 ### 7. Giao Diện Người Dùng (UI/HUD) & Font 5x7 (`UIRenderer`)
-- **Kết xuất qua libGDX:** Triển khai `com.badlogic.gdx.utils.Disposable`, sử dụng `com.badlogic.gdx.graphics.Mesh` động (thuộc tính đỉnh 6 floats: `aPos`, `aTexCoord`, `aShade`) và ma trận biến đổi mô hình `com.badlogic.gdx.math.Matrix4`, tái sử dụng biến thành viên triệt tiêu hoàn toàn GC churn.
+- **Kết xuất qua libGDX:** Triển khai `com.badlogic.gdx.utils.Disposable`, sử dụng `com.badlogic.gdx.graphics.Mesh` động (thuộc tính đỉnh 6 floats: `aPos`, `aTexCoord`, `aShade`) và ma trận biến đổi mô hình `com.badlogic.gdx.math.Matrix4`, tái sử dụng mảng đỉnh, bitmap font, nhãn số, hộp kiểm tra chuột và ma trận. Hiệu ứng xương rồng vẽ viền đỏ trước Hotbar.
 - **Overlay 3D quanh Block mục tiêu:**
-  - Phóng to khối bọc `expand = 0.004f` chống Z-Fighting, bật `GL_BLEND`, tắt `GL_CULL_FACE`[cite: 1].
+  - Dùng hộp chọn thực, phóng rộng `expand = 0.004f` chống Z-Fighting, bật `GL_BLEND`, tắt `GL_CULL_FACE`[cite: 1].
   - Khi chỉ ngắm: phủ lớp sáng trắng mờ `alpha = 0.09f`[cite: 1].
   - Khi đang đập (`miningProgress > 0.001f`): phủ lớp tối dần `(0.08, 0.08, 0.08)` với `alpha = min(0.68f, 0.18f + progress * 0.50f)` kèm lõi vàng `(1.0, 0.92, 0.25, 0.35)` nở dần từ tâm theo tiến trình[cite: 1].
 - **Giao diện 2D Orthographic (`ortho(0, w, h, 0, -1, 1)`):**

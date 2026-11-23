@@ -33,6 +33,8 @@ public class Main {
         // Tạo cấu hình cửa sổ Desktop thông qua Lwjgl3ApplicationConfiguration
         // =====================================================================
         Lwjgl3ApplicationConfiguration config = new Lwjgl3ApplicationConfiguration();
+        // Dùng VAO của OpenGL 3.3 cho Mesh để không thiết lập lại thuộc tính đỉnh mỗi lần vẽ chunk.
+        config.setOpenGLEmulation(Lwjgl3ApplicationConfiguration.GLEmulation.GL30, 3, 3);
 
         // Tiêu đề cửa sổ game hiển thị trên thanh tiêu đề hệ điều hành
         config.setTitle("Voxel Game 3D - Minecraft OOP Edition (Java & libGDX LWJGL3)");

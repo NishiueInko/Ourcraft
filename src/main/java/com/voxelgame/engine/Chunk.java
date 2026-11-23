@@ -10,71 +10,72 @@ import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Disposable;
 import com.badlogic.gdx.utils.FloatArray;
 import com.voxelgame.entity.Block;
+import com.voxelgame.entity.Block.Face;
+import com.voxelgame.entity.Block.GeometryType;
+import com.voxelgame.entity.Block.RenderLayer;
 
-/**
- * Quản lý một phân vùng không gian 16x16x16 Blocks (Chunk) và bộ đệm lưới đỉnh (libGDX Mesh),
- * triển khai giao diện {@link Disposable}.
- *
- * THỂ HIỆN CÁC TÍNH CHẤT OOP:
- * 1. Tính Đóng gói cấp Package (Package-Private Encapsulation):
- *    - Các phương thức thao tác nội bộ (`getBlockLocal`, `setBlockLocal`, `isDirty`, `markDirty`,
- *      `rebuildMesh`, `render`) được giới hạn ở mức truy cập **package-private** (không có `public`).
- *    - Nhờ đó, chỉ lớp điều phối `World` nằm cùng package `com.voxelgame.engine` mới được phép can thiệp
- *      vào mảng dữ liệu và quá trình tái tạo lưới đỉnh Mesh của Chunk.
- * 2. Tính Đa hình (Polymorphism):
- *    - Trong `rebuildMesh(World)`, Chunk gọi trực tiếp phương thức đa hình `block.getTopHeight(world, wx, wy, wz)`
- *      và `block.getTileIndex(Block.Face.*)` để mỗi loại khối tự quyết định hình học và chất liệu.
- */
+/** Lưu block trong ô lưới 16³, dựng hình học và sở hữu hai mesh của vùng. */
 public class Chunk implements Disposable {
-
+    // Số ô theo mỗi trục và bán kích thước hộp bao của chunk.
     public static final int SIZE = 16;
-    // Bán kích thước hộp bao của chunk theo từng trục.
     private static final float HALF_SIZE = SIZE / 2.0f;
-    private static final int FLOATS_PER_VERTEX = 6; // [x, y, z, u, v, shade]
-    // Tọa độ UV dùng chung cho tất cả chunk, tính một lần theo từng ô Atlas.
-    private static final float[][] TILE_UVS = createTileUvs();
 
-    // Định nghĩa cấu trúc thuộc tính đỉnh của libGDX: vị trí vec3 (0), uv vec2 (1), shade float (2)
+    // Thứ tự thuộc tính mỗi đỉnh: x, y, z, u, v, hệ số ánh sáng.
+    private static final int FLOATS_PER_VERTEX = 6;
     private static final VertexAttributes VERTEX_ATTRIBUTES = new VertexAttributes(
             new VertexAttribute(Usage.Position, 3, "aPos"),
             new VertexAttribute(Usage.TextureCoordinates, 2, "aTexCoord"),
             new VertexAttribute(Usage.Generic, 1, "aShade")
     );
 
+    // Tọa độ UV và giá trị enum được tính một lần cho tất cả lần dựng.
+    private static final float[][] TILE_UVS = createTileUvs();
+    private static final Face[] FACES = Face.values();
+    /** Giới hạn của chỉ số đỉnh 16 bit mà Mesh libGDX gửi lên GPU. */
+    private static final int MAX_INDEXED_QUADS = 65_536 / 4;
+    private static final short[] QUAD_INDICES = createQuadIndices();
+
+    // Hệ số độ sáng theo hướng mặt.
+    private static final float SHADE_TOP = 1.0f;
+    private static final float SHADE_BOTTOM = 0.55f;
+    private static final float SHADE_NORTH_SOUTH = 0.85f;
+    private static final float SHADE_EAST_WEST = 0.72f;
+
     // Tọa độ góc nhỏ nhất của chunk trong thế giới.
     private final int baseWorldX;
     private final int baseWorldY;
     private final int baseWorldZ;
 
-    // Mảng liên tục lưu một byte mỗi block. Số ô có block dùng để nhận diện chunk rỗng.
+    // Mỗi ID chiếm một byte. Mảng metadata chỉ xuất hiện sau lần ghi trạng thái khác 0 đầu tiên.
     private final byte[] blocks = new byte[SIZE * SIZE * SIZE];
+    private byte[] metadata;
     private int blockCount;
 
-    private Mesh mesh;
-    private int vertexCount = 0;
+    private Mesh opaqueMesh;
+    private Mesh translucentMesh;
     private boolean dirty = true;
+
     // Khung hình gần nhất mà hộp bao chunk giao khung nhìn.
     long lastVisibleFrame;
 
-    // Hệ số độ sáng theo hướng mặt (Directional Face Shading)
-    private static final float SHADE_TOP = 1.00f;
-    private static final float SHADE_BOTTOM = 0.55f;
-    private static final float SHADE_NORTH_SOUTH = 0.85f;
-    private static final float SHADE_EAST_WEST = 0.72f;
-
-    /** Khởi tạo chunk theo chỉ số lưới và tính trước tọa độ dùng để dựng, kiểm tra mesh. */
+    /** Tính trước tọa độ dùng để dựng mesh và kiểm tra khung nhìn. */
     public Chunk(int chunkX, int chunkY, int chunkZ) {
         baseWorldX = chunkX * SIZE;
         baseWorldY = chunkY * SIZE;
         baseWorldZ = chunkZ * SIZE;
     }
 
-    /** Tính chỉ số mảng phẳng với trục Z nằm liền kề trong bộ nhớ. */
+    /** Tính chỉ số mảng phẳng với trục Z liên tiếp trong bộ nhớ. */
     private static int blockIndex(int x, int y, int z) {
         return (x * SIZE + y) * SIZE + z;
     }
 
-    /** Chuẩn bị bảng UV từ công thức Atlas dùng chung của các loại block. */
+    /** Kiểm tra tọa độ cục bộ trước khi đọc dữ liệu, kể cả ở mép bản đồ. */
+    private static boolean contains(int x, int y, int z) {
+        return x >= 0 && x < SIZE && y >= 0 && y < SIZE && z >= 0 && z < SIZE;
+    }
+
+    /** Chuẩn bị bảng UV từ công thức atlas dùng chung của các loại block. */
     private static float[][] createTileUvs() {
         float[][] tileUvs = new float[Texture.ATLAS_COLS * Texture.ATLAS_ROWS][];
         for (int tile = 0; tile < tileUvs.length; tile++) {
@@ -83,19 +84,41 @@ public class Chunk implements Disposable {
         return tileUvs;
     }
 
-    byte getBlockLocal(int x, int y, int z) {
-        if (x < 0 || x >= SIZE || y < 0 || y >= SIZE || z < 0 || z >= SIZE) {
-            return 0;
-        }
-        return blocks[blockIndex(x, y, z)];
+    /** Lấy UV dùng chung để đọc, tránh cấp phát khi vẽ biểu tượng Hotbar. */
+    static float[] tileUv(int tile) {
+        return TILE_UVS[tile];
     }
 
-    /** Ghi mã block theo tọa độ cục bộ hợp lệ và trả về trạng thái có thay đổi. */
+    /** Đọc ID khối, trả Air cho tọa độ nằm ngoài chunk. */
+    byte getBlockLocal(int x, int y, int z) {
+        return contains(x, y, z) ? blocks[blockIndex(x, y, z)] : Block.AIR.getId();
+    }
+
+    /** Đọc metadata dạng không dấu. Ô chưa từng lưu trạng thái trả 0. */
+    int getStateLocal(int x, int y, int z) {
+        return metadata != null && contains(x, y, z)
+                ? Byte.toUnsignedInt(metadata[blockIndex(x, y, z)]) : 0;
+    }
+
+    /** Ghi ID với trạng thái mặc định, đồng thời loại bỏ metadata của ô cũ. */
     boolean setBlockLocal(int x, int y, int z, byte blockId) {
+        return setBlockLocal(x, y, z, blockId, 0);
+    }
+
+    /** Ghi ID và trạng thái cùng lúc. ID hoặc metadata thay đổi đều làm bẩn mesh. */
+    boolean setBlockLocal(int x, int y, int z, byte blockId, int state) {
         int index = blockIndex(x, y, z);
         byte previous = blocks[index];
-        if (previous == blockId) {
+        byte nextState = blockId == 0 ? 0 : (byte) state;
+        byte previousState = metadata == null ? 0 : metadata[index];
+        if (previous == blockId && previousState == nextState) {
             return false;
+        }
+        if (nextState != 0 && metadata == null) {
+            metadata = new byte[blocks.length];
+        }
+        if (metadata != null) {
+            metadata[index] = nextState;
         }
         if (previous == 0) {
             blockCount++;
@@ -107,18 +130,18 @@ public class Chunk implements Disposable {
         return true;
     }
 
-    /** Kiểm tra chunk đã trở lại trạng thái chỉ chứa không khí hay chưa. */
+    /** Kiểm tra chunk chỉ còn không khí. */
     boolean isEmpty() {
         return blockCount == 0;
     }
 
-    /** Giữ cả các chunk cắt qua rìa khung nhìn để tránh làm mất mặt block đang thấy. */
+    /** Giữ cả chunk cắt qua rìa khung nhìn để tránh làm mất mặt block đang thấy. */
     boolean intersectsFrustum(Frustum frustum) {
         return frustum.boundsInFrustum(baseWorldX + HALF_SIZE, baseWorldY + HALF_SIZE, baseWorldZ + HALF_SIZE,
                 HALF_SIZE, HALF_SIZE, HALF_SIZE);
     }
 
-    /** Tính khoảng cách bình phương từ camera đến hộp bao để ưu tiên dựng mesh gần nhất. */
+    /** Tính khoảng cách bình phương đến hộp bao để ưu tiên dựng các chunk gần. */
     float distanceSquaredTo(Vector3 point) {
         float dx = Math.max(0, Math.max(baseWorldX - point.x, point.x - (baseWorldX + SIZE)));
         float dy = Math.max(0, Math.max(baseWorldY - point.y, point.y - (baseWorldY + SIZE)));
@@ -126,44 +149,62 @@ public class Chunk implements Disposable {
         return dx * dx + dy * dy + dz * dz;
     }
 
-    /** Cho biết chunk đang giữ tài nguyên mesh. */
-    boolean hasMesh() {
-        return mesh != null;
+    /** Tính khoảng cách bình phương đến tâm chunk cho thứ tự vẽ pha trong suốt. */
+    float centerDistanceSquaredTo(Vector3 point) {
+        float dx = baseWorldX + HALF_SIZE - point.x;
+        float dy = baseWorldY + HALF_SIZE - point.y;
+        float dz = baseWorldZ + HALF_SIZE - point.z;
+        return dx * dx + dy * dy + dz * dz;
     }
 
-    /** Thu hồi mesh ngoài khung nhìn và cho phép dựng lại từ dữ liệu block khi quay lại. */
+    /** Kiểm tra bộ đệm mesh của ít nhất một pha kết xuất đang tồn tại. */
+    boolean hasMesh() {
+        return opaqueMesh != null || translucentMesh != null;
+    }
+
+    /** Kiểm tra chunk có đỉnh để vẽ trong pha hòa màu. */
+    boolean hasTranslucentMesh() {
+        return translucentMesh != null;
+    }
+
+    /** Thu hồi cả hai mesh và cho phép dựng lại khi chunk quay vào tầm nhìn. */
     void releaseCachedMesh() {
         dispose();
         markDirty();
     }
 
+    /** Báo dữ liệu block đã thay đổi kể từ lần dựng gần nhất. */
     boolean isDirty() {
         return dirty;
     }
 
+    /** Đánh dấu cần dựng lại khi một mặt chung với chunk bên cạnh thay đổi. */
     void markDirty() {
-        this.dirty = true;
+        dirty = true;
     }
 
-    /**
-     * Xây dựng lại lưới đỉnh (Mesh Rebuilding) cho toàn bộ Chunk dựa trên đối tượng đa hình {@link Block}.
-     * Chỉ cho phép gọi trong nội bộ package `com.voxelgame.engine`.
-     *
-     * @param world thế giới voxel cung cấp dữ liệu các khối lân cận
-     * @param vertices bộ đệm đỉnh dùng chung, được xóa trước khi dựng chunk kế tiếp
-     */
-    void rebuildMesh(World world, FloatArray vertices) {
-        vertices.clear();
+    /** Dựng lại hai mesh từ các bộ đệm số thực được thế giới dùng lại giữa các chunk. */
+    void rebuildMesh(World world, FloatArray opaqueVertices, FloatArray translucentVertices) {
+        buildVertices(world, opaqueVertices, translucentVertices);
+        opaqueMesh = uploadMesh(opaqueMesh, opaqueVertices);
+        translucentMesh = uploadMesh(translucentMesh, translucentVertices);
+        dirty = false;
+    }
 
+    /** Tính các mặt lộ ra của khối và ghi đỉnh vào đúng pha kết xuất. */
+    void buildVertices(World world, FloatArray opaqueVertices, FloatArray translucentVertices) {
+        opaqueVertices.clear();
+        translucentVertices.clear();
+
+        int index = 0;
         for (int x = 0; x < SIZE; x++) {
             for (int y = 0; y < SIZE; y++) {
-                for (int z = 0; z < SIZE; z++) {
-                    byte blockId = blocks[blockIndex(x, y, z)];
-                    if (blockId == 0) {
+                for (int z = 0; z < SIZE; z++, index++) {
+                    byte id = blocks[index];
+                    if (id == 0) {
                         continue;
                     }
-
-                    Block block = Block.fromId(blockId);
+                    Block block = Block.fromId(id);
                     if (block == Block.AIR) {
                         continue;
                     }
@@ -171,148 +212,295 @@ public class Chunk implements Disposable {
                     int wx = baseWorldX + x;
                     int wy = baseWorldY + y;
                     int wz = baseWorldZ + z;
-
-                    // Gọi đa hình chiều cao bề mặt khối (1.0f cho khối rắn, 0.88f cho mặt thoáng Nước/Lava)
-                    float topHeight = block.getTopHeight(world, wx, wy, wz);
-
-                    // 1. Mặt Trên (+Y)
-                    if (shouldRenderFace(block, Block.fromId(world.getBlock(wx, wy + 1, wz)))) {
-                        addTopFace(vertices, wx, wy, wz, topHeight, TILE_UVS[block.getTileIndex(Block.Face.TOP)]);
-                    }
-
-                    // 2. Mặt Dưới (-Y)
-                    if (shouldRenderFace(block, Block.fromId(world.getBlock(wx, wy - 1, wz)))) {
-                        addBottomFace(vertices, wx, wy, wz, TILE_UVS[block.getTileIndex(Block.Face.BOTTOM)]);
-                    }
-
-                    // 3. Mặt Trước / Nam (+Z)
-                    if (shouldRenderFace(block, Block.fromId(world.getBlock(wx, wy, wz + 1)))) {
-                        addFrontFace(vertices, wx, wy, wz, topHeight, TILE_UVS[block.getTileIndex(Block.Face.SOUTH)]);
-                    }
-
-                    // 4. Mặt Sau / Bắc (-Z)
-                    if (shouldRenderFace(block, Block.fromId(world.getBlock(wx, wy, wz - 1)))) {
-                        addBackFace(vertices, wx, wy, wz, topHeight, TILE_UVS[block.getTileIndex(Block.Face.NORTH)]);
-                    }
-
-                    // 5. Mặt Phải / Đông (+X)
-                    if (shouldRenderFace(block, Block.fromId(world.getBlock(wx + 1, wy, wz)))) {
-                        addRightFace(vertices, wx, wy, wz, topHeight, TILE_UVS[block.getTileIndex(Block.Face.EAST)]);
-                    }
-
-                    // 6. Mặt Trái / Tây (-X)
-                    if (shouldRenderFace(block, Block.fromId(world.getBlock(wx - 1, wy, wz)))) {
-                        addLeftFace(vertices, wx, wy, wz, topHeight, TILE_UVS[block.getTileIndex(Block.Face.WEST)]);
+                    int state = metadata == null ? 0 : Byte.toUnsignedInt(metadata[index]);
+                    Block above = Block.fromId(world.getBlock(wx, wy + 1, wz));
+                    FloatArray vertices = block.getRenderLayer() == RenderLayer.TRANSLUCENT
+                            ? translucentVertices : opaqueVertices;
+                    if (block.getGeometryType() == GeometryType.CROSS_PLANT) {
+                        float[] uv = tileUv(block.getTileIndex(Face.SOUTH, state, above));
+                        addCross(vertices, wx, wy, wz, block.getSelectionBounds(state), uv);
+                    } else {
+                        addBox(world, vertices, block, state, above, wx, wy, wz);
                     }
                 }
             }
         }
+    }
 
-        this.vertexCount = vertices.size / FLOATS_PER_VERTEX;
-
-        if (vertexCount > 0) {
-            if (mesh == null || mesh.getMaxVertices() < vertexCount) {
-                dispose();
-                mesh = new Mesh(true, vertexCount, 0, VERTEX_ATTRIBUTES);
+    /** Cập nhật bộ đệm hiện có hoặc thay bằng mesh lớn hơn khi số đỉnh vượt dung lượng. */
+    private static Mesh uploadMesh(Mesh current, FloatArray vertices) {
+        if (vertices.size == 0) {
+            if (current != null) {
+                current.dispose();
             }
-            mesh.setVertices(vertices.items, 0, vertices.size);
-        } else {
-            dispose();
+            return null;
         }
 
-        this.dirty = false;
-    }
-
-    private boolean shouldRenderFace(Block current, Block neighbor) {
-        if (current.isLiquid()) {
-            return neighbor == Block.AIR;
+        int quads = vertices.size / (6 * FLOATS_PER_VERTEX);
+        boolean indexed = quads <= MAX_INDEXED_QUADS;
+        int indexCount = indexed ? quads * 6 : 0;
+        if (indexed) {
+            compactQuads(vertices, quads);
         }
-        return !neighbor.isSolid();
+        int vertexCount = vertices.size / FLOATS_PER_VERTEX;
+        if (current != null && current.getMaxVertices() >= vertexCount
+                && (current.getMaxIndices() > 0) == indexed && current.getMaxIndices() >= indexCount) {
+            uploadVertices(current, vertices, indexCount);
+            return current;
+        }
+
+        Mesh replacement = new Mesh(true, vertexCount, indexCount, VERTEX_ATTRIBUTES);
+        try {
+            uploadVertices(replacement, vertices, indexCount);
+        } catch (RuntimeException | Error failure) {
+            replacement.dispose();
+            throw failure;
+        }
+        if (current != null) {
+            current.dispose();
+        }
+        return replacement;
     }
 
+    /** Ưu tiên bốn đỉnh mỗi mặt để giảm kích thước tải và công việc của vertex shader. */
+    static void compactQuads(FloatArray vertices, int quads) {
+        for (int quad = 0; quad < quads; quad++) {
+            int from = quad * 6 * FLOATS_PER_VERTEX;
+            int to = quad * 4 * FLOATS_PER_VERTEX;
+            System.arraycopy(vertices.items, from, vertices.items, to, 3 * FLOATS_PER_VERTEX);
+            System.arraycopy(vertices.items, from + 5 * FLOATS_PER_VERTEX,
+                    vertices.items, to + 3 * FLOATS_PER_VERTEX, FLOATS_PER_VERTEX);
+        }
+        vertices.size = quads * 4 * FLOATS_PER_VERTEX;
+    }
+
+    /** Dùng lại dãy hai tam giác 0–1–2, 0–2–3 cho tất cả các mesh có chỉ số. */
+    private static short[] createQuadIndices() {
+        short[] indices = new short[MAX_INDEXED_QUADS * 6];
+        for (int quad = 0; quad < MAX_INDEXED_QUADS; quad++) {
+            int vertex = quad * 4;
+            int index = quad * 6;
+            indices[index] = (short) vertex;
+            indices[index + 1] = (short) (vertex + 1);
+            indices[index + 2] = (short) (vertex + 2);
+            indices[index + 3] = (short) vertex;
+            indices[index + 4] = (short) (vertex + 2);
+            indices[index + 5] = (short) (vertex + 3);
+        }
+        return indices;
+    }
+
+    /** Cập nhật chỉ số khi số mặt thay đổi và tải phần đỉnh có dữ liệu. */
+    private static void uploadVertices(Mesh mesh, FloatArray vertices, int indexCount) {
+        mesh.setVertices(vertices.items, 0, vertices.size);
+        if (indexCount != 0 && mesh.getNumIndices() != indexCount) {
+            mesh.setIndices(QUAD_INDICES, 0, indexCount);
+        }
+    }
+
+    /** Vẽ chung các mặt đục và mặt khoét alpha trong pha ghi độ sâu. */
     void render(ShaderProgram shader) {
-        if (mesh != null && vertexCount > 0) {
-            mesh.render(shader.getGdxShader(), GL20.GL_TRIANGLES, 0, vertexCount);
+        renderMesh(opaqueMesh, shader);
+    }
+
+    /** Vẽ nước và băng trong pha hòa màu do World điều phối. */
+    void renderTranslucent(ShaderProgram shader) {
+        renderMesh(translucentMesh, shader);
+    }
+
+    /** Gửi các tam giác đã tải của một mesh sang shader. */
+    private static void renderMesh(Mesh mesh, ShaderProgram shader) {
+        if (mesh != null) {
+            int indices = mesh.getNumIndices();
+            mesh.render(shader.getGdxShader(), GL20.GL_TRIANGLES, 0,
+                    indices == 0 ? mesh.getNumVertices() : indices);
         }
     }
 
+    /** Giải phóng cả hai bộ đệm libGDX và cho phép gọi lại khi đã thu hồi. */
     @Override
     public void dispose() {
-        if (mesh != null) {
-            mesh.dispose();
-            mesh = null;
+        if (opaqueMesh != null) {
+            opaqueMesh.dispose();
+            opaqueMesh = null;
+        }
+        if (translucentMesh != null) {
+            translucentMesh.dispose();
+            translucentMesh = null;
         }
     }
 
-    /** Ghi một đỉnh vào bộ đệm số thực theo đúng thứ tự thuộc tính của shader. */
-    private void putVertex(FloatArray vertices, float x, float y, float z, float u, float v, float shade) {
+    /** Dựng tối đa sáu mặt cho hình hộp, cắt phần bên cạnh đã bị phủ kín. */
+    private static void addBox(World world, FloatArray v, Block block, int state, Block above,
+                               int x, int y, int z) {
+        float inset = horizontalInset(block);
+        float height = renderHeight(world, block, state, x, y, z);
+        for (Face face : FACES) {
+            int nx = x + (face == Face.EAST ? 1 : face == Face.WEST ? -1 : 0);
+            int ny = y + (face == Face.TOP ? 1 : face == Face.BOTTOM ? -1 : 0);
+            int nz = z + (face == Face.SOUTH ? 1 : face == Face.NORTH ? -1 : 0);
+            Block neighbor = face == Face.TOP ? above : Block.fromId(world.getBlock(nx, ny, nz));
+
+            // Dung nham giữ quy tắc cũ: chỉ vẽ những mặt giáp không khí.
+            if (block == Block.LAVA && neighbor != Block.AIR) {
+                continue;
+            }
+            boolean covers = canCover(block, neighbor);
+            if (face == Face.TOP || face == Face.BOTTOM) {
+                float coverInset = 0.5f;
+                if (covers && (face == Face.TOP ? height == 1.0f
+                        : neighborHeight(world, neighbor, nx, ny, nz) == 1.0f)) {
+                    coverInset = horizontalInset(neighbor);
+                }
+                if (coverInset > inset) {
+                    float[] uv = tileUv(block.getTileIndex(face, state, above));
+                    addHorizontalFace(v, face, x, face == Face.TOP ? y + height : y, z,
+                            inset, coverInset, uv);
+                }
+            } else {
+                // Chỉ hai hình chạm đến ranh giới ô mới có thể che thành bên của nhau.
+                float visibleFrom = 0.0f;
+                if (covers && inset == 0.0f && horizontalInset(neighbor) == 0.0f) {
+                    visibleFrom = neighborHeight(world, neighbor, nx, ny, nz);
+                }
+                if (visibleFrom < height) {
+                    float[] uv = tileUv(block.getTileIndex(face, state, above));
+                    addSideFace(v, face, x, y, z, inset, visibleFrom, height, uv);
+                }
+            }
+        }
+    }
+
+    /** Lá và cây khoét alpha không che kín mặt kề. Nước hoặc băng che mặt tiếp xúc cùng loại. */
+    private static boolean canCover(Block current, Block neighbor) {
+        if (neighbor == Block.AIR) {
+            return false;
+        }
+        GeometryType shape = neighbor.getGeometryType();
+        return neighbor.isOpaque() || shape == GeometryType.SNOW_LAYER || shape == GeometryType.CACTUS
+                || (current == neighbor && current.getRenderLayer() == RenderLayer.TRANSLUCENT);
+    }
+
+    /** Lấy độ lùi ngang theo hình hộp xương rồng đã dùng cho hộp chọn. */
+    private static float horizontalInset(Block block) {
+        return block.getGeometryType() == GeometryType.CACTUS ? block.getSelectionBounds(0).minX() : 0.0f;
+    }
+
+    /** Đọc trạng thái ô bên chỉ khi chiều cao hình học phụ thuộc số lớp tuyết. */
+    private static float neighborHeight(World world, Block block, int x, int y, int z) {
+        int state = block.getGeometryType() == GeometryType.SNOW_LAYER ? world.getBlockState(x, y, z) : 0;
+        return renderHeight(world, block, state, x, y, z);
+    }
+
+    /** Dùng chiều cao hiển thị của khối lỏng và tuyết, các hộp còn lại cao một ô. */
+    private static float renderHeight(World world, Block block, int state, int x, int y, int z) {
+        return switch (block.getGeometryType()) {
+            case LIQUID -> block.getTopHeight(world, x, y, z);
+            case SNOW_LAYER -> block.getSelectionBounds(state).maxY();
+            default -> 1.0f;
+        };
+    }
+
+    /** Vẽ nguyên mặt ngang hoặc bốn dải viền còn lộ quanh hình hộp hẹp kề bên. */
+    private static void addHorizontalFace(FloatArray v, Face face, float x, float y, float z,
+                                          float inset, float coverInset, float[] uv) {
+        float edge = 1.0f - inset;
+        if (coverInset == 0.5f) {
+            addHorizontalRect(v, face, x, y, z, inset, edge, inset, edge, inset, uv);
+            return;
+        }
+        float coverEdge = 1.0f - coverInset;
+        addHorizontalRect(v, face, x, y, z, inset, coverInset, inset, edge, inset, uv);
+        addHorizontalRect(v, face, x, y, z, coverEdge, edge, inset, edge, inset, uv);
+        addHorizontalRect(v, face, x, y, z, coverInset, coverEdge, inset, coverInset, inset, uv);
+        addHorizontalRect(v, face, x, y, z, coverInset, coverEdge, coverEdge, edge, inset, uv);
+    }
+
+    /** Quy đổi hình chữ nhật ngang sang tọa độ thế giới và UV của mặt gốc. */
+    private static void addHorizontalRect(FloatArray v, Face face, float x, float y, float z,
+                                          float minX, float maxX, float minZ, float maxZ,
+                                          float inset, float[] uv) {
+        // Tọa độ UV đã bỏ viền PNG. Quy đổi phần lộ ra theo bề rộng thực của mặt.
+        float width = 1.0f - 2.0f * inset;
+        float u0 = lerp(uv[0], uv[2], (minX - inset) / width);
+        float u1 = lerp(uv[0], uv[2], (maxX - inset) / width);
+        float near = (minZ - inset) / width;
+        float far = (maxZ - inset) / width;
+        if (face == Face.TOP) {
+            addQuad(v, x + minX, y, z + maxZ, x + maxX, y, z + maxZ,
+                    x + maxX, y, z + minZ, x + minX, y, z + minZ,
+                    u0, lerp(uv[1], uv[3], near), u1, lerp(uv[1], uv[3], far), SHADE_TOP);
+        } else {
+            addQuad(v, x + minX, y, z + minZ, x + maxX, y, z + minZ,
+                    x + maxX, y, z + maxZ, x + minX, y, z + maxZ,
+                    u0, lerp(uv[1], uv[3], 1.0f - far), u1, lerp(uv[1], uv[3], 1.0f - near), SHADE_BOTTOM);
+        }
+    }
+
+    /** Dựng một thành bên từ độ cao bắt đầu thấy cho đến mép trên của khối. */
+    private static void addSideFace(FloatArray v, Face face, float x, float y, float z,
+                                    float inset, float visibleFrom, float height, float[] uv) {
+        float x0 = x + inset;
+        float x1 = x + 1.0f - inset;
+        float z0 = z + inset;
+        float z1 = z + 1.0f - inset;
+        float y0 = y + visibleFrom;
+        float y1 = y + height;
+        float vBottom = lerp(uv[3], uv[1], visibleFrom / height);
+        switch (face) {
+            case SOUTH -> addQuad(v, x0, y0, z1, x1, y0, z1, x1, y1, z1, x0, y1, z1,
+                    uv[0], uv[1], uv[2], vBottom, SHADE_NORTH_SOUTH);
+            case NORTH -> addQuad(v, x1, y0, z0, x0, y0, z0, x0, y1, z0, x1, y1, z0,
+                    uv[0], uv[1], uv[2], vBottom, SHADE_NORTH_SOUTH);
+            case EAST -> addQuad(v, x1, y0, z1, x1, y0, z0, x1, y1, z0, x1, y1, z1,
+                    uv[0], uv[1], uv[2], vBottom, SHADE_EAST_WEST);
+            case WEST -> addQuad(v, x0, y0, z0, x0, y0, z1, x0, y1, z1, x0, y1, z0,
+                    uv[0], uv[1], uv[2], vBottom, SHADE_EAST_WEST);
+            default -> throw new IllegalArgumentException("Thành bên cần mặt theo trục ngang");
+        }
+    }
+
+    /** Tạo hai tấm chéo nằm trong hộp chọn để vùng vẽ và vùng ngắm cùng kích thước. */
+    private static void addCross(FloatArray v, float x, float y, float z, Block.Bounds bounds, float[] uv) {
+        float minX = x + bounds.minX();
+        float maxX = x + bounds.maxX();
+        float minZ = z + bounds.minZ();
+        float maxZ = z + bounds.maxZ();
+        float bottom = y + bounds.minY();
+        float top = y + bounds.maxY();
+        addPlantPlane(v, minX, bottom, minZ, maxX, top, maxZ, uv);
+        addPlantPlane(v, maxX, bottom, minZ, minX, top, maxZ, uv);
+    }
+
+    /** Thêm hai mặt quay ngược nhau của một tấm chéo để vẫn dùng culling chung. */
+    private static void addPlantPlane(FloatArray v, float x0, float bottom, float z0,
+                                      float x1, float top, float z1, float[] uv) {
+        addQuad(v, x0, bottom, z0, x1, bottom, z1, x1, top, z1, x0, top, z0,
+                uv[0], uv[1], uv[2], uv[3], SHADE_TOP);
+        addQuad(v, x1, bottom, z1, x0, bottom, z0, x0, top, z0, x1, top, z1,
+                uv[2], uv[1], uv[0], uv[3], SHADE_TOP);
+    }
+
+    /** Nội suy UV để phần hình đã bị cắt vẫn giữ đúng tỷ lệ chất liệu gốc. */
+    private static float lerp(float from, float to, float fraction) {
+        return from + (to - from) * fraction;
+    }
+
+    /** Nối bốn góc theo hai tam giác cùng chiều để OpenGL có thể bỏ mặt sau. */
+    private static void addQuad(FloatArray v, float ax, float ay, float az, float bx, float by, float bz,
+                                float cx, float cy, float cz, float dx, float dy, float dz,
+                                float u0, float v0, float u1, float v1, float shade) {
+        putVertex(v, ax, ay, az, u0, v1, shade);
+        putVertex(v, bx, by, bz, u1, v1, shade);
+        putVertex(v, cx, cy, cz, u1, v0, shade);
+        putVertex(v, ax, ay, az, u0, v1, shade);
+        putVertex(v, cx, cy, cz, u1, v0, shade);
+        putVertex(v, dx, dy, dz, u0, v0, shade);
+    }
+
+    /** Ghi một đỉnh theo thứ tự thuộc tính của shader bằng hai lần ghi số thực. */
+    private static void putVertex(FloatArray vertices, float x, float y, float z, float u, float v, float shade) {
         vertices.add(x, y, z);
         vertices.add(u, v, shade);
-    }
-
-    private void addTopFace(FloatArray v, float x, float y, float z, float h, float[] uv) {
-        float u0 = uv[0], v0 = uv[1], u1 = uv[2], v1 = uv[3];
-        putVertex(v, x,     y + h, z + 1, u0, v1, SHADE_TOP);
-        putVertex(v, x + 1, y + h, z + 1, u1, v1, SHADE_TOP);
-        putVertex(v, x + 1, y + h, z,     u1, v0, SHADE_TOP);
-
-        putVertex(v, x,     y + h, z + 1, u0, v1, SHADE_TOP);
-        putVertex(v, x + 1, y + h, z,     u1, v0, SHADE_TOP);
-        putVertex(v, x,     y + h, z,     u0, v0, SHADE_TOP);
-    }
-
-    private void addBottomFace(FloatArray v, float x, float y, float z, float[] uv) {
-        float u0 = uv[0], v0 = uv[1], u1 = uv[2], v1 = uv[3];
-        putVertex(v, x,     y, z,     u0, v1, SHADE_BOTTOM);
-        putVertex(v, x + 1, y, z,     u1, v1, SHADE_BOTTOM);
-        putVertex(v, x + 1, y, z + 1, u1, v0, SHADE_BOTTOM);
-
-        putVertex(v, x,     y, z,     u0, v1, SHADE_BOTTOM);
-        putVertex(v, x + 1, y, z + 1, u1, v0, SHADE_BOTTOM);
-        putVertex(v, x,     y, z + 1, u0, v0, SHADE_BOTTOM);
-    }
-
-    private void addFrontFace(FloatArray v, float x, float y, float z, float h, float[] uv) {
-        float u0 = uv[0], v0 = uv[1], u1 = uv[2], v1 = uv[3];
-        putVertex(v, x,     y,     z + 1, u0, v1, SHADE_NORTH_SOUTH);
-        putVertex(v, x + 1, y,     z + 1, u1, v1, SHADE_NORTH_SOUTH);
-        putVertex(v, x + 1, y + h, z + 1, u1, v0, SHADE_NORTH_SOUTH);
-
-        putVertex(v, x,     y,     z + 1, u0, v1, SHADE_NORTH_SOUTH);
-        putVertex(v, x + 1, y + h, z + 1, u1, v0, SHADE_NORTH_SOUTH);
-        putVertex(v, x,     y + h, z + 1, u0, v0, SHADE_NORTH_SOUTH);
-    }
-
-    private void addBackFace(FloatArray v, float x, float y, float z, float h, float[] uv) {
-        float u0 = uv[0], v0 = uv[1], u1 = uv[2], v1 = uv[3];
-        putVertex(v, x + 1, y,     z, u0, v1, SHADE_NORTH_SOUTH);
-        putVertex(v, x,     y,     z, u1, v1, SHADE_NORTH_SOUTH);
-        putVertex(v, x,     y + h, z, u1, v0, SHADE_NORTH_SOUTH);
-
-        putVertex(v, x + 1, y,     z, u0, v1, SHADE_NORTH_SOUTH);
-        putVertex(v, x,     y + h, z, u1, v0, SHADE_NORTH_SOUTH);
-        putVertex(v, x + 1, y + h, z, u0, v0, SHADE_NORTH_SOUTH);
-    }
-
-    private void addRightFace(FloatArray v, float x, float y, float z, float h, float[] uv) {
-        float u0 = uv[0], v0 = uv[1], u1 = uv[2], v1 = uv[3];
-        putVertex(v, x + 1, y,     z + 1, u0, v1, SHADE_EAST_WEST);
-        putVertex(v, x + 1, y,     z,     u1, v1, SHADE_EAST_WEST);
-        putVertex(v, x + 1, y + h, z,     u1, v0, SHADE_EAST_WEST);
-
-        putVertex(v, x + 1, y,     z + 1, u0, v1, SHADE_EAST_WEST);
-        putVertex(v, x + 1, y + h, z,     u1, v0, SHADE_EAST_WEST);
-        putVertex(v, x + 1, y + h, z + 1, u0, v0, SHADE_EAST_WEST);
-    }
-
-    private void addLeftFace(FloatArray v, float x, float y, float z, float h, float[] uv) {
-        float u0 = uv[0], v0 = uv[1], u1 = uv[2], v1 = uv[3];
-        putVertex(v, x, y,     z,     u0, v1, SHADE_EAST_WEST);
-        putVertex(v, x, y,     z + 1, u1, v1, SHADE_EAST_WEST);
-        putVertex(v, x, y + h, z + 1, u1, v0, SHADE_EAST_WEST);
-
-        putVertex(v, x, y,     z,     u0, v1, SHADE_EAST_WEST);
-        putVertex(v, x, y + h, z + 1, u1, v0, SHADE_EAST_WEST);
-        putVertex(v, x, y + h, z,     u0, v0, SHADE_EAST_WEST);
     }
 }
