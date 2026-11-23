@@ -7,6 +7,7 @@ import com.badlogic.gdx.graphics.VertexAttributes;
 import com.badlogic.gdx.graphics.VertexAttributes.Usage;
 import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Vector3;
+import com.voxelgame.engine.AudioManager;
 import com.voxelgame.engine.ShaderProgram;
 import com.voxelgame.engine.World;
 
@@ -138,6 +139,11 @@ public class ItemEntity extends Entity {
                 if (distSq <= PICKUP_DISTANCE * PICKUP_DISTANCE) {
                     if (hotbar.addItem(block, 1)) {
                         collected = true;
+                        // Chỉ phát tiếng nhặt khi Hotbar đã nhận vật phẩm.
+                        AudioManager audio = world == null ? null : world.getAudio();
+                        if (audio != null) {
+                            audio.playEffect(AudioManager.Effect.PICKUP, 0.3f);
+                        }
                         return;
                     }
                 }

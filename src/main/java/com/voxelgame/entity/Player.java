@@ -3,9 +3,12 @@ package com.voxelgame.entity;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.math.Vector3;
+import com.voxelgame.engine.AudioManager;
 import com.voxelgame.engine.Camera;
 import com.voxelgame.engine.ShaderProgram;
 import com.voxelgame.engine.World;
+
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Thực thể Người chơi kế thừa từ {@link Entity} và sở hữu {@link Hotbar} theo quan hệ Hợp thành (Composition).
@@ -57,6 +60,15 @@ public class Player extends Entity {
     private float cactusFlash;
     private float pushX;
     private float pushZ;
+
+    /** Tích lũy quãng đường và thời gian trên không để phát âm theo chuyển động thực. */
+    private float stepDistance;
+    private float swimDistance;
+    private float airborneTime;
+    /** Trạng thái âm thanh của chất lỏng tại thân, tại mắt và quanh người chơi. */
+    private Block previousLiquid = Block.AIR;
+    private boolean wasUnderwater;
+    private float nearbyLiquidDelay;
 
     // Quan hệ Hợp thành (Composition - Player "has-a" Hotbar)
     private final Hotbar hotbar = new Hotbar();
@@ -124,11 +136,15 @@ public class Player extends Entity {
 
         cactusCooldown = Math.max(0, cactusCooldown - deltaTime);
         cactusFlash = Math.max(0, cactusFlash - deltaTime);
+        float startX = position.x;
+        float startY = position.y;
+        float startZ = position.z;
         handleInput(world, camera, deltaTime);
-        applyPhysicsAndCollision(world, deltaTime);
+        Block support = applyPhysicsAndCollision(world, deltaTime);
 
         // Nếu rơi xuống dưới đáy bản đồ, đưa người chơi trở lại vị trí an toàn trên mặt đất
-        if (position.y < -25.0f) {
+        boolean respawned = position.y < -25.0f;
+        if (respawned) {
             position.set(World.CENTER_X, 22.0f, World.CENTER_Z);
             velocity.set(0.0f, 0.0f, 0.0f);
             isFlying = false;
@@ -143,6 +159,18 @@ public class Player extends Entity {
         // Đồng bộ tọa độ mắt Camera và hiệu ứng góc ống kính (Dynamic FOV)
         camera.setPosition(position.x, position.y + currentEyeHeight, position.z);
         camera.updateDynamicFov(isSprinting, isFlying, deltaTime);
+
+        AudioManager audio = world.getAudio();
+        if (audio != null) {
+            if (respawned) {
+                airborneTime = 0f;
+                stepDistance = 0f;
+                swimDistance = 0f;
+            } else {
+                updateMovementSounds(world, audio, support, deltaTime,
+                        position.x - startX, position.y - startY, position.z - startZ);
+            }
+        }
     }
 
     /**
@@ -270,7 +298,8 @@ public class Player extends Entity {
         }
     }
 
-    private void applyPhysicsAndCollision(World world, float deltaTime) {
+    /** Cập nhật vật lý và trả về khối đỡ ở lần quét đứng nếu đang tiếp đất. */
+    private Block applyPhysicsAndCollision(World world, float deltaTime) {
         if (!isFlying) {
             if (isInLiquid(world)) {
                 velocity.y += (GRAVITY * 0.25f) * deltaTime;
@@ -310,13 +339,109 @@ public class Player extends Entity {
             onGround = velocity.y < 0;
             velocity.y = 0;
             if (verticalHit == Block.CACTUS) {
-                touchCactus(0, 0, onGround);
+                touchCactus(world, 0, 0, onGround);
             }
         }
 
         if (onGround && isFlying) {
             isFlying = false;
             lastShiftTapTime = Float.NEGATIVE_INFINITY;
+        }
+        return onGround ? verticalHit : null;
+    }
+
+    /** Chọn âm thanh từ bề mặt va chạm, quãng đường đã đi và thay đổi khi vào nước. */
+    private void updateMovementSounds(World world, AudioManager audio, Block support, float deltaTime,
+                                      float dx, float dy, float dz) {
+        int x = (int) Math.floor(position.x);
+        int z = (int) Math.floor(position.z);
+        int footY = (int) Math.floor(position.y + 0.1f);
+        Block liquid = liquidAtBody(world, x, footY, z);
+        if (liquid != previousLiquid) {
+            if (liquid == Block.WATER) {
+                audio.playEffect(AudioManager.Effect.WATER_ENTER, 0.46f);
+            } else if (liquid == Block.LAVA) {
+                audio.playEffect(AudioManager.Effect.LAVA_POP, 0.44f);
+            }
+            previousLiquid = liquid;
+            swimDistance = 0f;
+        }
+
+        float eyeY = position.y + currentEyeHeight;
+        int eyeBlockY = (int) Math.floor(eyeY);
+        boolean underwater = world.getBlock(x, eyeBlockY, z) == Block.WATER.getId()
+                && eyeY - eyeBlockY < Block.WATER.getTopHeight(world, x, eyeBlockY, z);
+        if (underwater != wasUnderwater) {
+            audio.playEffect(underwater ? AudioManager.Effect.DIVE : AudioManager.Effect.SURFACE, 0.33f);
+            wasUnderwater = underwater;
+        }
+        audio.setUnderwater(underwater);
+
+        if (liquid == Block.WATER && !isFlying) {
+            swimDistance += (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
+            if (swimDistance >= 1.2f) {
+                audio.playEffect(AudioManager.Effect.SWIM, 0.30f);
+                swimDistance -= 1.2f;
+            }
+        }
+        if (isFlying || liquid.isLiquid()) {
+            airborneTime = 0f;
+            stepDistance = 0f;
+        } else if (support == null) {
+            airborneTime += deltaTime;
+            stepDistance = 0f;
+        } else {
+            // Tuyết một lớp đi xuyên được nhưng vẫn phát tiếng tuyết khi phủ trên nền đỡ.
+            Block surface = world.getBlock(x, footY, z) == Block.SNOW_LAYER.getId()
+                    ? Block.SNOW_LAYER : support;
+            if (airborneTime >= 0.15f) {
+                audio.playLanding(surface, 0.82f);
+                stepDistance = 0f;
+            } else {
+                stepDistance += (float) Math.sqrt(dx * dx + dz * dz);
+                if (stepDistance >= 1.6f) {
+                    audio.playStep(surface, isSneaking);
+                    stepDistance -= 1.6f;
+                }
+            }
+            airborneTime = 0f;
+        }
+        if (!underwater) {
+            updateNearbyLiquidSound(world, audio, x, footY, z, deltaTime);
+        }
+    }
+
+    /** Tìm mặt chất lỏng gần nhất theo chu kỳ thưa, giới hạn trong bốn block. */
+    private void updateNearbyLiquidSound(World world, AudioManager audio, int x, int y, int z, float deltaTime) {
+        nearbyLiquidDelay -= deltaTime;
+        if (nearbyLiquidDelay > 0f) {
+            return;
+        }
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        nearbyLiquidDelay = 2.5f + random.nextFloat() * 2.5f;
+        int nearest = 17;
+        Block closest = Block.AIR;
+        for (int dy = -2; dy <= 2; dy++) {
+            for (int dz = -4; dz <= 4; dz++) {
+                for (int dx = -4; dx <= 4; dx++) {
+                    int distance = dx * dx + dy * dy + dz * dz;
+                    if (distance >= nearest) {
+                        continue;
+                    }
+                    Block block = Block.fromId(world.getBlock(x + dx, y + dy, z + dz));
+                    if (block.isLiquid() && world.getBlock(x + dx, y + dy + 1, z + dz) == Block.AIR.getId()) {
+                        closest = block;
+                        nearest = distance;
+                    }
+                }
+            }
+        }
+        if (closest.isLiquid()) {
+            AudioManager.Effect effect = closest == Block.WATER ? AudioManager.Effect.WATER_NEARBY
+                    : random.nextBoolean() ? AudioManager.Effect.LAVA_NEARBY : AudioManager.Effect.LAVA_POP;
+            audio.playEffect(effect, 0.24f / (1f + 0.2f * nearest));
+        } else {
+            nearbyLiquidDelay = 0.6f;
         }
     }
 
@@ -342,7 +467,7 @@ public class Player extends Entity {
         }
         if (hit == Block.CACTUS) {
             float push = distance > 0 ? -CACTUS_PUSH : CACTUS_PUSH;
-            touchCactus(axis == 0 ? push : 0, axis == 2 ? push : 0, false);
+            touchCactus(world, axis == 0 ? push : 0, axis == 2 ? push : 0, false);
         }
         return hit != null;
     }
@@ -357,12 +482,16 @@ public class Player extends Entity {
     }
 
     /** Đẩy nhẹ theo mặt tiếp xúc và giới hạn tần suất phản hồi. */
-    private void touchCactus(float x, float z, boolean above) {
+    private void touchCactus(World world, float x, float z, boolean above) {
         if (cactusCooldown > 0) {
             return;
         }
         cactusCooldown = CACTUS_COOLDOWN;
         cactusFlash = CACTUS_FLASH_DURATION;
+        AudioManager audio = world.getAudio();
+        if (audio != null) {
+            audio.playEffect(AudioManager.Effect.CACTUS_HURT, 0.45f);
+        }
         pushX = x;
         pushZ = z;
         if (above && !isFlying) {
@@ -440,12 +569,16 @@ public class Player extends Entity {
     public boolean isInLiquid(World world) {
         int bx = (int) Math.floor(position.x);
         int byFeet = (int) Math.floor(position.y + 0.1f);
-        int byWaist = (int) Math.floor(position.y + 0.9f);
         int bz = (int) Math.floor(position.z);
 
-        Block feetBlock = Block.fromId(world.getBlock(bx, byFeet, bz));
-        Block waistBlock = Block.fromId(world.getBlock(bx, byWaist, bz));
-        return feetBlock.isLiquid() || waistBlock.isLiquid();
+        return liquidAtBody(world, bx, byFeet, bz).isLiquid();
+    }
+
+    /** Chia sẻ cách nhận diện chất lỏng tại chân và thắt lưng với vật lý. */
+    private Block liquidAtBody(World world, int x, int footY, int z) {
+        Block feet = Block.fromId(world.getBlock(x, footY, z));
+        int waistY = (int) Math.floor(position.y + 0.9f);
+        return feet.isLiquid() ? feet : Block.fromId(world.getBlock(x, waistY, z));
     }
 
     public Hotbar getHotbar() {

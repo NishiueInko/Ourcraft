@@ -35,6 +35,7 @@ public class ShaderProgram implements Disposable {
 
             out vec2 vTexCoord;
             out float vShade;
+            out vec3 vPosition;
 
             uniform mat4 uModel;
             uniform mat4 uView;
@@ -48,6 +49,7 @@ public class ShaderProgram implements Disposable {
 
                 vTexCoord = aTexCoord;
                 vShade = aShade;
+                vPosition = aPos;
             }
             """;
 
@@ -58,14 +60,34 @@ public class ShaderProgram implements Disposable {
             #version 330 core
             in vec2 vTexCoord;
             in float vShade;
+            in vec3 vPosition;
 
             out vec4 FragColor;
 
             uniform sampler2D uTexture;
             uniform int uUseTexture;
             uniform vec4 uTintColor;
+            uniform vec3 uWorldLight;
+            uniform int uEnvironmentMode;
+            uniform vec3 uSkyColor;
+            uniform vec3 uHorizonColor;
+            uniform vec3 uSunDirection;
+            uniform float uHorizonGlow;
+            uniform vec3 uCloudCenter;
 
             void main() {
+                if (uEnvironmentMode == 1) {
+                    // Dải đỏ cam bám chân trời và tập trung về phía mặt trời.
+                    vec3 direction = normalize(vPosition);
+                    float band = 1.0 - smoothstep(0.0, 0.33, abs(direction.y));
+                    float facing = smoothstep(-0.25, 1.0, dot(direction, uSunDirection));
+                    float glow = band * facing * uHorizonGlow;
+                    float zenith = smoothstep(0.0, 0.9, direction.y);
+                    vec3 sky = mix(uSkyColor, uSkyColor * vec3(0.70, 0.86, 0.98), zenith);
+                    FragColor = vec4(mix(sky, uHorizonColor, glow), 1.0);
+                    return;
+                }
+
                 // 1. Xác định màu cơ sở (lấy từ Texture Atlas hoặc dùng màu thuần túy cho 2D UI)
                 vec4 baseColor;
                 if (uUseTexture == 1) {
@@ -75,12 +97,27 @@ public class ShaderProgram implements Disposable {
                 }
 
                 // Loại bỏ các điểm ảnh hoàn toàn trong suốt (Alpha Testing cơ bản)
-                if (baseColor.a < 0.05) {
+                if (uEnvironmentMode == 2) {
+                    // Làm mờ mép mặt phẳng mây ngoài vùng nhìn lân cận.
+                    float distanceToEye = length(vPosition.xz - uCloudCenter.xz);
+                    baseColor.a *= 1.0 - smoothstep(300.0, 500.0, distanceToEye);
+                }
+                if (uEnvironmentMode == 3) {
+                    // Che phần thiên thể nằm dưới đường chân trời.
+                    baseColor.a *= smoothstep(-1.0, 1.0, vPosition.y);
+                }
+                if (uEnvironmentMode == 4) {
+                    // Với giáng thủy, hệ số đỉnh điều chỉnh alpha thay cho độ sáng theo mặt.
+                    baseColor.a *= vShade;
+                }
+                if (baseColor.a < (uEnvironmentMode == 0 ? 0.05 : 0.015)) {
                     discard;
                 }
 
                 // 2. Nhân với hệ số độ sáng theo hướng mặt khối (Ambient/Directional Face Shading)
-                vec3 litColor = baseColor.rgb * vShade;
+                // Dấu âm của hệ số mặt dành cho khối phát sáng tự thân.
+                float faceShade = uEnvironmentMode == 4 ? 1.0 : abs(vShade);
+                vec3 litColor = baseColor.rgb * faceShade * (vShade < 0.0 ? vec3(1.0) : uWorldLight);
 
                 FragColor = vec4(litColor, baseColor.a);
             }
@@ -104,6 +141,8 @@ public class ShaderProgram implements Disposable {
         setUniform1i("uTexture", 0);
         setUniform1i("uUseTexture", 1);
         setUniformVec4("uTintColor", 1.0f, 1.0f, 1.0f, 1.0f);
+        setUniformVec3("uWorldLight", 1f, 1f, 1f);
+        setUniform1i("uEnvironmentMode", 0);
         unbind();
     }
 
@@ -143,6 +182,7 @@ public class ShaderProgram implements Disposable {
      * Chuyển Shader sang phép chiếu 2D và đặt View, Model về ma trận đơn vị.
      */
     public void enable2DUIMode(Matrix4 orthoProjectionMatrix) {
+        setUniformVec3("uWorldLight", 1f, 1f, 1f);
         setUniformMatrix4f("uProjection", orthoProjectionMatrix);
         setUniformMatrix4f("uView", identityMatrix);
         setUniformMatrix4f("uModel", identityMatrix);

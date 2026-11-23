@@ -220,7 +220,15 @@ public class Chunk implements Disposable {
                         float[] uv = tileUv(block.getTileIndex(Face.SOUTH, state, above));
                         addCross(vertices, wx, wy, wz, block.getSelectionBounds(state), uv);
                     } else {
+                        int firstVertex = vertices.size;
                         addBox(world, vertices, block, state, above, wx, wy, wz);
+                        // Dùng dấu của hệ số mặt để đánh dấu phát sáng mà không tăng kích thước đỉnh.
+                        if (block == Block.LAVA) {
+                            for (int shade = firstVertex + FLOATS_PER_VERTEX - 1;
+                                 shade < vertices.size; shade += FLOATS_PER_VERTEX) {
+                                vertices.items[shade] = -vertices.items[shade];
+                            }
+                        }
                     }
                 }
             }

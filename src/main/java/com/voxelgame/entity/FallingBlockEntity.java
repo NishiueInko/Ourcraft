@@ -1,6 +1,7 @@
 package com.voxelgame.entity;
 
 import com.badlogic.gdx.math.Matrix4;
+import com.voxelgame.engine.AudioManager;
 import com.voxelgame.engine.ShaderProgram;
 import com.voxelgame.engine.World;
 
@@ -43,6 +44,11 @@ public final class FallingBlockEntity extends Entity {
                 // Chỉ đặt lại khi đỉnh nền khớp lưới; mặt thấp làm rơi vật phẩm.
                 if (support.maxY() < 1.0f || !world.tryPlaceBlock(blockX, y + 1, blockZ, block, world.getPlayer())) {
                     world.spawnDroppedItem(new ItemEntity(position.x, top, position.z, block));
+                }
+                // Dùng vật liệu đang rơi và vị trí tiếp xúc, kể cả khi phải rơi thành vật phẩm.
+                AudioManager audio = world.getAudio();
+                if (audio != null) {
+                    audio.playLanding(block, world.getAudioGain(position.x, top, position.z));
                 }
                 finished = true;
                 return;

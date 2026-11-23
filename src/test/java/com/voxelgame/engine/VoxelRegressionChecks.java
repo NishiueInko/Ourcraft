@@ -18,6 +18,7 @@ public final class VoxelRegressionChecks {
         checkPlayerSurfaces();
         ChunkMeshRegressionChecks.run();
         TerrainGenerationChecks.run();
+        EnvironmentChecks.run();
         System.out.println("Các kiểm tra hồi quy voxel đã qua.");
     }
 

@@ -67,6 +67,9 @@ public class World implements Disposable {
     // Tham chiếu tới thực thể người chơi và danh sách đa hình chứa mọi Entity hoạt động trong thế giới
     private Player player;
     private final List<Entity> entities = new ArrayList<>();
+    /** Hệ thống âm thanh do ứng dụng sở hữu và vị trí nghe dùng lại khi tính độ xa. */
+    private AudioManager audio;
+    private final Vector3 audioListener = new Vector3();
     // Các luật có thể ghi thêm ô trong lúc hàng đợi đang được xử lý.
     private final BlockUpdateQueue blockUpdates = new BlockUpdateQueue();
     private boolean drainingBlockUpdates;
@@ -192,6 +195,25 @@ public class World implements Disposable {
         }
     }
 
+    /** Nhận hệ thống âm thanh sau khi thế giới và các tài nguyên đã sẵn sàng. */
+    public void setAudio(AudioManager audio) {
+        this.audio = audio;
+    }
+
+    /** Cho thực thể phát âm thanh tại điểm xảy ra tương tác gameplay. */
+    public AudioManager getAudio() {
+        return audio;
+    }
+
+    /** Hạ âm lượng theo khoảng cách đến người chơi, tắt ngoài bán kính 16 block. */
+    public float getAudioGain(float x, float y, float z) {
+        if (player == null) {
+            return 0f;
+        }
+        float distance = player.copyCenterPosition(audioListener).dst(x, y, z);
+        return Math.max(0f, 1f - distance / 16f);
+    }
+
     /**
      * Phương thức tương thích hỗ trợ cập nhật riêng các vật phẩm rơi nếu cần gọi tường minh.
      */
@@ -290,6 +312,74 @@ public class World implements Disposable {
 
     public boolean isSolidBlock(int worldX, int worldY, int worldZ) {
         return getCollisionBounds(worldX, worldY, worldZ) != null;
+    }
+
+    /** Trả độ cao bề mặt chặn giáng thủy, kể cả mặt chất lỏng và lớp tuyết thấp. */
+    public float getPrecipitationSurface(int x, int z) {
+        int y = findWeatherSurface(x, z, true);
+        if (y < 0) {
+            return 0f;
+        }
+        Block block = Block.fromId(getBlock(x, y, z));
+        if (block.isLiquid()) {
+            return y + block.getTopHeight(this, x, y, z);
+        }
+        return y + block.getSelectionBounds(getBlockState(x, y, z)).maxY();
+    }
+
+    /** Tán lá và các khối rắn che tai người chơi, kể cả khi mắt đang dưới nước. */
+    boolean hasWeatherRoof(int x, float eyeY, int z) {
+        int y = findWeatherSurface(x, z, false);
+        return y >= 0 && y + Block.fromId(getBlock(x, y, z))
+                .getSelectionBounds(getBlockState(x, y, z)).maxY() > eyeY;
+    }
+
+    /** Duyệt từ trên xuống, bỏ qua cả chunk rỗng trước khi xem các ô trong cột. */
+    private int findWeatherSurface(int x, int z, boolean includeLiquids) {
+        if (!isInsideWorld(x, 0, z)) {
+            return -1;
+        }
+        Chunk[][] column = chunks[x / Chunk.SIZE];
+        int localX = x % Chunk.SIZE;
+        int localZ = z % Chunk.SIZE;
+        int chunkZ = z / Chunk.SIZE;
+        for (int chunkY = WORLD_CHUNKS_Y - 1; chunkY >= 0; chunkY--) {
+            Chunk chunk = column[chunkY][chunkZ];
+            if (chunk == null) {
+                continue;
+            }
+            for (int localY = Chunk.SIZE - 1; localY >= 0; localY--) {
+                Block block = Block.fromId(chunk.getBlockLocal(localX, localY, localZ));
+                if (block.isSolid() || (includeLiquids && block.isLiquid())) {
+                    return chunkY * Chunk.SIZE + localY;
+                }
+            }
+        }
+        return -1;
+    }
+
+    /** Thử đóng băng hoặc tích tuyết trên bề mặt lộ thiên, qua đường cập nhật block thông thường. */
+    void accumulateSnow(int x, int z, Player player, boolean thicken) {
+        if (!isInsideWorld(x, 0, z) || getBiome(x, z) != BiomeType.SNOWY_PLAINS) {
+            return;
+        }
+        int y = findWeatherSurface(x, z, true);
+        if (y < 0) {
+            return;
+        }
+        Block top = Block.fromId(getBlock(x, y, z));
+        if (top == Block.WATER) {
+            if (getBlock(x, y + 1, z) == Block.AIR.getId() && !hasLavaNear(x, y, z)
+                    && !intersectsPlayer(player, Block.ICE, 0, x, y, z)) {
+                setBlock(x, y, z, Block.ICE.getId());
+            }
+        } else if (top == Block.SNOW_LAYER) {
+            if (thicken && !hasLavaNear(x, y, z)) {
+                tryStackSnow(x, y, z, player);
+            }
+        } else if (top != Block.SNOW_BLOCK && !hasLavaNear(x, y + 1, z)) {
+            tryPlaceBlock(x, y + 1, z, Block.SNOW_LAYER, player);
+        }
     }
 
     /** Đọc metadata dạng không dấu. Ô mặc định và chunk rỗng trả về 0. */
@@ -514,6 +604,9 @@ public class World implements Disposable {
 
         Block replacement = target.getBreakReplacement(this, worldX, worldY, worldZ);
         writeGameplayBlock(worldX, worldY, worldZ, replacement.getId(), 0);
+        if (audio != null) {
+            audio.playBreak(target, getAudioGain(worldX + 0.5f, worldY + 0.5f, worldZ + 0.5f));
+        }
         target.onBreak(this, worldX, worldY, worldZ);
         drainBlockUpdates();
     }
@@ -531,6 +624,12 @@ public class World implements Disposable {
 
     /** Dựng các chunk gần camera rồi vẽ pha đục và pha trong suốt theo thứ tự. */
     public void render(ShaderProgram shader, Matrix4 projection, Matrix4 view, Vector3 cameraPosition) {
+        render(shader, projection, view, cameraPosition, null);
+    }
+
+    /** Cho phép vẽ tầng mây sau pha ghi chiều sâu và trước khi hòa màu nước/băng. */
+    public void render(ShaderProgram shader, Matrix4 projection, Matrix4 view, Vector3 cameraPosition,
+                       Runnable beforeTranslucent) {
         // libGDX dùng nghịch đảo của Projection × View để dựng sáu mặt phẳng khung nhìn.
         inverseViewProjection.set(projection).mul(view).inv();
         frustum.update(inverseViewProjection);
@@ -567,6 +666,9 @@ public class World implements Disposable {
             entities.get(i).render(shader);
         }
         shader.setUniformMatrix4f("uModel", identityMatrix);
+        if (beforeTranslucent != null) {
+            beforeTranslucent.run();
+        }
         renderTranslucent(shader, translucentCount);
     }
 

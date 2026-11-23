@@ -64,10 +64,14 @@ public class UIRenderer implements Disposable {
     private static final int[][] GLYPHS = createGlyphs();
     private static final String[] NUMBER_LABELS = new String[101];
     private static final String[] VOLUME_LABELS = new String[101];
+    /** Đồng hồ và trạng thái thời tiết dùng bộ đệm ký tự, tránh tạo chuỗi theo frame. */
+    private final StringBuilder environmentLabel = new StringBuilder(48);
+    private WorldTime worldTime;
+    private WeatherManager weather;
     static {
         for (int i = 0; i < NUMBER_LABELS.length; i++) {
             NUMBER_LABELS[i] = Integer.toString(i);
-            VOLUME_LABELS[i] = "MUSIC VOLUME: " + i + "%";
+            VOLUME_LABELS[i] = "VOLUME: " + i + "%";
         }
     }
     /** Bốn hộp màn tạm dùng chung cho vẽ và kiểm tra click trên luồng chính. */
@@ -80,6 +84,12 @@ public class UIRenderer implements Disposable {
     public UIRenderer() {
         // Khởi tạo Mesh động cho UI với dung lượng ban đầu 4096 đỉnh
         uiMesh = new Mesh(false, 4096, 0, VERTEX_ATTRIBUTES);
+    }
+
+    /** Gắn đồng hồ và thời tiết để hiển thị trong lượt vẽ HUD hiện có. */
+    public void setEnvironment(WorldTime time, WeatherManager weatherManager) {
+        worldTime = time;
+        weather = weatherManager;
     }
 
     // =========================================================================
@@ -269,6 +279,9 @@ public class UIRenderer implements Disposable {
         }
 
         if (!isPaused) {
+            if (worldTime != null && weather != null) {
+                renderEnvironment();
+            }
             // 2. Khi đang chơi: Vẽ tâm ngắm Crosshair ở chính giữa màn hình
             renderCrosshair(shader, windowWidth, windowHeight);
 
@@ -285,6 +298,36 @@ public class UIRenderer implements Disposable {
         Gdx.gl.glDisable(GL20.GL_BLEND);
         Gdx.gl.glEnable(GL20.GL_CULL_FACE);
         Gdx.gl.glEnable(GL20.GL_DEPTH_TEST);
+    }
+
+    /** Vẽ hai dòng góc trên trái bằng font 5 × 7 có sẵn. */
+    private void renderEnvironment() {
+        String biomeName = switch (weather.biome()) {
+            case PLAINS -> "PLAINS";
+            case DESERT -> "DESERT";
+            case SNOWY_PLAINS -> "SNOWY PLAINS";
+        };
+        environmentLabel.setLength(0);
+        environmentLabel.append(biomeName).append(" - ").append(weather.label());
+        drawEnvironmentLine(environmentLabel, 10f);
+
+        int minuteOfDay = worldTime.minuteOfDay();
+        int hour = minuteOfDay / 60;
+        int minute = minuteOfDay % 60;
+        environmentLabel.setLength(0);
+        environmentLabel.append("DAY ").append(worldTime.dayCount() + 1).append(" - ");
+        environmentLabel.append((char) ('0' + hour / 10)).append((char) ('0' + hour % 10));
+        environmentLabel.append(':').append((char) ('0' + minute / 10)).append((char) ('0' + minute % 10));
+        drawEnvironmentLine(environmentLabel, 25f);
+    }
+
+    /** Bóng chữ giữ nhãn dễ đọc trên mây sáng và nền tuyết. */
+    private void drawEnvironmentLine(CharSequence label, float y) {
+        currentShader.setUniform1i("uUseTexture", 0);
+        currentShader.setUniformVec4("uTintColor", 0f, 0f, 0f, 0.8f);
+        drawPixelText(label, 11.5f, y + 1.5f, 1.5f);
+        currentShader.setUniformVec4("uTintColor", 1f, 1f, 1f, 0.95f);
+        drawPixelText(label, 10f, y, 1.5f);
     }
 
     private void renderCrosshair(ShaderProgram shader, int windowWidth, int windowHeight) {
@@ -657,7 +700,7 @@ public class UIRenderer implements Disposable {
         data[offset + 5] = 1.0f;
     }
 
-    private void drawPixelText(String text, float startX, float startY, float pixelScale) {
+    private void drawPixelText(CharSequence text, float startX, float startY, float pixelScale) {
         if (text == null || text.isEmpty()) {
             return;
         }

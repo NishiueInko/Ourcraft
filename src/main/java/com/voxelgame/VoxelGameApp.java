@@ -11,9 +11,13 @@ import com.voxelgame.engine.AudioManager;
 import com.voxelgame.engine.Camera;
 import com.voxelgame.engine.Raycast;
 import com.voxelgame.engine.ShaderProgram;
+import com.voxelgame.engine.SkyRenderer;
 import com.voxelgame.engine.Texture;
 import com.voxelgame.engine.UIRenderer;
+import com.voxelgame.engine.WeatherManager;
+import com.voxelgame.engine.WeatherRenderer;
 import com.voxelgame.engine.World;
+import com.voxelgame.engine.WorldTime;
 import com.voxelgame.entity.Block;
 import com.voxelgame.entity.Hotbar;
 import com.voxelgame.entity.ItemEntity;
@@ -48,7 +52,7 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
     /** Texture Atlas 64x64 chứa toàn bộ 10 tile (Dirt, Grass, Stone, Bedrock, Log, Leaves, Water, Lava) */
     private Texture textureAtlas;
 
-    /** Quản lý phát lặp nhạc nền MP3 và điều chỉnh âm lượng thời gian thực */
+    /** Quản lý vòng nhạc nền, hiệu ứng vật liệu và điều chỉnh âm lượng nhạc. */
     private AudioManager audioManager;
 
     /** Camera góc nhìn thứ nhất (First-Person), Euler Yaw/Pitch, Dynamic FOV */
@@ -62,6 +66,13 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
 
     /** Kết xuất Overlay 3D quanh block mục tiêu và toàn bộ giao diện 2D HUD + Pause Menu */
     private UIRenderer uiRenderer;
+
+    /** Đồng hồ, thời tiết và hai lượt vẽ môi trường của thế giới hiện tại. */
+    private final WorldTime worldTime = new WorldTime();
+    private final WeatherManager weather = new WeatherManager(World.WORLD_SEED);
+    private SkyRenderer skyRenderer;
+    private WeatherRenderer weatherRenderer;
+    private final Runnable renderCloudLayer = this::renderCloudLayer;
 
     // =====================================================================
     // Trạng thái chuột để xoay Camera 3D hoặc tương tác trên Pause Menu 2D
@@ -110,6 +121,8 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
 
     /** Thời gian đã đào tích lũy trên block hiện tại (giây) */
     private float miningElapsedTime = 0.0f;
+    /** Mốc tiếp theo để phát tiếng gõ khi giữ chuột đào cùng một khối. */
+    private float nextMiningSoundTime;
 
     // =====================================================================
     // Hằng số đồ họa và gameplay
@@ -153,6 +166,7 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
 
         // Quy ước mặt trước theo thứ tự quấn đỉnh ngược chiều kim đồng hồ (Counter-Clockwise)
         Gdx.gl.glFrontFace(GL20.GL_CCW);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
 
         // -----------------------------------------------------------------
         // 2. Khởi tạo toàn bộ các hệ thống con của Engine
@@ -172,6 +186,9 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
 
         // UI Renderer: Chuẩn bị tài nguyên GPU cho Overlay 3D, Crosshair, Hotbar, Pause Menu, font bitmap
         uiRenderer = new UIRenderer();
+        uiRenderer.setEnvironment(worldTime, weather);
+        skyRenderer = new SkyRenderer();
+        weatherRenderer = new WeatherRenderer();
 
         // -----------------------------------------------------------------
         // 3. Khởi tạo Player, gắn điều khiển và đăng ký vào World
@@ -191,8 +208,9 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         // 4. Khởi tạo và phát lặp nhạc nền
         // -----------------------------------------------------------------
 
-        // Tạo AudioManager và bắt đầu phát lặp vô hạn file "1-08. Minecraft.mp3" (mặc định 70%)
+        // Khởi tạo âm thanh cho tương tác trong World và bắt đầu vòng nhạc đã xáo.
         audioManager = new AudioManager();
+        world.setAudio(audioManager);
         audioManager.startBackgroundMusic();
 
         // -----------------------------------------------------------------
@@ -220,9 +238,11 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         // =================================================================
         // BƯỚC 1: Tính delta thời gian và giới hạn tối đa 0.05 giây
         // =================================================================
-        float deltaTime = Gdx.graphics.getDeltaTime();
-        if (deltaTime > 0.05f) {
-            deltaTime = 0.05f;
+        float realDelta = Gdx.graphics.getDeltaTime();
+        float deltaTime = Math.min(realDelta, 0.05f);
+        // Nhạc và khoảng nghỉ giữa hai bài tiếp tục chạy khi mở Pause Menu.
+        if (audioManager != null) {
+            audioManager.update();
         }
 
         // =================================================================
@@ -248,6 +268,11 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
 
             // Cập nhật tiến trình đào block nếu đang giữ chuột trái
             miningProgressRatio = updateMiningProgress(currentHit, deltaTime);
+
+            // Thời gian môi trường dùng giây thực; vật lý vẫn giữ delta đã giới hạn.
+            worldTime.update(realDelta);
+            weather.update(realDelta, world, eyePosition, player);
+            audioManager.setRainGain(weather.rainVolume());
         }
 
         // =================================================================
@@ -270,11 +295,17 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         Matrix4 view = camera.getViewMatrix();
         shaderProgram.setUniformMatrix4f("uProjection", projection);
         shaderProgram.setUniformMatrix4f("uView", view);
+        camera.copyPosition(eyePosition);
+
+        // Vòm trời và thiên thể nằm sau mọi hình học; mây và giáng thủy xét độ sâu.
+        skyRenderer.renderSky(shaderProgram, view, worldTime, weather.skyStrength());
 
         // Kết xuất các chunk giao khung nhìn và toàn bộ thực thể trong thế giới.
         textureAtlas.bind();
-        world.render(shaderProgram, projection, view, camera.copyPosition(eyePosition));
+        world.render(shaderProgram, projection, view, eyePosition, renderCloudLayer);
+        weatherRenderer.render(shaderProgram, world, eyePosition, weather);
         textureAtlas.unbind();
+        shaderProgram.setUniformVec3("uWorldLight", 1f, 1f, 1f);
 
         // =================================================================
         // BƯỚC 6: Vẽ hiệu ứng Overlay 3D quanh block đang ngắm/đào
@@ -309,6 +340,12 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         );
 
         shaderProgram.unbind();
+    }
+
+    /** Vẽ mây trước pha trong suốt rồi gắn lại atlas cho nước và băng. */
+    private void renderCloudLayer() {
+        skyRenderer.renderClouds(shaderProgram, eyePosition, weather.animationSeconds(), weather.skyStrength());
+        textureAtlas.bind();
     }
 
     /**
@@ -356,6 +393,10 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         isLeftMouseDown = false;
         isDraggingVolumeSlider = false;
         resetMiningProgress();
+        if (audioManager != null) {
+            audioManager.setUnderwater(false);
+            audioManager.setRainPaused(true);
+        }
 
         // Mở khóa con trỏ chuột để người dùng click vào nút Resume, chỉnh Volume
         Gdx.input.setCursorCatched(false);
@@ -370,6 +411,9 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
     private void resumeGame() {
         isPaused = false;
         isDraggingVolumeSlider = false;
+        if (audioManager != null) {
+            audioManager.setRainPaused(false);
+        }
 
         // Khóa lại con trỏ chuột để tiếp tục xoay Camera
         Gdx.input.setCursorCatched(true);
@@ -409,6 +453,9 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
 
         // Kiểm tra nút "RESUME GAME"
         if (uiRenderer.isInsideResumeButton(screenX, screenY, screenWidth, screenHeight)) {
+            if (audioManager != null) {
+                audioManager.playEffect(AudioManager.Effect.CLICK, 0.36f);
+            }
             resumeGame();
             return;
         }
@@ -416,6 +463,7 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         // Kiểm tra nút "[-]" giảm âm lượng 10%
         if (uiRenderer.isInsideVolumeMinus(screenX, screenY, screenWidth, screenHeight)) {
             if (audioManager != null) {
+                audioManager.playEffect(AudioManager.Effect.CLICK, 0.36f);
                 audioManager.changeVolume(-0.10f);
             }
             return;
@@ -424,6 +472,7 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         // Kiểm tra nút "[+]" tăng âm lượng 10%
         if (uiRenderer.isInsideVolumePlus(screenX, screenY, screenWidth, screenHeight)) {
             if (audioManager != null) {
+                audioManager.playEffect(AudioManager.Effect.CLICK, 0.36f);
                 audioManager.changeVolume(0.10f);
             }
             return;
@@ -478,6 +527,7 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
             miningTargetY = hitY;
             miningTargetZ = hitZ;
             miningElapsedTime = 0.0f;
+            nextMiningSoundTime = 0.0f;
         }
 
         // Tích lũy thời gian đào
@@ -489,6 +539,12 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
             world.breakBlockAndSpawnDrop(miningTargetX, miningTargetY, miningTargetZ);
             resetMiningProgress();
             return 0.0f;
+        }
+
+        // Khối phá nhanh chỉ phát tiếng vỡ, khối cứng phát tiếng gõ cách nhau 0,25 giây.
+        if (audioManager != null && requiredTime > 0.25f && miningElapsedTime >= nextMiningSoundTime) {
+            audioManager.playMining(targetBlock);
+            nextMiningSoundTime += 0.25f;
         }
 
         // Trả về tỷ lệ tiến trình đào (giới hạn trong [0.0, 1.0])
@@ -505,6 +561,7 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         miningTargetY = Integer.MIN_VALUE;
         miningTargetZ = Integer.MIN_VALUE;
         miningElapsedTime = 0.0f;
+        nextMiningSoundTime = 0.0f;
     }
 
     /**
@@ -541,7 +598,7 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         if (selectedBlock == Block.SNOW_LAYER && hit.getBlock() == Block.SNOW_LAYER
                 && world.getBlockState(x, y, z) < 7) {
             if (world.tryStackSnow(x, y, z, player)) {
-                hotbar.consumeSelectedItem();
+                finishBlockPlacement(hotbar, selectedBlock);
             }
             return;
         }
@@ -549,7 +606,15 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         // Ưu tiên thay thế ô đang ngắm, sau đó thử ô sát mặt mà tia chạm.
         if (world.tryPlaceBlock(x, y, z, selectedBlock, player)
                 || world.tryPlaceBlock(hit.getPrevBlockX(), hit.getPrevBlockY(), hit.getPrevBlockZ(), selectedBlock, player)) {
-            hotbar.consumeSelectedItem();
+            finishBlockPlacement(hotbar, selectedBlock);
+        }
+    }
+
+    /** Trừ vật phẩm và phát mẫu của vật liệu sau khi World chấp nhận thao tác đặt. */
+    private void finishBlockPlacement(Hotbar hotbar, Block placedBlock) {
+        hotbar.consumeSelectedItem();
+        if (audioManager != null) {
+            audioManager.playPlace(placedBlock);
         }
     }
 
@@ -594,6 +659,12 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         if (uiRenderer != null) {
             uiRenderer.dispose();
         }
+        if (weatherRenderer != null) {
+            weatherRenderer.dispose();
+        }
+        if (skyRenderer != null) {
+            skyRenderer.dispose();
+        }
         if (world != null) {
             world.dispose();
         }
@@ -633,6 +704,24 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
 
         // Phím số 1..9: Chọn ô trên thanh 9 ô Hotbar (chỉ khi đang chơi, không Pause)
         if (!isPaused && player != null) {
+            // Phím thử môi trường chỉ hoạt động khi đang chơi.
+            switch (keycode) {
+                case Input.Keys.F6 -> {
+                    weather.toggle();
+                    return true;
+                }
+                case Input.Keys.F7 -> {
+                    worldTime.nextMilestone();
+                    return true;
+                }
+                case Input.Keys.F8 -> {
+                    worldTime.toggleFastForward();
+                    return true;
+                }
+                default -> {
+                    // Các phím còn lại tiếp tục được xử lý bởi Hotbar và Player.
+                }
+            }
             int slotIndex = getHotbarSlotFromKeycode(keycode);
             if (slotIndex >= 0) {
                 player.getHotbar().selectSlot(slotIndex);
