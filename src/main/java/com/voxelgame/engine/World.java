@@ -1,7 +1,11 @@
 package com.voxelgame.engine;
 
+import com.badlogic.gdx.math.Frustum;
 import com.badlogic.gdx.math.Matrix4;
+import com.badlogic.gdx.math.Vector3;
+import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Disposable;
+import com.badlogic.gdx.utils.FloatArray;
 import com.voxelgame.entity.Block;
 import com.voxelgame.entity.Entity;
 import com.voxelgame.entity.Hotbar;
@@ -19,7 +23,7 @@ import java.util.Random;
  * THỂ HIỆN CÁC TÍNH CHẤT OOP:
  * 1. Tính Đa hình (Runtime Polymorphism):
  *    - Quản lý chung cả `Player` lẫn mọi `ItemEntity` trong một danh sách duy nhất `List<Entity> entities`.
- *    - Trong `updateEntities(float deltaTime)` và `render(ShaderProgram shader)`, `World` duyệt qua
+ *    - Trong `updateEntities` và `render`, `World` duyệt qua
  *      danh sách `entities` và gọi đa hình `entity.update(this, deltaTime)` và `entity.render(shader)`.
  *    - Trong `breakBlockAndSpawnDrop(int, int, int)`, `World` gọi đa hình `target.onBreak(this, worldX, worldY, worldZ)`
  *      để mỗi loại `Block` tự quyết định vật phẩm rơi ra (ví dụ: `GrassBlock` rơi ra `Block.DIRT`).
@@ -29,19 +33,29 @@ import java.util.Random;
  */
 public class World implements Disposable {
 
-    // Kích thước thế giới: 20 x 2 x 20 Chunks = 320 x 32 x 320 Blocks
-    public static final int WORLD_CHUNKS_X = 20;
-    public static final int WORLD_CHUNKS_Y = 2;
-    public static final int WORLD_CHUNKS_Z = 20;
+    // Kích thước thế giới: 112 × 16 × 112 chunk, tương ứng 1792 × 256 × 1792 block.
+    public static final int WORLD_CHUNKS_X = 112;
+    public static final int WORLD_CHUNKS_Y = 16;
+    public static final int WORLD_CHUNKS_Z = 112;
 
     public static final int WORLD_SIZE_X = WORLD_CHUNKS_X * Chunk.SIZE;
     public static final int WORLD_SIZE_Y = WORLD_CHUNKS_Y * Chunk.SIZE;
     public static final int WORLD_SIZE_Z = WORLD_CHUNKS_Z * Chunk.SIZE;
 
+    // Tâm hình học của bản đồ theo phương ngang, dùng chung cho spawn và hồi vị trí.
+    public static final int CENTER_X = WORLD_SIZE_X / 2;
+    public static final int CENTER_Z = WORLD_SIZE_Z / 2;
+    // Dựng sẵn khu vực 5 × 5 cột chunk quanh spawn.
+    private static final int SPAWN_MESH_RADIUS = 2;
+    // Giới hạn công việc dựng mesh mỗi khung hình và thời gian giữ mesh ngoài khung nhìn.
+    private static final int MESH_BUILDS_PER_FRAME = 16;
+    private static final int MESH_RETENTION_FRAMES = 120;
+
     // Giới hạn nghiêm ngặt: Tổng số lớp địa hình từ đáy (y = 0) đến đỉnh cao nhất <= 20 lớp (tức y <= 19)
     public static final int MAX_TERRAIN_LAYERS = 20;
     public static final int MAX_TERRAIN_Y = MAX_TERRAIN_LAYERS - 1; // y = 19
 
+    // Một ô null biểu thị chunk chỉ chứa không khí, chưa cần mảng block hay mesh.
     private final Chunk[][][] chunks = new Chunk[WORLD_CHUNKS_X][WORLD_CHUNKS_Y][WORLD_CHUNKS_Z];
     private final int[][] surfaceHeights = new int[WORLD_SIZE_X][WORLD_SIZE_Z];
 
@@ -50,18 +64,49 @@ public class World implements Disposable {
     private final List<Entity> entities = new ArrayList<>();
 
     private final Matrix4 identityMatrix = new Matrix4();
+    // Khung nhìn và bộ đệm dựng mesh được tái sử dụng trên luồng kết xuất.
+    private final Matrix4 inverseViewProjection = new Matrix4();
+    private final Frustum frustum = new Frustum();
+    private final FloatArray meshVertices = new FloatArray(4096);
+    private final Vector3 nearCenter = new Vector3();
+    // Hàng đợi nhỏ tái sử dụng để ưu tiên các chunk gần camera.
+    private final Chunk[] pendingMeshes = new Chunk[MESH_BUILDS_PER_FRAME];
+    private final float[] pendingDistances = new float[MESH_BUILDS_PER_FRAME];
+    private int pendingMeshCount;
+    // Theo dõi riêng các chunk có mesh để thu hồi tài nguyên mà không quét cả lưới lần nữa.
+    private final Array<Chunk> residentMeshes = new Array<>(false, WORLD_CHUNKS_X * WORLD_CHUNKS_Z);
+    private long renderFrame;
+    private final int spawnY;
 
+    /** Sinh địa hình và dựng trước mesh quanh điểm xuất phát. */
     public World() {
-        for (int cx = 0; cx < WORLD_CHUNKS_X; cx++) {
-            for (int cy = 0; cy < WORLD_CHUNKS_Y; cy++) {
-                for (int cz = 0; cz < WORLD_CHUNKS_Z; cz++) {
-                    chunks[cx][cy][cz] = new Chunk(cx, cy, cz);
+        generateTerrainAndEcosystem();
+        // Tâm nằm trên giao điểm bốn cột block. Lấy cột cao nhất dưới chân người chơi.
+        int groundY = 0;
+        for (int x = CENTER_X - 1; x <= CENTER_X; x++) {
+            for (int z = CENTER_Z - 1; z <= CENTER_Z; z++) {
+                groundY = Math.max(groundY, findHighestBlockY(x, z));
+            }
+        }
+        spawnY = groundY + 1;
+
+        int spawnChunkX = CENTER_X / Chunk.SIZE;
+        int spawnChunkZ = CENTER_Z / Chunk.SIZE;
+        for (int cx = spawnChunkX - SPAWN_MESH_RADIUS; cx <= spawnChunkX + SPAWN_MESH_RADIUS; cx++) {
+            for (int cz = spawnChunkZ - SPAWN_MESH_RADIUS; cz <= spawnChunkZ + SPAWN_MESH_RADIUS; cz++) {
+                for (int cy = 0; cy < WORLD_CHUNKS_Y; cy++) {
+                    Chunk chunk = chunks[cx][cy][cz];
+                    if (chunk != null) {
+                        rebuildChunkMesh(chunk);
+                    }
                 }
             }
         }
+    }
 
-        generateTerrainAndEcosystem();
-        rebuildAllDirtyChunks();
+    /** Trả về vị trí chân người chơi ở tâm bản đồ, ngay trên mặt đất khi tạo thế giới. */
+    public Vector3 getSpawnPosition() {
+        return new Vector3(CENTER_X, spawnY, CENTER_Z);
     }
 
     /**
@@ -172,7 +217,7 @@ public class World implements Disposable {
                 int tx = wx + rng.nextInt(3) - 1;
                 int tz = wz + rng.nextInt(3) - 1;
 
-                if (Math.abs(tx - 32) <= 4 && Math.abs(tz - 32) <= 4) {
+                if (Math.abs(tx - CENTER_X) <= 4 && Math.abs(tz - CENTER_Z) <= 4) {
                     continue;
                 }
 
@@ -305,10 +350,21 @@ public class World implements Disposable {
         }
     }
 
+    /** Tìm mặt đất khi sinh cây, bỏ qua các tầng chunk còn trống phía trên. */
     private int findHighestBlockY(int wx, int wz) {
-        for (int y = WORLD_SIZE_Y - 1; y >= 0; y--) {
-            if (getBlock(wx, y, wz) != Block.AIR.getId()) {
-                return y;
+        int cx = wx / Chunk.SIZE;
+        int cz = wz / Chunk.SIZE;
+        int lx = wx % Chunk.SIZE;
+        int lz = wz % Chunk.SIZE;
+        for (int cy = WORLD_CHUNKS_Y - 1; cy >= 0; cy--) {
+            Chunk chunk = chunks[cx][cy][cz];
+            if (chunk == null) {
+                continue;
+            }
+            for (int y = Chunk.SIZE - 1; y >= 0; y--) {
+                if (chunk.getBlockLocal(lx, y, lz) != Block.AIR.getId()) {
+                    return cy * Chunk.SIZE + y;
+                }
             }
         }
         return 0;
@@ -328,9 +384,10 @@ public class World implements Disposable {
         return false;
     }
 
-    private void setBlockInternal(int worldX, int worldY, int worldZ, byte blockId) {
+    /** Ghi block và cấp phát hoặc giải phóng chunk khi nó chuyển trạng thái rỗng. */
+    private boolean setBlockInternal(int worldX, int worldY, int worldZ, byte blockId) {
         if (!isInsideWorld(worldX, worldY, worldZ)) {
-            return;
+            return false;
         }
         int cx = worldX / Chunk.SIZE;
         int cy = worldY / Chunk.SIZE;
@@ -340,7 +397,25 @@ public class World implements Disposable {
         int ly = worldY % Chunk.SIZE;
         int lz = worldZ % Chunk.SIZE;
 
-        chunks[cx][cy][cz].setBlockLocal(lx, ly, lz, blockId);
+        Chunk chunk = chunks[cx][cy][cz];
+        if (chunk == null) {
+            if (blockId == Block.AIR.getId()) {
+                return false;
+            }
+            chunk = new Chunk(cx, cy, cz);
+            chunks[cx][cy][cz] = chunk;
+        }
+        if (!chunk.setBlockLocal(lx, ly, lz, blockId)) {
+            return false;
+        }
+        if (chunk.isEmpty()) {
+            if (chunk.hasMesh()) {
+                residentMeshes.removeValue(chunk, true);
+            }
+            chunk.dispose();
+            chunks[cx][cy][cz] = null;
+        }
+        return true;
     }
 
     public boolean isInsideWorld(int worldX, int worldY, int worldZ) {
@@ -361,7 +436,8 @@ public class World implements Disposable {
         int ly = worldY % Chunk.SIZE;
         int lz = worldZ % Chunk.SIZE;
 
-        return chunks[cx][cy][cz].getBlockLocal(lx, ly, lz);
+        Chunk chunk = chunks[cx][cy][cz];
+        return chunk == null ? Block.AIR.getId() : chunk.getBlockLocal(lx, ly, lz);
     }
 
     public boolean isSolidBlock(int worldX, int worldY, int worldZ) {
@@ -369,8 +445,9 @@ public class World implements Disposable {
         return block.isSolid();
     }
 
+    /** Ghi block khi chơi và đánh dấu các chunk đã có dữ liệu nếu chung mặt biên. */
     public void setBlock(int worldX, int worldY, int worldZ, byte blockId) {
-        if (!isInsideWorld(worldX, worldY, worldZ)) {
+        if (!setBlockInternal(worldX, worldY, worldZ, blockId)) {
             return;
         }
 
@@ -382,24 +459,30 @@ public class World implements Disposable {
         int ly = worldY % Chunk.SIZE;
         int lz = worldZ % Chunk.SIZE;
 
-        chunks[cx][cy][cz].setBlockLocal(lx, ly, lz, blockId);
-
         if (lx == 0 && cx > 0) {
-            chunks[cx - 1][cy][cz].markDirty();
+            markChunkDirty(cx - 1, cy, cz);
         } else if (lx == Chunk.SIZE - 1 && cx < WORLD_CHUNKS_X - 1) {
-            chunks[cx + 1][cy][cz].markDirty();
+            markChunkDirty(cx + 1, cy, cz);
         }
 
         if (ly == 0 && cy > 0) {
-            chunks[cx][cy - 1][cz].markDirty();
+            markChunkDirty(cx, cy - 1, cz);
         } else if (ly == Chunk.SIZE - 1 && cy < WORLD_CHUNKS_Y - 1) {
-            chunks[cx][cy + 1][cz].markDirty();
+            markChunkDirty(cx, cy + 1, cz);
         }
 
         if (lz == 0 && cz > 0) {
-            chunks[cx][cy][cz - 1].markDirty();
+            markChunkDirty(cx, cy, cz - 1);
         } else if (lz == Chunk.SIZE - 1 && cz < WORLD_CHUNKS_Z - 1) {
-            chunks[cx][cy][cz + 1].markDirty();
+            markChunkDirty(cx, cy, cz + 1);
+        }
+    }
+
+    /** Đánh dấu mesh lân cận cần dựng lại, giữ nguyên các ô chỉ chứa không khí. */
+    private void markChunkDirty(int cx, int cy, int cz) {
+        Chunk chunk = chunks[cx][cy][cz];
+        if (chunk != null) {
+            chunk.markDirty();
         }
     }
 
@@ -423,55 +506,126 @@ public class World implements Disposable {
         target.onBreak(this, worldX, worldY, worldZ);
     }
 
-    private void rebuildAllDirtyChunks() {
-        for (int cx = 0; cx < WORLD_CHUNKS_X; cx++) {
-            for (int cy = 0; cy < WORLD_CHUNKS_Y; cy++) {
-                for (int cz = 0; cz < WORLD_CHUNKS_Z; cz++) {
-                    Chunk chunk = chunks[cx][cy][cz];
-                    if (chunk.isDirty()) {
-                        chunk.rebuildMesh(this);
-                    }
-                }
-            }
-        }
-    }
-
     /**
-     * Vẽ toàn bộ các Chunk địa hình và duyệt danh sách đa hình `entities` để vẽ các thực thể 3D.
+     * Vẽ các chunk giao khung nhìn và duyệt danh sách đa hình để vẽ các thực thể 3D.
      *
      * @param shader chương trình Shader đang kích hoạt
+     * @param projection ma trận chiếu phối cảnh đã truyền vào shader
+     * @param view ma trận nhìn đã truyền vào shader
      */
-    public void render(ShaderProgram shader) {
-        rebuildAllDirtyChunks();
+    public void render(ShaderProgram shader, Matrix4 projection, Matrix4 view) {
+        // libGDX dùng nghịch đảo của Projection × View để dựng sáu mặt phẳng khung nhìn.
+        inverseViewProjection.set(projection).mul(view).inv();
+        frustum.update(inverseViewProjection);
+        // Tâm mặt phẳng gần xấp xỉ vị trí mắt và ưu tiên được cả các chunk theo độ cao.
+        nearCenter.set(0, 0, -1).prj(inverseViewProjection);
+        renderFrame++;
+        pendingMeshCount = 0;
 
         shader.setUniformMatrix4f("uModel", identityMatrix);
-        for (int cx = 0; cx < WORLD_CHUNKS_X; cx++) {
-            for (int cy = 0; cy < WORLD_CHUNKS_Y; cy++) {
-                for (int cz = 0; cz < WORLD_CHUNKS_Z; cz++) {
-                    chunks[cx][cy][cz].render(shader);
-                }
+        renderVisibleChunks(shader);
+        for (int i = 0; i < pendingMeshCount; i++) {
+            Chunk chunk = pendingMeshes[i];
+            pendingMeshes[i] = null;
+            boolean alreadyDrawn = chunk.hasMesh();
+            rebuildChunkMesh(chunk);
+            if (!alreadyDrawn) {
+                chunk.render(shader);
             }
         }
+        releaseOffscreenMeshes();
 
         // Duyệt danh sách đa hình List<Entity> và gọi entity.render(shader)
-        for (Entity entity : entities) {
-            entity.render(shader);
+        for (int i = 0; i < entities.size(); i++) {
+            entities.get(i).render(shader);
         }
 
         shader.setUniformMatrix4f("uModel", identityMatrix);
     }
 
-    @Override
-    public void dispose() {
-        for (int cx = 0; cx < WORLD_CHUNKS_X; cx++) {
+    /** Thu hẹp vùng quét bằng hộp bao khung nhìn, rồi kiểm tra chính xác từng chunk. */
+    private void renderVisibleChunks(ShaderProgram shader) {
+        float minX = Float.POSITIVE_INFINITY;
+        float minZ = Float.POSITIVE_INFINITY;
+        float maxX = Float.NEGATIVE_INFINITY;
+        float maxZ = Float.NEGATIVE_INFINITY;
+        for (Vector3 corner : frustum.planePoints) {
+            minX = Math.min(minX, corner.x);
+            minZ = Math.min(minZ, corner.z);
+            maxX = Math.max(maxX, corner.x);
+            maxZ = Math.max(maxZ, corner.z);
+        }
+        // Mở rộng thêm một ô ở mép dưới để tính cả chunk tiếp xúc mặt hộp bao.
+        int firstX = Math.max(0, (int) Math.floor(minX / Chunk.SIZE) - 1);
+        int firstZ = Math.max(0, (int) Math.floor(minZ / Chunk.SIZE) - 1);
+        int lastX = Math.min(WORLD_CHUNKS_X - 1, (int) Math.floor(maxX / Chunk.SIZE));
+        int lastZ = Math.min(WORLD_CHUNKS_Z - 1, (int) Math.floor(maxZ / Chunk.SIZE));
+        for (int cx = firstX; cx <= lastX; cx++) {
             for (int cy = 0; cy < WORLD_CHUNKS_Y; cy++) {
-                for (int cz = 0; cz < WORLD_CHUNKS_Z; cz++) {
-                    if (chunks[cx][cy][cz] != null) {
-                        chunks[cx][cy][cz].dispose();
+                for (int cz = firstZ; cz <= lastZ; cz++) {
+                    Chunk chunk = chunks[cx][cy][cz];
+                    if (chunk != null && chunk.intersectsFrustum(frustum)) {
+                        chunk.lastVisibleFrame = renderFrame;
+                        if (chunk.isDirty()) {
+                            queueMeshBuild(chunk);
+                        }
+                        chunk.render(shader);
                     }
                 }
             }
         }
+    }
+
+    /** Giữ danh sách hữu hạn các mesh cần dựng, sắp theo khoảng cách tới camera. */
+    private void queueMeshBuild(Chunk chunk) {
+        float distance = chunk.distanceSquaredTo(nearCenter);
+        int index = pendingMeshCount;
+        if (index == pendingMeshes.length) {
+            index--;
+            if (distance >= pendingDistances[index]) {
+                return;
+            }
+        } else {
+            pendingMeshCount++;
+        }
+        while (index > 0 && distance < pendingDistances[index - 1]) {
+            pendingMeshes[index] = pendingMeshes[index - 1];
+            pendingDistances[index] = pendingDistances[index - 1];
+            index--;
+        }
+        pendingMeshes[index] = chunk;
+        pendingDistances[index] = distance;
+    }
+
+    /** Dựng mesh và đồng bộ danh sách tài nguyên đang được giữ. */
+    private void rebuildChunkMesh(Chunk chunk) {
+        boolean hadMesh = chunk.hasMesh();
+        chunk.rebuildMesh(this, meshVertices);
+        if (!hadMesh && chunk.hasMesh()) {
+            residentMeshes.add(chunk);
+        } else if (hadMesh && !chunk.hasMesh()) {
+            residentMeshes.removeValue(chunk, true);
+        }
+    }
+
+    /** Thu hồi mesh đã ở ngoài khung nhìn đủ lâu, giữ dữ liệu block và các sửa đổi. */
+    private void releaseOffscreenMeshes() {
+        for (int i = residentMeshes.size - 1; i >= 0; i--) {
+            Chunk chunk = residentMeshes.get(i);
+            if (renderFrame - chunk.lastVisibleFrame >= MESH_RETENTION_FRAMES) {
+                chunk.releaseCachedMesh();
+                residentMeshes.removeIndex(i);
+            }
+        }
+    }
+
+    /** Giải phóng các mesh đang còn trong bộ nhớ và tài nguyên dùng chung của vật phẩm. */
+    @Override
+    public void dispose() {
+        for (int i = 0; i < residentMeshes.size; i++) {
+            residentMeshes.get(i).dispose();
+        }
+        residentMeshes.clear();
         ItemEntity.cleanupSharedMeshes();
     }
 }

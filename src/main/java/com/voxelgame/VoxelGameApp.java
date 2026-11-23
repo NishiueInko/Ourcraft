@@ -5,10 +5,10 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.InputProcessor;
 import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Vector3;
 import com.voxelgame.engine.AudioManager;
 import com.voxelgame.engine.Camera;
-import com.voxelgame.engine.Chunk;
 import com.voxelgame.engine.Raycast;
 import com.voxelgame.engine.ShaderProgram;
 import com.voxelgame.engine.Texture;
@@ -54,7 +54,7 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
     /** Camera góc nhìn thứ nhất (First-Person), Euler Yaw/Pitch, Dynamic FOV */
     private Camera camera;
 
-    /** Thế giới voxel 20x2x20 Chunks (320x32x320 Blocks), sinh địa hình tự nhiên seed 20261114L */
+    /** Thế giới voxel, sinh địa hình tự nhiên với seed 20261114L. */
     private World world;
 
     /** Người chơi với điều khiển WASD, Nhảy/Bơi, Bay, Rón rén, Sprint và va chạm AABB */
@@ -115,7 +115,7 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
     // Hằng số đồ họa và gameplay
     // =====================================================================
 
-    /** Màu bầu trời xanh nhạt, đồng bộ làm màu nền xóa khung hình và màu sương mù khoảng cách */
+    /** Màu bầu trời xanh nhạt dùng khi xóa khung hình. */
     private static final Vector3 SKY_COLOR = new Vector3(0.53f, 0.81f, 0.92f);
 
     /** Tầm với tối đa của tia bắn Raycast khi đào/đặt Block (5 ô voxel) */
@@ -135,7 +135,7 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         // 1. Cấu hình trạng thái OpenGL nền tảng
         // -----------------------------------------------------------------
 
-        // Màu xóa nền bầu trời xanh nhạt (đồng bộ với uFogColor trong Shader)
+        // Màu xóa nền bầu trời xanh nhạt.
         Gdx.gl.glClearColor(SKY_COLOR.x, SKY_COLOR.y, SKY_COLOR.z, 1.0f);
 
         // Bật kiểm tra chiều sâu (Depth Test) để các vật thể 3D che khuất chính xác theo khoảng cách
@@ -162,7 +162,7 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         // Camera góc nhìn thứ nhất: Quản lý Euler Yaw/Pitch, ma trận View/Projection, Dynamic FOV
         camera = new Camera();
 
-        // Thế giới voxel: Sinh 20x2x20 Chunks với địa hình tự nhiên (seed 20261114L)
+        // Sinh địa hình và chuẩn bị mesh quanh tâm bản đồ.
         world = new World();
 
         // UI Renderer: Chuẩn bị tài nguyên GPU cho Overlay 3D, Crosshair, Hotbar, Pause Menu, font bitmap
@@ -172,8 +172,8 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         // 3. Khởi tạo Player, gắn điều khiển và đăng ký vào World
         // -----------------------------------------------------------------
 
-        // Spawn người chơi tại vị trí mặc định (32.0, 16.0, 32.0) - trung tâm thế giới
-        player = new Player(new Vector3(32.0f, 16.0f, 32.0f));
+        // Đặt chân người chơi ngay trên mặt đất tại tâm bản đồ.
+        player = new Player(world.getSpawnPosition());
 
         // Gắn tham chiếu Camera để Player cập nhật hướng nhìn và tầm mắt
         player.attachControls(camera);
@@ -259,18 +259,15 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         int screenWidth = Gdx.graphics.getWidth();
         int screenHeight = Gdx.graphics.getHeight();
 
-        // Thiết lập ma trận chiếu phối cảnh (Perspective) và ma trận nhìn (View)
-        shaderProgram.setUniformMatrix4f("uProjection", camera.getProjectionMatrix(screenWidth, screenHeight));
-        shaderProgram.setUniformMatrix4f("uView", camera.getViewMatrix());
+        // Dùng cùng ma trận cho Shader và kiểm tra khung nhìn, kể cả khi FOV thay đổi.
+        Matrix4 projection = camera.getProjectionMatrix(screenWidth, screenHeight);
+        Matrix4 view = camera.getViewMatrix();
+        shaderProgram.setUniformMatrix4f("uProjection", projection);
+        shaderProgram.setUniformMatrix4f("uView", view);
 
-        // Truyền thông số sương mù khoảng cách tuyến tính (Distance Fog)
-        shaderProgram.setUniformVec3("uFogColor", SKY_COLOR);
-        shaderProgram.setUniform1f("uFogStart", 28.0f);
-        shaderProgram.setUniform1f("uFogEnd", 58.0f);
-
-        // Kết xuất các Chunk và toàn bộ Entity trong thế giới
+        // Kết xuất các chunk giao khung nhìn và toàn bộ thực thể trong thế giới.
         textureAtlas.bind();
-        world.render(shaderProgram);
+        world.render(shaderProgram, projection, view);
         textureAtlas.unbind();
 
         // =================================================================

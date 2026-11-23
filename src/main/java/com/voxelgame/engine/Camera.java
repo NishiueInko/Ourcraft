@@ -34,7 +34,8 @@ public class Camera {
     private static final float BASE_FOV_DEG = 70.0f;
     private float currentFovDeg = BASE_FOV_DEG;
     private static final float NEAR_PLANE = 0.08f;
-    private static final float FAR_PLANE = 160.0f;
+    // Giới hạn chiều sâu kết xuất để giữ ngân sách vẽ khi thế giới mở rộng.
+    private static final float FAR_PLANE = 1024.0f;
 
     // Bộ đệm ma trận được tái sử dụng mỗi khung hình để tránh tạo rác bộ nhớ (Garbage Collection)
     private final Matrix4 viewMatrix = new Matrix4();
@@ -123,7 +124,7 @@ public class Camera {
      * @return ma trận chiếu phối cảnh Matrix4
      */
     public Matrix4 getProjectionMatrix(int windowWidth, int windowHeight) {
-        float aspectRatio = (float) windowWidth / (float) Math.max(1, windowHeight);
+        float aspectRatio = (float) Math.max(1, windowWidth) / Math.max(1, windowHeight);
         return projectionMatrix.setToProjection(NEAR_PLANE, FAR_PLANE, currentFovDeg, aspectRatio);
     }
 

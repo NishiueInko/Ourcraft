@@ -35,7 +35,6 @@ public class ShaderProgram implements Disposable {
 
             out vec2 vTexCoord;
             out float vShade;
-            out float vFogDist;
 
             uniform mat4 uModel;
             uniform mat4 uView;
@@ -49,8 +48,6 @@ public class ShaderProgram implements Disposable {
 
                 vTexCoord = aTexCoord;
                 vShade = aShade;
-                // Khoảng cách Euclid từ mắt Camera (gốc tọa độ trong View Space) tới điểm hiện tại
-                vFogDist = length(viewPos.xyz);
             }
             """;
 
@@ -61,18 +58,12 @@ public class ShaderProgram implements Disposable {
             #version 330 core
             in vec2 vTexCoord;
             in float vShade;
-            in float vFogDist;
 
             out vec4 FragColor;
 
             uniform sampler2D uTexture;
             uniform int uUseTexture;
-            uniform int uUseFog;
             uniform vec4 uTintColor;
-
-            uniform vec3 uFogColor;
-            uniform float uFogStart;
-            uniform float uFogEnd;
 
             void main() {
                 // 1. Xác định màu cơ sở (lấy từ Texture Atlas hoặc dùng màu thuần túy cho 2D UI)
@@ -91,15 +82,7 @@ public class ShaderProgram implements Disposable {
                 // 2. Nhân với hệ số độ sáng theo hướng mặt khối (Ambient/Directional Face Shading)
                 vec3 litColor = baseColor.rgb * vShade;
 
-                // 3. Nếu đang bật sương mù (khi vẽ 3D World), hòa trộn màu khối với màu bầu trời ở xa
-                vec3 finalRgb = litColor;
-                if (uUseFog == 1) {
-                    float denom = max(0.0001, uFogEnd - uFogStart);
-                    float fogFactor = clamp((uFogEnd - vFogDist) / denom, 0.0, 1.0);
-                    finalRgb = mix(uFogColor, litColor, fogFactor);
-                }
-
-                FragColor = vec4(finalRgb, baseColor.a);
+                FragColor = vec4(litColor, baseColor.a);
             }
             """;
 
@@ -120,7 +103,6 @@ public class ShaderProgram implements Disposable {
         bind();
         setUniform1i("uTexture", 0);
         setUniform1i("uUseTexture", 1);
-        setUniform1i("uUseFog", 1);
         setUniformVec4("uTintColor", 1.0f, 1.0f, 1.0f, 1.0f);
         unbind();
     }
@@ -150,22 +132,20 @@ public class ShaderProgram implements Disposable {
     }
 
     /**
-     * Chuyển nhanh Shader sang chế độ vẽ Thế giới 3D (Bật Texture Atlas, bật Sương mù, màu gốc).
+     * Chuyển Shader sang chế độ vẽ thế giới 3D với Texture Atlas và màu gốc.
      */
     public void enable3DWorldMode() {
         setUniform1i("uUseTexture", 1);
-        setUniform1i("uUseFog", 1);
         setUniformVec4("uTintColor", 1.0f, 1.0f, 1.0f, 1.0f);
     }
 
     /**
-     * Chuyển nhanh Shader sang chế độ vẽ Giao diện 2D (Tắt Sương mù, đặt View & Model về ma trận đơn vị).
+     * Chuyển Shader sang phép chiếu 2D và đặt View, Model về ma trận đơn vị.
      */
     public void enable2DUIMode(Matrix4 orthoProjectionMatrix) {
         setUniformMatrix4f("uProjection", orthoProjectionMatrix);
         setUniformMatrix4f("uView", identityMatrix);
         setUniformMatrix4f("uModel", identityMatrix);
-        setUniform1i("uUseFog", 0);
     }
 
     public void bind() {

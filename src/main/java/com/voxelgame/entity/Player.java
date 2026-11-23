@@ -14,8 +14,8 @@ import com.voxelgame.engine.World;
  * 1. Kế thừa (Inheritance): Tái sử dụng `position`, `velocity`, `halfWidth`, `height`, `onGround`
  *    và phương thức kiểm tra va chạm `intersectsBlock` từ lớp cha `Entity`.
  * 2. Hợp thành & Đóng gói (Composition & Encapsulation): Sở hữu `private final Hotbar hotbar = new Hotbar();`
- *    và quản lý toàn bộ trạng thái chuyển động nội bộ (Bay Double-tap Space, Chạy nhanh Left Ctrl,
- *    Đi rón rén giữ mép block Left Shift).
+ *    và quản lý trạng thái di chuyển, bao gồm bật/tắt bay bằng Space, hạ độ cao và thoát bay bằng
+ *    Left Shift, chạy nhanh bằng Left Ctrl và rón rén giữ mép block.
  * 3. Đa hình (Polymorphism): Ghi đè `update(World, float)` và `render(ShaderProgram)` của `Entity`.
  */
 public class Player extends Entity {
@@ -35,12 +35,14 @@ public class Player extends Entity {
     private static final float SNEAK_MULTIPLIER = 0.5f;
     private static final float FLY_SPEED_MULTIPLIER = 1.8f;
     private static final float FLY_ASCEND_SPEED = 7.0f;
+    // Tốc độ hạ độ cao chủ động khi giữ Left Shift trong chế độ bay (block/giây).
+    private static final float FLY_DESCEND_SPEED = 4.0f;
 
     private static final float GRAVITY = -26.0f;
     private static final float JUMP_VELOCITY = 8.6f;
     private static final float TERMINAL_VELOCITY = -45.0f;
 
-    // Khoảng thời gian tối đa giữa 2 lần bấm Space để kích hoạt chế độ Bay (0.30 giây)
+    // Khoảng thời gian tối đa giữa hai lần nhấn Space hoặc Left Shift (0.30 giây).
     private static final float DOUBLE_TAP_THRESHOLD = 0.30f;
 
     // Quan hệ Hợp thành (Composition - Player "has-a" Hotbar)
@@ -57,6 +59,9 @@ public class Player extends Entity {
     // Biến phục vụ nhận diện thao tác bấm đúp phím Space (Double-tap Space)
     private boolean wasSpacePressed = false;
     private float lastSpaceTapTime = -1.0f;
+    // Chỉ tính cạnh nhấn Left Shift trong cùng một lần bay, kể cả khi giữ phím qua nhiều khung hình.
+    private boolean wasShiftPressed;
+    private float lastShiftTapTime = Float.NEGATIVE_INFINITY;
     private float playerElapsedTime = 0.0f;
 
     public Player(Vector3 startPosition) {
@@ -109,9 +114,10 @@ public class Player extends Entity {
 
         // Nếu rơi xuống dưới đáy bản đồ, đưa người chơi trở lại vị trí an toàn trên mặt đất
         if (position.y < -25.0f) {
-            position.set(World.WORLD_SIZE_X / 2.0f, 22.0f, World.WORLD_SIZE_Z / 2.0f);
+            position.set(World.CENTER_X, 22.0f, World.CENTER_Z);
             velocity.set(0.0f, 0.0f, 0.0f);
             isFlying = false;
+            lastShiftTapTime = Float.NEGATIVE_INFINITY;
         }
 
         // Nội suy mượt mà chiều cao tầm mắt Camera khi chuyển đổi giữa Đứng thẳng (1.62f) và Sneak (1.45f)
@@ -133,6 +139,7 @@ public class Player extends Entity {
         // Góc nhìn thứ nhất: không vẽ mô hình 3D của chính người chơi
     }
 
+    /** Đọc phím, xử lý thao tác nhấn đúp và đặt vận tốc trước khi giải quyết va chạm. */
     private void handleInput(World world, Camera camera) {
         boolean spaceDown = Gdx.input.isKeyPressed(Input.Keys.SPACE);
         boolean shiftDown = Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT);
@@ -144,6 +151,7 @@ public class Player extends Entity {
             if (now - lastSpaceTapTime <= DOUBLE_TAP_THRESHOLD) {
                 isFlying = !isFlying;
                 velocity.y = 0.0f;
+                lastShiftTapTime = Float.NEGATIVE_INFINITY;
                 if (isFlying) {
                     onGround = false;
                     isSneaking = false;
@@ -155,15 +163,20 @@ public class Player extends Entity {
         }
         wasSpacePressed = spaceDown;
 
-        // 2. Xử lý phím Left Shift (Thoát chế độ Bay hoặc Đi rón rén Sneak)
+        // 2. Nhấn đúp Left Shift để thoát bay, hoặc giữ phím để rón rén ngoài chế độ bay.
         if (isFlying) {
-            if (shiftDown) {
-                isFlying = false;
-                isSneaking = false;
+            if (shiftDown && !wasShiftPressed) {
+                if (playerElapsedTime - lastShiftTapTime <= DOUBLE_TAP_THRESHOLD) {
+                    isFlying = false;
+                    lastShiftTapTime = Float.NEGATIVE_INFINITY;
+                } else {
+                    lastShiftTapTime = playerElapsedTime;
+                }
             }
         } else {
             isSneaking = shiftDown;
         }
+        wasShiftPressed = shiftDown;
 
         // 3. Tính hướng di chuyển trên mặt phẳng ngang XZ
         double yawRad = Math.toRadians(camera.getYaw());
@@ -213,10 +226,12 @@ public class Player extends Entity {
         velocity.x = wishDir.x;
         velocity.z = wishDir.z;
 
-        // 5. Xử lý chuyển động dọc (Trục Y: Bay lên, Bơi lên hoặc Nhảy)
+        // 5. Khi bay, Space ưu tiên bay lên. Left Shift hạ dần, thả cả hai phím thì giữ độ cao.
         if (isFlying) {
             if (spaceDown) {
                 velocity.y = FLY_ASCEND_SPEED;
+            } else if (shiftDown) {
+                velocity.y = -FLY_DESCEND_SPEED;
             } else {
                 velocity.y = 0.0f;
             }
@@ -269,6 +284,7 @@ public class Player extends Entity {
 
         if (onGround && isFlying) {
             isFlying = false;
+            lastShiftTapTime = Float.NEGATIVE_INFINITY;
         }
     }
 

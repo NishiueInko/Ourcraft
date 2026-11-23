@@ -41,7 +41,8 @@ VoxelGame/
 | **`W, A, S, D` + Di chuột** | Di chuyển 4 hướng và xoay góc nhìn 360 độ. |
 | **Nhấn `Space` 1 lần** | Nhảy lên khi đang đứng trên mặt đất (hoặc bơi nổi lên khi đang ở dưới Hồ Nước / Lava). |
 | **Nhấn đúp `Space` 2 lần (`< 0.3s`)** | **Bật / Tắt Chế độ Bay (Fly Mode)**: Vô hiệu hóa trọng lực, giữ `Space` để bay lên cao. |
-| **Nhấn `Left Shift` (khi đang Bay)** | **Thoát Chế độ Bay** ngay lập tức và bật lại trọng lực rơi tự nhiên. |
+| **Giữ `Left Shift` (khi đang bay)** | Hạ độ cao với tốc độ 4 block/giây. |
+| **Nhấn đúp `Left Shift` trong tối đa 0,3 giây (khi đang bay)** | Thoát chế độ bay và bật lại trọng lực. |
 | **Giữ `Left Shift` (trên mặt đất)** | **Đi rón rén (Sneak)**: Giảm 50% tốc độ, hạ thấp tầm mắt Camera và **giữ mép block không bị rơi xuống vực**. |
 | **Giữ `Left Ctrl` khi di chuyển** | **Chạy nhanh (Sprint)**: Tăng 1.5 lần tốc độ di chuyển kèm hiệu ứng mở rộng nhẹ góc nhìn (Dynamic FOV). |
 | **Phím số `1` – `9` hoặc Cuộn chuột** | Chọn ô trên **9 Thanh Công Cụ Nhanh (Hotbar HUD)** ở cạnh dưới màn hình. |
