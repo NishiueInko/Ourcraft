@@ -24,7 +24,9 @@ docs\superpowers
 docs\superpowers\plans
 docs\superpowers\specs
 docs\superpowers\plans\2026-11-23-three-biomes.md
+docs\superpowers\plans\2026-11-25-terrain-v2.md
 docs\superpowers\specs\2026-11-23-three-biomes-design.md
+docs\superpowers\specs\2026-11-25-terrain-v2-design.md
 gradle\wrapper
 gradle\wrapper\gradle-wrapper.jar
 gradle\wrapper\gradle-wrapper.properties
@@ -43,6 +45,7 @@ src\main\java\com\voxelgame\engine\BiomeType.java
 src\main\java\com\voxelgame\engine\BlockUpdateQueue.java
 src\main\java\com\voxelgame\engine\Camera.java
 src\main\java\com\voxelgame\engine\Chunk.java
+src\main\java\com\voxelgame\engine\DesertPyramid.java
 src\main\java\com\voxelgame\engine\EnvironmentMesh.java
 src\main\java\com\voxelgame\engine\Raycast.java
 src\main\java\com\voxelgame\engine\ShaderProgram.java
@@ -61,6 +64,7 @@ src\main\java\com\voxelgame\entity\BedrockBlock.java
 src\main\java\com\voxelgame\entity\Block.java
 src\main\java\com\voxelgame\entity\CactusBlock.java
 src\main\java\com\voxelgame\entity\DeadBushBlock.java
+src\main\java\com\voxelgame\entity\DecorativeChestBlock.java
 src\main\java\com\voxelgame\entity\DirtBlock.java
 src\main\java\com\voxelgame\entity\Entity.java
 src\main\java\com\voxelgame\entity\FallingBlockEntity.java
@@ -253,6 +257,7 @@ src\test\java\com
 src\test\java\com\voxelgame
 src\test\java\com\voxelgame\engine
 src\test\java\com\voxelgame\engine\ChunkMeshRegressionChecks.java
+src\test\java\com\voxelgame\engine\DesertPyramidChecks.java
 src\test\java\com\voxelgame\engine\EnvironmentChecks.java
 src\test\java\com\voxelgame\engine\TerrainGenerationChecks.java
 src\test\java\com\voxelgame\engine\VoxelRegressionChecks.java
@@ -412,6 +417,44 @@ try {
 
 
 
+==================== FILE: D:\VoxelGame\docs\superpowers\plans\2026-11-25-terrain-v2.md ====================
+# Kế hoạch triển khai địa hình VoxelGame
+
+**Mục tiêu** là hoàn thành đặc tả [địa hình phiên bản 2](../specs/2026-11-25-terrain-v2-design.md) trên Java 17 và libGDX.
+
+## Địa hình và an toàn người chơi
+
+- [x] Chạy `gradlew.bat regressionChecks --offline` trên Java 17. Đo thời gian của `TerrainGenerator.generate(World)` với seed mặc định trên bản gốc. Dùng cùng JVM và cùng cách đo sau khi triển khai.
+- [x] Trong `src/test/java/com/voxelgame/engine/TerrainGenerationChecks.java`, lấy mẫu độ cao toàn vùng tuyết và yêu cầu `peak >= 140`, sau đó kiểm tra biome từng điểm cắt qua biên uốn và các đoạn sông có mặt nước hoặc băng tại Y=28. Chạy kiểm tra để thấy bộ sinh cũ không đạt đỉnh.
+- [x] Trong `TerrainNoise.java` và `TerrainGenerator.java`, đưa Perlin, ridged multifractal và spline vào bước tính cột. Dùng hai lượt `sampleColumns` và `generateStrata`, với `short[] heights` và `byte[] biomes`. Dùng độ chênh cao với bốn hàng xóm cho vật liệu bề mặt. Xác nhận mặt hồ phẳng và có các loại cây, hồ và bờ hiện hành.
+- [x] Trong `World.java` và `Chunk.java`, thêm đường `fillGeneratedColumn` và `fillGeneratedColumnSegment`, gửi dải giới hạn theo chiều Y đến mỗi chunk. Giữ tính nhất quán của số voxel, metadata và mesh. Trong `Player.java` dùng phương thức hồi sinh an toàn ở `World` để tìm nền rắn và đủ hai ô trống quanh `(1500, 1500)`.
+
+## Thực vật và kim tự tháp
+
+- [x] Trong `TerrainGenerator.java`, dùng noise mật độ cho các biến thể cây ở Plains và Snowy Plains, và Simplex Noise chọn một trong bốn loài hoa theo cụm. Kiểm tra sồi cao, bụi, vân sam theo dải cao và các block thực vật còn đủ nền. Dựng cọ ven dấu chân ốc đảo bằng logic bố trí cây riêng.
+- [x] Thêm `src/main/java/com/voxelgame/engine/DesertPyramid.java` với `select(short[], byte[])`, `contains(int, int, int)` và `build(World)`. Đặt trước dấu chân để loại hồ và cây trong vùng. Kiểm tra lối vào, phòng ngầm có rương và dải móng sandstone tiếp xúc nền rắn qua ca kiểm tra CPU.
+- [x] Thêm `src/main/java/com/voxelgame/entity/DecorativeChestBlock.java`, đăng ký trong `Block.java` và bổ sung tile do dự án tự thiết kế trong `Texture.java`. Kiểm tra ID mới, hộp chọn, vật phẩm rơi và mặt texture.
+
+## Đồ họa và nghiệm thu
+
+- [x] Cập nhật `ShaderProgram.java`, `SkyRenderer.java` và `VoxelGameApp.java` để cấp màu chân trời, vị trí mắt và khoảng fog mỗi khung hình. Kiểm tra shader kết xuất thật trên desktop ở cả trời quang và giáng thủy.
+- [x] Trong `ChunkMeshRegressionChecks.java`, kiểm tra góc mặt ở biên chunk đổi độ sáng khi thêm ô che chéo. Trong `Chunk.java` tính AO trên `aShade`, giữ lựa chọn đường chéo trong cả hai đường tải mesh. Trong `World.java` làm bẩn các mesh phụ thuộc qua biên.
+- [x] Đồng bộ Phần A `README.md`. Chạy `gradlew.bat regressionChecks check --offline` trên Java 17 và `git diff --check`. Ghi thời gian sinh toàn bản đồ và kết quả kiểm tra V-Sync ở vùng núi khi quang và mưa/tuyết.
+
+## Kết quả kiểm chứng ngày 25-11-2026
+
+- `regressionChecks` và `check` thành công trên Microsoft OpenJDK 17.0.21.
+- `TerrainGenerator.generate(World)` với seed mặc định và heap tối đa 1 GiB mất 1,350 giây trên bản gốc và 2,260 giây sau nâng cấp.
+- Desktop OpenGL trên Intel UHD Graphics, 1280 × 720, cấu hình bật V-Sync. Mỗi cảnh đo 5 giây sau 7 giây ổn định.
+
+| Cảnh | FPS trung bình | P95 thời gian khung |
+| --- | ---: | ---: |
+| Vùng núi trời quang | 84,95 | 14,60 ms |
+| Đồng bằng có mưa | 75,55 | 14,05 ms |
+| Vùng núi có tuyết | 109,74 | 9,56 ms |
+
+
+
 ==================== FILE: D:\VoxelGame\docs\superpowers\specs\2026-11-23-three-biomes-design.md ====================
 # Đặc tả ba biome cho VoxelGame
 
@@ -493,6 +536,40 @@ Tách bộ sinh địa hình tất định khỏi luồng cập nhật lúc chơ
 - Sinh lại cùng seed để đối chiếu mẫu địa hình, lớp đá và vị trí thực vật. Kiểm tra spawn an toàn, ba biome gần spawn và độ cao hai bên ranh giới chuyển tiếp tự nhiên.
 - Chạy game để kiểm tra hình học, chọn block cạnh lớp tuyết/cây và nước/băng ở ranh giới chunk. Lấy mẫu cấp phát bằng JVM profiler sau khi làm ấm và xác nhận pha thu thập, sắp xếp, vẽ trong suốt không cấp phát trên heap trong các khung hình ổn định. Đo thời gian khởi động và thời gian khung hình khi đi và bay qua cả ba biome trên cùng cấu hình trước và sau thay đổi, với mục tiêu 60 FPS khi bật V-Sync. Kiểm tra mesh, Pixmap, texture và thực thể rơi được giải phóng đúng vòng đời.
 - Đồng bộ Phần A của `README.md` sau mỗi mốc triển khai, gồm cấu trúc mã nguồn, danh sách block, atlas, va chạm, kết xuất và thuật toán sinh biome.
+
+
+
+==================== FILE: D:\VoxelGame\docs\superpowers\specs\2026-11-25-terrain-v2-design.md ====================
+# Đặc tả nâng cấp địa hình VoxelGame
+
+Ngày 25-11-2026
+
+## Phạm vi
+
+Nâng cấp địa hình theo `more.md` trên bản đồ hữu hạn 3000 × 256 × 1792 và seed mặc định hiện tại. Giữ ba biome, các luật đào và đặt block, trọng lực cát và sỏi, vật lý người chơi, chu kỳ ngày–đêm, thời tiết, âm thanh và giao diện hiện có. Phần A của `README.md` sẽ được cập nhật theo hành vi đã triển khai và kiểm chứng.
+
+## Địa hình, nước và hồi sinh
+
+- Phân loại Snowy Plains, Plains và Desert theo thứ tự tây sang đông. Dùng Perlin tần số thấp để uốn tọa độ quanh hai ranh giới. Bộ sinh địa tầng, thực vật và `World.getBiome` đọc cùng kết quả phân loại theo seed và tọa độ. Thời tiết, tích tuyết và HUD tiếp tục dùng `World.getBiome`.
+- Kết hợp trường lục địa, xói mòn và ridged multifractal. Dùng spline phân đoạn để chuyển từ vùng thấp khoảng Y=26–34 sang đồi khoảng Y=35–60, rồi tăng nhanh ở vùng núi. Đặt các đỉnh cao nhất trong Snowy Plains và kiểm tra ít nhất một đỉnh tự nhiên đạt Y=140 trở lên trên seed mặc định.
+- Tính độ cao của các cột trước khi ghi voxel, lưu trong `short[]` và lấy độ dốc bằng chênh lệch lớn nhất tới bốn cột ngang liền kề. Dốc tối đa 1 có cỏ trên 3–4 lớp đất ở Plains và Snowy Plains, hoặc 3–5 lớp cát trên sandstone ở Desert. Dốc 2 có sỏi xen đá trên nền rắn. Dốc từ 3 lộ đá hoặc sandstone tùy biome. Đá gốc giữ ở Y=0. Phủ Snow Layer hoặc Snow Block trên bề mặt lạnh hợp lệ, dùng Snow Block cho lớp phủ đỉnh cao hơn Y=110 và giữ quy tắc tránh dung nham.
+- Giữ mô hình chunk hiện tại. `TerrainGenerator` gửi các dải vật liệu theo cột cho `World`, `World` chia dải tại biên Y của chunk, và `Chunk` ghi vào mảng voxel. Duy trì số ô khác Air, metadata và trạng thái mesh nhất quán. Dùng đường ghi này trong lượt sinh địa tầng ban đầu. Các thay đổi block khi chơi tiếp tục qua cơ chế cập nhật lân cận hiện có.
+- Dùng dải hẹp quanh đường đồng mức của noise để tạo sông uốn lượn. Hạ nền lòng sông xuống dưới Y=28, chuyển độ sâu dần ra hai bờ, điền nước đến Y=28 và thay mặt nước bằng Ice trong Snowy Plains. Chọn bờ cát hoặc sỏi có nền đỡ, và chỉ trồng mía ở ô có nguồn nước hợp lệ. Giữ hồ nước, ốc đảo và hồ dung nham trong lượt sinh hồ. Kiểm tra chênh cao tối đa 3 block trên toàn dấu chân hồ và loại vị trí giao sông, công trình hoặc vùng an toàn của người chơi.
+- Giữ tâm xuất phát tại `(1500, 896)`. Bố trí nền an toàn cho cả điểm xuất phát và điểm hồi sinh, tránh sông, hồ, tán cây và vật trang trí tại hai vị trí. Khi rơi khỏi thế giới, tìm mặt đỡ rắn cao nhất dưới toàn bộ dấu chân tại `(1500, 1500)`. Đặt chân ngay trên mặt đỡ ở vị trí đủ hai ô trống, kiểm tra hộp va chạm rồi đặt lại vận tốc và chế độ bay. Nếu người chơi đã xây kín cột chính, tìm vị trí hợp lệ gần tọa độ hồi sinh trước khi dùng điểm xuất phát an toàn.
+
+## Thực vật và công trình
+
+- Dùng noise tần số thấp cho mật độ cây và giữ khoảng trống giữa các cụm rừng. Plains có sồi thường, sồi cổ thụ và bụi sồi. Snowy Plains có vân sam tán rộng ở vùng thấp, thông nhọn ở sườn và thông lùn thưa gần Y=75. Sinh cọ theo dáng thân và tán tự thiết kế ở bờ ốc đảo hợp lệ. Kiểm tra nền, khoảng trống và biên trước khi ghi các phần của cây.
+- Dùng Simplex Noise theo seed để gom dandelion, cornflower, poppy và oxeye daisy theo loài. Giữ các điều kiện tồn tại của cỏ, hoa, mía, xương rồng, bụi khô và tuyết trên tán.
+- Đặt ít nhất một kim tự tháp trong Desert, ưu tiên gần Plains. Chọn dấu chân hợp lệ trước khi sinh hồ và cây. Dùng đáy vuông giật cấp bằng sandstone, lối vào có hoa văn riêng, sảnh có cột và tầng bí mật dưới lòng đất. Làm sàn, vách và móng sandstone liên tục tới nền đá chắc. Cát quanh công trình nằm trên nền đỡ và các ô đỡ không bị khoét khi làm lối xuống phòng.
+- Rương là khối trang trí trong phòng bí mật. Dùng pixel art tự thiết kế. Rương đào, rơi vật phẩm và đặt theo cơ chế khối thông thường. Dùng Snow Block, Sandstone và các tài nguyên hiện có cho những bề mặt đã được chốt.
+
+## Kết xuất và tiêu chí nghiệm thu
+
+- Giữ lớp mây ở Y=140. Tính fog từ khoảng cách camera đến tọa độ thế giới, nội suy từ đầu đến cuối vùng fog và hòa với màu chân trời lấy theo giờ và cường độ giáng thủy. Áp dụng cho mặt block và thực thể thế giới. Giữ alpha, các lượt vẽ thời tiết và giao diện, ánh sáng dung nham và quy tắc depth/blend hiện hành.
+- Giữ định dạng đỉnh hiện tại. Khi dựng mặt khối, lấy mẫu hai ô cạnh và một ô chéo ở từng góc rồi nhân mức AO vào `aShade`. Đọc ô qua biên chunk, chọn đường chéo tam giác phù hợp độ sáng và đánh dấu lại các mesh phụ thuộc khi block ở biên thay đổi. Áp dụng cả khi đường cập nhật hiện có dùng mesh có chỉ số hoặc mesh sáu đỉnh mỗi mặt.
+- Cập nhật `TerrainGenerationChecks.java` để kiểm tra hai lần sinh cùng seed, đỉnh tuyết Y≥140, nền thấp Plains/Desert khoảng Y=26–34, vật liệu dốc, dải cát/sỏi có nền đỡ, biome trùng bề mặt, sông thường và sông đóng băng, dấu chân hồ, điểm hồi sinh, móng và phòng rương. Giữ các kiểm tra hiện hành về vật phẩm, va chạm và thời tiết. Bổ sung ca mesh kiểm tra AO qua biên chunk.
+- Đo thời gian sinh toàn bản đồ trước và sau bằng cùng seed và cấu hình Java 17. Chạy `regressionChecks` và `check`. Kiểm tra desktop ở độ phân giải mặc định với V-Sync, theo dõi nhịp khung hình ở vùng đồi núi và qua các pha mưa/tuyết. Mục tiêu là giữ nhịp ổn định 60 FPS trên cấu hình kiểm tra. Ghi rõ thời gian sinh, cấu hình và kết quả đo thực tế vì `more.md` chưa quy định ngưỡng thời gian khởi tạo cụ thể.
 
 
 
@@ -821,7 +898,7 @@ public class AudioManager implements Disposable {
         if (block == Block.SNOW_LAYER || block == Block.SNOW_BLOCK) {
             return Material.SNOW;
         }
-        if (block == Block.OAK_LOG || block == Block.SPRUCE_LOG) {
+        if (block == Block.OAK_LOG || block == Block.SPRUCE_LOG || block == Block.CHEST) {
             return Material.WOOD;
         }
         if (block == Block.ICE) {
@@ -1236,6 +1313,9 @@ public class Chunk implements Disposable {
     private static final float SHADE_BOTTOM = 0.55f;
     private static final float SHADE_NORTH_SOUTH = 0.85f;
     private static final float SHADE_EAST_WEST = 0.72f;
+    /** Mức giảm độ sáng ở mỗi bậc che góc và độ che một phần của lá khoét alpha. */
+    private static final float AO_STEP = 0.17f;
+    private static final float LEAF_OCCLUSION = 0.5f;
 
     // Tọa độ góc nhỏ nhất của chunk trong thế giới.
     private final int baseWorldX;
@@ -1326,6 +1406,21 @@ public class Chunk implements Disposable {
         return true;
     }
 
+    /** Ghi dải địa tầng khác Air trong một cột đã được World cắt theo biên chunk. */
+    void fillGeneratedColumnSegment(int x, int z, int firstY, int endY, byte blockId) {
+        int position = blockIndex(x, firstY, z);
+        for (int y = firstY; y < endY; y++, position += SIZE) {
+            if (blocks[position] == 0) {
+                blockCount++;
+            }
+            blocks[position] = blockId;
+            if (metadata != null) {
+                metadata[position] = 0;
+            }
+        }
+        dirty = true;
+    }
+
     /** Kiểm tra chunk chỉ còn không khí. */
     boolean isEmpty() {
         return blockCount == 0;
@@ -1374,7 +1469,7 @@ public class Chunk implements Disposable {
         return dirty;
     }
 
-    /** Đánh dấu cần dựng lại khi một mặt chung với chunk bên cạnh thay đổi. */
+    /** Đánh dấu cần dựng lại khi hình học hoặc ánh sáng phụ thuộc chunk bên cạnh thay đổi. */
     void markDirty() {
         dirty = true;
     }
@@ -1540,6 +1635,7 @@ public class Chunk implements Disposable {
         float inset = horizontalInset(block);
         float height = renderHeight(world, block, state, x, y, z);
         for (Face face : FACES) {
+            int first = v.size;
             int nx = x + (face == Face.EAST ? 1 : face == Face.WEST ? -1 : 0);
             int ny = y + (face == Face.TOP ? 1 : face == Face.BOTTOM ? -1 : 0);
             int nz = z + (face == Face.SOUTH ? 1 : face == Face.NORTH ? -1 : 0);
@@ -1572,7 +1668,80 @@ public class Chunk implements Disposable {
                     addSideFace(v, face, x, y, z, inset, visibleFrom, height, uv);
                 }
             }
+            if (v.size != first && block != Block.LAVA) {
+                // Với mặt trên thấp, các góc nhìn vào lớp ô ngang mặt thay vì lớp cao hơn.
+                int sampleY = face == Face.TOP && height < 1.0f ? y : ny;
+                shadeFace(world, v, first, face, x, y, z, nx, sampleY, nz);
+            }
         }
+    }
+
+    /** Lấy độ che ở bốn góc của mặt, dùng chung cho cả mặt đầy và dải mặt bị cắt. */
+    private static void shadeFace(World world, FloatArray vertices, int first, Face face,
+                                  int x, int y, int z, int sampleX, int sampleY, int sampleZ) {
+        boolean alongZ = face == Face.EAST || face == Face.WEST;
+        boolean horizontal = face == Face.TOP || face == Face.BOTTOM;
+        int ux = alongZ ? 0 : 1;
+        int uz = alongZ ? 1 : 0;
+        int vy = horizontal ? 0 : 1;
+        int vz = horizontal ? 1 : 0;
+        float sideU0 = occlusionAt(world, sampleX - ux, sampleY, sampleZ - uz);
+        float sideU1 = occlusionAt(world, sampleX + ux, sampleY, sampleZ + uz);
+        float sideV0 = occlusionAt(world, sampleX, sampleY - vy, sampleZ - vz);
+        float sideV1 = occlusionAt(world, sampleX, sampleY + vy, sampleZ + vz);
+        float light00 = cornerLight(sideU0, sideV0, occlusionAt(world, sampleX - ux, sampleY - vy, sampleZ - uz - vz));
+        float light01 = cornerLight(sideU0, sideV1, occlusionAt(world, sampleX - ux, sampleY + vy, sampleZ - uz + vz));
+        float light10 = cornerLight(sideU1, sideV0, occlusionAt(world, sampleX + ux, sampleY - vy, sampleZ + uz - vz));
+        float light11 = cornerLight(sideU1, sideV1, occlusionAt(world, sampleX + ux, sampleY + vy, sampleZ + uz + vz));
+        if (light00 == 1.0f && light01 == 1.0f && light10 == 1.0f && light11 == 1.0f) {
+            return;
+        }
+
+        int axisU = alongZ ? 2 : 0;
+        int axisV = horizontal ? 2 : 1;
+        int originU = alongZ ? z : x;
+        int originV = horizontal ? z : y;
+        float[] items = vertices.items;
+        for (int quad = first; quad < vertices.size; quad += 6 * FLOATS_PER_VERTEX) {
+            for (int i = quad; i < quad + 6 * FLOATS_PER_VERTEX; i += FLOATS_PER_VERTEX) {
+                float u = items[i + axisU] - originU;
+                float v = items[i + axisV] - originV;
+                items[i + FLOATS_PER_VERTEX - 1] *= lerp(lerp(light00, light10, u), lerp(light01, light11, u), v);
+            }
+            rotateIfDarkerDiagonal(items, quad);
+        }
+    }
+
+    /** Đọc ô từ thế giới để tính che khuất cả qua mặt, cạnh và đỉnh chung của chunk. */
+    private static float occlusionAt(World world, int x, int y, int z) {
+        Block block = Block.fromId(world.getBlock(x, y, z));
+        if (block.isOpaque() || (block == Block.SNOW_LAYER && world.getBlockState(x, y, z) == 7)) {
+            return 1.0f;
+        }
+        return block == Block.OAK_LEAVES || block == Block.SPRUCE_LEAVES ? LEAF_OCCLUSION : 0.0f;
+    }
+
+    /** Hai ô đặc cạnh nhau che trọn góc, bất kể có thêm khối chéo. */
+    private static float cornerLight(float sideU, float sideV, float diagonal) {
+        float covered = sideU == 1.0f && sideV == 1.0f ? 3.0f : sideU + sideV + diagonal;
+        return 1.0f - AO_STEP * covered;
+    }
+
+    /** Chọn đường chéo tối hơn và giữ mẫu hai tam giác 0–1–2, 0–2–3 sau khi nén. */
+    private static void rotateIfDarkerDiagonal(float[] items, int first) {
+        int vertex = FLOATS_PER_VERTEX;
+        int shade = first + vertex - 1;
+        if (items[shade] + items[shade + 2 * vertex] <= items[shade + vertex] + items[shade + 5 * vertex]) {
+            return;
+        }
+
+        // Đổi A B C A C D thành B C D B D A, dùng hai đỉnh trùng làm chỗ lưu tạm.
+        System.arraycopy(items, first + 5 * vertex, items, first + 4 * vertex, vertex);
+        System.arraycopy(items, first, items, first + 5 * vertex, vertex);
+        System.arraycopy(items, first + vertex, items, first + 3 * vertex, vertex);
+        System.arraycopy(items, first + 2 * vertex, items, first + vertex, vertex);
+        System.arraycopy(items, first + 4 * vertex, items, first + 2 * vertex, vertex);
+        System.arraycopy(items, first + 3 * vertex, items, first, vertex);
     }
 
     /** Lá và cây khoét alpha không che kín mặt kề. Nước hoặc băng che mặt tiếp xúc cùng loại. */
@@ -1706,6 +1875,198 @@ public class Chunk implements Disposable {
     private static void putVertex(FloatArray vertices, float x, float y, float z, float u, float v, float shade) {
         vertices.add(x, y, z);
         vertices.add(u, v, shade);
+    }
+}
+
+
+
+==================== FILE: D:\VoxelGame\src\main\java\com\voxelgame\engine\DesertPyramid.java ====================
+package com.voxelgame.engine;
+
+import com.voxelgame.entity.Block;
+
+import static com.voxelgame.engine.World.BIOME_WIDTH;
+import static com.voxelgame.engine.World.CENTER_Z;
+import static com.voxelgame.engine.World.WORLD_SIZE_X;
+import static com.voxelgame.engine.World.WORLD_SIZE_Z;
+
+/** Dấu chân và cách dựng kim tự tháp sa mạc có sảnh nổi, cầu thang và phòng ngầm. */
+record DesertPyramid(int centerX, int centerZ, int baseY) {
+    /** Nửa bề rộng thân vuông ở tầng thấp nhất. */
+    private static final int BASE_RADIUS = 8;
+    /** Bán kính dành cho thân công trình, chân tường và bậc dẫn bên ngoài. */
+    private static final int SITE_RADIUS = 11;
+    /** Chiều cao từ mặt sàn đến đỉnh, tính theo số lớp voxel. */
+    private static final int ROOF_HEIGHT = 16;
+    /** Độ sâu mặt sàn phòng ngầm so với sảnh. */
+    private static final int CELLAR_DEPTH = 8;
+    /** Bước giữa những tâm ứng viên để giữ số cột cần kiểm tra thấp. */
+    private static final int SITE_STEP = 13;
+    /** Hai bit thấp là mã biome, cờ có giá trị 8 đánh dấu miền sông và bờ sông. */
+    private static final int BIOME_AND_RIVER_MASK = 0x0B;
+
+    /** Chọn một khu đất khô, ưu tiên thềm thấp, phẳng và gần mép đồng bằng. */
+    static DesertPyramid select(short[] heights, byte[] biomes) {
+        int desert = BiomeType.DESERT.ordinal();
+        int boundary = 2 * BIOME_WIDTH;
+        int bestScore = Integer.MAX_VALUE;
+        DesertPyramid best = null;
+        for (int x = boundary - 96; x < WORLD_SIZE_X - SITE_RADIUS; x += SITE_STEP) {
+            for (int z = SITE_RADIUS + 1; z < WORLD_SIZE_Z - SITE_RADIUS; z += SITE_STEP) {
+                int range = drySiteRange(heights, biomes, desert, x, z);
+                if (range == 0) {
+                    continue;
+                }
+                int lowest = range & 0xFFFF;
+                int highest = range >>> 16;
+                int score = (highest - lowest) * 22 + Math.abs(highest - 32) * 9
+                        + Math.abs(x - boundary) / 8 + Math.abs(z - CENTER_Z) / 15;
+                if (score < bestScore) {
+                    bestScore = score;
+                    best = new DesertPyramid(x, z, highest);
+                }
+            }
+        }
+        return best;
+    }
+
+    /** Trả độ cao thấp nhất và cao nhất trong dấu chân, hoặc 0 nếu có cột bất hợp lệ. */
+    private static int drySiteRange(short[] heights, byte[] biomes, int desert, int centerX, int centerZ) {
+        int highest = 0;
+        int lowest = World.WORLD_SIZE_Y;
+        for (int x = centerX - SITE_RADIUS; x <= centerX + SITE_RADIUS; x++) {
+            int index = x * WORLD_SIZE_Z + centerZ - SITE_RADIUS;
+            int afterLast = index + 2 * SITE_RADIUS + 1;
+            for (; index < afterLast; index++) {
+                int height = heights[index];
+                if ((biomes[index] & BIOME_AND_RIVER_MASK) != desert
+                        || height < CELLAR_DEPTH + 3 || height + ROOF_HEIGHT >= World.WORLD_SIZE_Y) {
+                    return 0;
+                }
+                highest = Math.max(highest, height);
+                lowest = Math.min(lowest, height);
+            }
+        }
+        return highest << 16 | lowest;
+    }
+
+    /** Kiểm tra một cột có thuộc vùng dành riêng cho công trình, kể cả khoảng đệm. */
+    boolean contains(int x, int z, int margin) {
+        return Math.abs(x - centerX) <= SITE_RADIUS + margin && Math.abs(z - centerZ) <= SITE_RADIUS + margin;
+    }
+
+    /** Ghép công trình vào địa tầng đã điền trước khi sinh hồ và thực vật. */
+    void build(World world) {
+        buildFoundation(world);
+        buildHallAndRoof(world);
+        buildEntranceAndSupport(world);
+    }
+
+    /** Lấp thân móng, chỉ chừa khoảng trống có sàn và vách của cầu thang và phòng rương. */
+    private void buildFoundation(World world) {
+        int bottomY = baseY - CELLAR_DEPTH;
+        for (int dx = -BASE_RADIUS; dx <= BASE_RADIUS; dx++) {
+            for (int dz = -BASE_RADIUS; dz <= BASE_RADIUS; dz++) {
+                int x = centerX + dx;
+                int z = centerZ + dz;
+                extendFooting(world, x, bottomY - 1, z);
+                for (int y = bottomY; y <= baseY; y++) {
+                    int level = y - baseY;
+                    boolean stair = dx >= -4 && dx <= -3 && dz >= -3 && dz <= 4
+                            && level > dz - 5 && level <= dz - 2;
+                    boolean room = dx >= -2 && dx <= 5 && dz >= -5 && dz <= 0
+                            && level > -CELLAR_DEPTH && level <= 3 - CELLAR_DEPTH;
+                    Block material = stair || room ? Block.AIR : Block.SANDSTONE;
+                    if (dx == 4 && dz == -4 && level == 1 - CELLAR_DEPTH) {
+                        material = Block.CHEST;
+                    }
+                    write(world, x, y, z, material);
+                }
+            }
+        }
+    }
+
+    /** Dựng các tầng giật cấp, sảnh bốn cột và khung đá ở cửa nam. */
+    private void buildHallAndRoof(World world) {
+        for (int layer = 1; layer <= ROOF_HEIGHT; layer++) {
+            int radius = layer == ROOF_HEIGHT ? 0 : BASE_RADIUS - (layer - 1) / 2;
+            for (int dx = -radius; dx <= radius; dx++) {
+                for (int dz = -radius; dz <= radius; dz++) {
+                    int absX = Math.abs(dx);
+                    boolean pillar = absX == 2 && Math.abs(dz) == 3;
+                    boolean altar = dx == 0 && dz == -4 && layer <= 2;
+                    boolean hall = absX <= 5 && Math.abs(dz) <= 5 && layer <= 4 && !pillar && !altar;
+                    boolean door = absX <= 1 && dz >= 5 && layer <= 3;
+                    boolean pattern = dz == radius && ((layer <= 3 && absX == 2)
+                            || (layer == 4 && absX <= 2));
+                    Block material = Block.SANDSTONE;
+                    if (hall || door) {
+                        material = Block.AIR;
+                    } else if (pattern || (altar && layer == 1)) {
+                        material = Block.STONE;
+                    }
+                    write(world, centerX + dx, baseY + layer, centerZ + dz, material);
+                }
+            }
+        }
+    }
+
+    /** Làm ba bậc phía nam và lót sandstone dưới các dải cát quanh chân tường. */
+    private void buildEntranceAndSupport(World world) {
+        for (int dz = BASE_RADIUS + 1; dz <= SITE_RADIUS; dz++) {
+            int minimumStepY = baseY - (dz - BASE_RADIUS - 1);
+            for (int dx = -2; dx <= 2; dx++) {
+                int x = centerX + dx;
+                int z = centerZ + dz;
+                // Nâng các nền thấp thành bậc, giữ cao độ tự nhiên nếu nền đã cao hơn.
+                int stepY = baseY;
+                while (stepY > minimumStepY && world.getBlock(x, stepY, z) == Block.AIR.getId()) {
+                    stepY--;
+                }
+                extendFooting(world, x, stepY - 1, z);
+                write(world, x, stepY, z, Block.SANDSTONE);
+            }
+        }
+        int edge = BASE_RADIUS + 1;
+        for (int offset = -edge; offset <= edge; offset++) {
+            lineSand(world, centerX - edge, centerZ + offset);
+            lineSand(world, centerX + edge, centerZ + offset);
+            lineSand(world, centerX + offset, centerZ - edge);
+            lineSand(world, centerX + offset, centerZ + edge);
+        }
+    }
+
+    /** Lấp phần móng nằm trên lớp đá tự nhiên đầu tiên mà vẫn giữ Bedrock. */
+    private static void extendFooting(World world, int x, int top, int z) {
+        for (int y = top; y > 0; y--) {
+            byte block = world.getBlock(x, y, z);
+            if (block == Block.STONE.getId() || block == Block.SANDSTONE.getId()
+                    || block == Block.BEDROCK.getId()) {
+                return;
+            }
+            write(world, x, y, z, Block.SANDSTONE);
+        }
+    }
+
+    /** Tìm đáy dải cát hoặc sỏi liền mặt đất rồi đặt lớp đỡ ngay dưới nó. */
+    private void lineSand(World world, int x, int z) {
+        int y = baseY;
+        while (y > 1 && world.getBlock(x, y, z) == Block.AIR.getId()) {
+            y--;
+        }
+        int top = y;
+        while (y > 1 && Block.fromId(world.getBlock(x, y, z)).isGravityBlock()) {
+            y--;
+        }
+        if (y < top) {
+            write(world, x, y, z, Block.SANDSTONE);
+            extendFooting(world, x, y - 1, z);
+        }
+    }
+
+    /** Ghi ô trong lượt sinh với metadata mặc định và xử lý theo nhóm. */
+    private static void write(World world, int x, int y, int z, Block block) {
+        world.setBlockInternal(x, y, z, block.getId(), 0);
     }
 }
 
@@ -2013,10 +2374,12 @@ public class ShaderProgram implements Disposable {
             out vec2 vTexCoord;
             out float vShade;
             out vec3 vPosition;
+            out vec3 vEyeOffset;
 
             uniform mat4 uModel;
             uniform mat4 uView;
             uniform mat4 uProjection;
+            uniform vec3 uFogEye;
 
             void main() {
                 vec4 worldPos = uModel * vec4(aPos, 1.0);
@@ -2027,6 +2390,8 @@ public class ShaderProgram implements Disposable {
                 vTexCoord = aTexCoord;
                 vShade = aShade;
                 vPosition = aPos;
+                // Dùng tọa độ sau biến đổi model để cả mesh chunk và thực thể nhận cùng khoảng cách.
+                vEyeOffset = worldPos.xyz - uFogEye;
             }
             """;
 
@@ -2038,6 +2403,7 @@ public class ShaderProgram implements Disposable {
             in vec2 vTexCoord;
             in float vShade;
             in vec3 vPosition;
+            in vec3 vEyeOffset;
 
             out vec4 FragColor;
 
@@ -2051,17 +2417,22 @@ public class ShaderProgram implements Disposable {
             uniform vec3 uSunDirection;
             uniform float uHorizonGlow;
             uniform vec3 uCloudCenter;
+            uniform int uFogEnabled;
+            uniform vec2 uFogRange;
+
+            // Dùng chung màu theo hướng nhìn để địa hình xa nối liền với nền trời.
+            vec3 atmosphereColor(vec3 direction) {
+                float band = 1.0 - smoothstep(0.0, 0.33, abs(direction.y));
+                float facing = smoothstep(-0.25, 1.0, dot(direction, uSunDirection));
+                float glow = band * facing * uHorizonGlow;
+                float zenith = smoothstep(0.0, 0.9, direction.y);
+                vec3 sky = mix(uSkyColor, uSkyColor * vec3(0.70, 0.86, 0.98), zenith);
+                return mix(sky, uHorizonColor, glow);
+            }
 
             void main() {
                 if (uEnvironmentMode == 1) {
-                    // Dải đỏ cam bám chân trời và tập trung về phía mặt trời.
-                    vec3 direction = normalize(vPosition);
-                    float band = 1.0 - smoothstep(0.0, 0.33, abs(direction.y));
-                    float facing = smoothstep(-0.25, 1.0, dot(direction, uSunDirection));
-                    float glow = band * facing * uHorizonGlow;
-                    float zenith = smoothstep(0.0, 0.9, direction.y);
-                    vec3 sky = mix(uSkyColor, uSkyColor * vec3(0.70, 0.86, 0.98), zenith);
-                    FragColor = vec4(mix(sky, uHorizonColor, glow), 1.0);
+                    FragColor = vec4(atmosphereColor(normalize(vPosition)), 1.0);
                     return;
                 }
 
@@ -2096,6 +2467,15 @@ public class ShaderProgram implements Disposable {
                 float faceShade = uEnvironmentMode == 4 ? 1.0 : abs(vShade);
                 vec3 litColor = baseColor.rgb * faceShade * (vShade < 0.0 ? vec3(1.0) : uWorldLight);
 
+                if (uEnvironmentMode == 0 && uFogEnabled == 1) {
+                    float distanceToEye = length(vEyeOffset);
+                    if (distanceToEye > uFogRange.x) {
+                        float fog = clamp((distanceToEye - uFogRange.x) / (uFogRange.y - uFogRange.x), 0.0, 1.0);
+                        // Trộn RGB sau khi tính ánh sáng và giữ nguyên độ trong của mặt khối.
+                        litColor = mix(litColor, atmosphereColor(vEyeOffset / distanceToEye), fog);
+                    }
+                }
+
                 FragColor = vec4(litColor, baseColor.a);
             }
             """;
@@ -2120,6 +2500,7 @@ public class ShaderProgram implements Disposable {
         setUniformVec4("uTintColor", 1.0f, 1.0f, 1.0f, 1.0f);
         setUniformVec3("uWorldLight", 1f, 1f, 1f);
         setUniform1i("uEnvironmentMode", 0);
+        disableDistanceFog();
         unbind();
     }
 
@@ -2153,6 +2534,18 @@ public class ShaderProgram implements Disposable {
     public void enable3DWorldMode() {
         setUniform1i("uUseTexture", 1);
         setUniformVec4("uTintColor", 1.0f, 1.0f, 1.0f, 1.0f);
+    }
+
+    /** Cập nhật vị trí mắt và hai mốc sương, tính bằng block thế giới. */
+    public void enableDistanceFog(Vector3 eye, float start, float end) {
+        setUniformVec3("uFogEye", eye);
+        gdxShader.setUniformf("uFogRange", start, end);
+        setUniform1i("uFogEnabled", 1);
+    }
+
+    /** Kết thúc sương thế giới trước khi chuyển sang giáng thủy hoặc giao diện. */
+    public void disableDistanceFog() {
+        setUniform1i("uFogEnabled", 0);
     }
 
     /**
@@ -2210,6 +2603,12 @@ public final class SkyRenderer implements Disposable {
     private static final float CLOUD_HEIGHT = 140f;
     private static final float CLOUD_PERIOD = 768f;
     private static final float CLOUD_RADIUS = 500f;
+    /** Sương trời quang giữ được đường nét núi xa và hòa vào trời trước mặt phẳng cắt. */
+    private static final float CLEAR_FOG_START = 288f;
+    private static final float CLEAR_FOG_END = 640f;
+    /** Khi giáng thủy đạt đỉnh, vùng chuyển màu tiến gần camera hơn. */
+    private static final float STORM_FOG_START = 96f;
+    private static final float STORM_FOG_END = 384f;
     /** Thứ tự tám pha từ trăng tròn đến lưỡi liềm cuối tháng. */
     private static final String[] MOON_PHASES = {
             "full_moon", "waning_gibbous", "third_quarter", "waning_crescent",
@@ -2309,6 +2708,16 @@ public final class SkyRenderer implements Disposable {
                 MathUtils.lerp(0.25f, 1f, daylight) * dim * (1f - 0.10f * twilight),
                 MathUtils.lerp(0.34f, 1f, daylight) * dim * (1f - 0.20f * twilight));
         shader.setUniformVec3("uWorldLight", worldLight);
+    }
+
+    /** Bật sương trong lượt kết xuất thế giới, dùng màu vừa đặt cho vòm trời. */
+    public float enableWorldFog(ShaderProgram shader, Vector3 eye, float storm) {
+        float end = MathUtils.lerp(CLEAR_FOG_END, STORM_FOG_END, storm);
+        shader.enableDistanceFog(eye, MathUtils.lerp(CLEAR_FOG_START, STORM_FOG_START, storm), end);
+        // Vẫn giữ depth của địa hình trước toàn bộ vòng mây còn nhìn thấy.
+        float cloudDeltaY = CLOUD_HEIGHT - eye.y;
+        float cloudDistance = (float) Math.sqrt(CLOUD_RADIUS * CLOUD_RADIUS + cloudDeltaY * cloudDeltaY);
+        return Math.max(end + 2 * Chunk.SIZE, cloudDistance);
     }
 
     /** Dựng ảnh trên mặt phẳng tiếp xúc quỹ đạo; trục Z giữ cạnh ngang của ảnh. */
@@ -2421,19 +2830,24 @@ final class TerrainGenerator {
     private static final long SNOW = 0x7F55382BE1620D13L;
     private static final long TREES = 0x033316FE9806C3ACL;
     private static final long PLANTS = 0x33861755932C9621L;
+    /** Các trường điều khiển sườn núi, xói mòn, lòng sông và mật độ cây. */
+    private static final long RIDGES = 0x5A68B6F19F6D4CDFL;
+    private static final long EROSION = 0x6B7458C57B81ACF1L;
+    private static final long RIVERS = 0x63C628D5188333F3L;
+    private static final long FOREST = 0x472440A1512B0DC9L;
 
-    /** Ngưỡng phân loại nóng/lạnh và nửa bề rộng vùng trộn độ cao quanh mỗi ngưỡng. */
-    private static final float CLIMATE_THRESHOLD = 0.31f;
-    private static final float TRANSITION = 0.18f;
-    /** Quy đổi khoảng cách đến ranh giới sang khác biệt nhiệt độ để trộn độ cao. */
-    private static final float CLIMATE_SLOPE_WIDTH = 160f;
-    /** Trộn vật liệu và thảm thực vật trong 32 block về mỗi phía của mốc khí hậu. */
-    private static final int SURFACE_BLEND_RADIUS = 32;
+    /** Mực sông theo cao độ của ô mặt nước, dùng chung cho cả sông lạnh và sông ấm. */
+    static final int WATER_LEVEL = 28;
+    /** Chỉ giữ ứng viên hồ ở vùng thấp hoặc thung lũng dưới chân đồi. */
+    private static final int MAX_LAKE_LEVEL = 48;
     /** Vùng xuất phát bằng phẳng và thoáng, dùng cả dấu chân của người chơi và phần mép tán cây. */
-    private static final int SPAWN_HEIGHT = 12;
+    private static final int SPAWN_HEIGHT = 30;
     private static final int SPAWN_CLEARANCE = 8;
     /** Cờ dùng chung với mã biome trong bộ đệm để chỉ kiểm tra nguồn nhiệt ở vùng có Lava. */
     private static final int NEAR_LAVA = 4;
+    /** Cờ nhận diện dải sông và cột đã được lượt hồ sử dụng. */
+    static final int RIVER = 8;
+    private static final int LAKE = 16;
     /** Bốn loài hoa có thể chiếm ưu thế trong một cụm thực vật. */
     private static final Block[] FLOWERS = { Block.DANDELION, Block.POPPY, Block.CORNFLOWER, Block.OXEYE_DAISY };
     /** Bảng mã biome, cấp phát một lần để tra nhanh trong các lượt sinh. */
@@ -2447,126 +2861,176 @@ final class TerrainGenerator {
         this.seed = seed;
     }
 
-    /** Tra biome gốc của một cột từ tọa độ thế giới. */
+    /** Tra cùng biome đã dùng để chọn vật liệu, lớp phủ và thực vật. */
     BiomeType getBiome(int x, int z) {
-        return classify(temperature(x));
+        float warpedX = climateX(x, z);
+        if (warpedX < BIOME_WIDTH) {
+            return BiomeType.SNOWY_PLAINS;
+        }
+        return warpedX < 2 * BIOME_WIDTH ? BiomeType.PLAINS : BiomeType.DESERT;
     }
 
     /** Lấy độ cao địa tầng của một cột trước khi tạo hồ và thảm thực vật. */
     int getSurfaceY(int x, int z) {
-        return surfaceY(x, z, temperature(x));
+        return surfaceY(x, z, riverDistance(x, z));
     }
 
     /** Sinh toàn bộ nội dung; hai bộ đệm cột chỉ tồn tại trong quá trình khởi tạo. */
-    void generate(World world) {
-        byte[] heights = new byte[WORLD_SIZE_X * WORLD_SIZE_Z];
+    DesertPyramid generate(World world) {
+        short[] heights = new short[WORLD_SIZE_X * WORLD_SIZE_Z];
         byte[] biomes = new byte[heights.length];
+        sampleColumns(heights, biomes);
+        DesertPyramid pyramid = DesertPyramid.select(heights, biomes);
         generateStrata(world, heights, biomes);
-        generateLakes(world, heights, biomes);
+        generateLakes(world, heights, biomes, pyramid);
         generateIceAndSnow(world, heights, biomes);
-        generateTrees(world, heights, biomes);
-        generatePlants(world, heights, biomes);
+        pyramid.build(world);
+        generateTrees(world, heights, biomes, pyramid);
+        generatePlants(world, heights, biomes, pyramid);
+        return pyramid;
     }
 
-    /** Phân loại địa hình theo trường nhiệt độ liên tục. */
-    private static BiomeType classify(float temperature) {
-        if (temperature > CLIMATE_THRESHOLD) {
-            return BiomeType.DESERT;
+    /** Làm cong các biên khí hậu với hai thang Perlin theo mặt phẳng XZ. */
+    private float climateX(int x, int z) {
+        return x + 0.5f + 70f * TerrainNoise.perlin(seed ^ BIOME_MIX, x / 233f, z / 233f)
+                + 27f * TerrainNoise.perlin(seed ^ BIOME_MIX ^ 1, x / 76f, z / 76f);
+    }
+
+    /** Đo khoảng cách tới đường đồng mức của dải sông chạy qua ba biome. */
+    private float riverDistance(int x, int z) {
+        float bend = 184f * TerrainNoise.perlin(seed ^ RIVERS, x / 390f, 0.37f)
+                + 39f * TerrainNoise.perlin(seed ^ RIVERS ^ 1, x / 137f, 0.67f);
+        return Math.abs(z - 565f - bend
+                + 11f * TerrainNoise.perlin(seed ^ RIVERS ^ 2, x / 170f, z / 170f));
+    }
+
+    /** Tính địa hình liên tục trước khi lượng tử hóa thành các tầng voxel. */
+    private int surfaceY(int x, int z, float riverDistance) {
+        float land = TerrainNoise.fractal(seed ^ HEIGHT, x / 212f, z / 212f);
+        float erosion = TerrainNoise.perlin(seed ^ EROSION, x / 134f, z / 134f);
+        float cold = 1f - smoothBetween(x, BIOME_WIDTH - 225, BIOME_WIDTH + 25);
+        float desert = smoothBetween(x, 2 * BIOME_WIDTH - 65, 2 * BIOME_WIDTH + 130);
+        float relief = 0.21f + 0.29f * land - 0.18f * erosion;
+        if (cold > 0f) {
+            float ridge = TerrainNoise.ridged(seed ^ RIDGES, (x + erosion * 21f) / 117f, z / 117f);
+            float range = smoothBetween(TerrainNoise.perlin(seed ^ RIDGES ^ 1, x / 304f, z / 304f),
+                    -0.32f, 0.27f);
+            relief += cold * (0.33f + 0.61f * range) * ridge;
         }
-        if (temperature < -CLIMATE_THRESHOLD) {
-            return BiomeType.SNOWY_PLAINS;
+        float height = elevationSpline(relief);
+        if (desert > 0f) {
+            float dunes = TerrainNoise.fractal(seed ^ DUNES, (x + z * 0.28f) / 46f, z / 75f);
+            float terrace = Math.round((31f + land * 7f + dunes * 7f) / 2f) * 2f;
+            height = TerrainNoise.mix(height, terrace, desert);
         }
-        return BiomeType.PLAINS;
-    }
-
-    /** Giữ hai mốc khí hậu cách nhau 1.000 block và trộn nhiệt độ qua biên. */
-    private static float temperature(int x) {
-        float columnCenter = x + 0.5f;
-        float cold = CLIMATE_THRESHOLD + (BIOME_WIDTH - columnCenter) / CLIMATE_SLOPE_WIDTH;
-        float warm = CLIMATE_THRESHOLD + (columnCenter - 2 * BIOME_WIDTH) / CLIMATE_SLOPE_WIDTH;
-        return Math.max(0f, Math.min(1f, warm)) - Math.max(0f, Math.min(1f, cold));
-    }
-
-    /** Chọn bề mặt theo tỷ lệ chuyển tiếp và noise tạo cụm, thêm biến thiên nhỏ ở mép từng cụm. */
-    private BiomeType blendSurface(int x, int z, int boundaryX, float eastWeight) {
-        long mixSeed = seed ^ BIOME_MIX;
-        float patch = TerrainNoise.fractal(mixSeed, x / 22f, z / 22f);
-        float grain = TerrainNoise.unit(mixSeed + 3, x, z) - 0.5f;
-        boolean east = eastWeight > 0.5f + 0.38f * patch + 0.24f * grain;
-        if (boundaryX == BIOME_WIDTH) {
-            return east ? BiomeType.PLAINS : BiomeType.SNOWY_PLAINS;
+        if (riverDistance < 96f) {
+            float riverFloor = 22f + 14f * smoothBetween(riverDistance, 1f, 25f);
+            float lowered = TerrainNoise.mix(riverFloor, height, smoothBetween(riverDistance, 15f, 96f));
+            height = Math.min(height, lowered);
         }
-        return east ? BiomeType.DESERT : BiomeType.PLAINS;
+        float clear = Math.min(safeAreaBlend(x - CENTER_X, z - CENTER_Z),
+                safeAreaBlend(x - World.RESPAWN_X, z - World.RESPAWN_Z));
+        return Math.max(18, Math.min(MAX_TERRAIN_Y, Math.round(TerrainNoise.mix(SPAWN_HEIGHT, height, clear))));
     }
 
-    /** Nội suy chiều cao ở hai ngưỡng khí hậu và làm phẳng nền an toàn dưới chân người chơi. */
-    private int surfaceY(int x, int z, float temperature) {
-        float hills = TerrainNoise.fractal(seed ^ HEIGHT, x / 71f, z / 71f);
-        float plains = 11.5f + hills * 4.8f;
-        float desertBlend = smoothBetween(temperature, CLIMATE_THRESHOLD - TRANSITION,
-                CLIMATE_THRESHOLD + TRANSITION);
-        float snowBlend = smoothBetween(-temperature, CLIMATE_THRESHOLD - TRANSITION,
-                CLIMATE_THRESHOLD + TRANSITION);
-        float terrain = TerrainNoise.mix(plains, 11.9f + hills * 3.6f, snowBlend);
-        if (desertBlend > 0f) {
-            float dunes = TerrainNoise.fractal(seed ^ DUNES, (x + z * 0.28f) / 35f, z / 56f);
-            terrain = TerrainNoise.mix(terrain, 12.8f + hills * 3.2f + dunes * 3.7f, desertBlend);
+    /** Nội suy theo ba đoạn, tăng độ dốc về phía đỉnh núi. */
+    private static float elevationSpline(float relief) {
+        if (relief < 0.30f) {
+            return TerrainNoise.mix(26f, 34f, smoothBetween(relief, 0f, 0.30f));
         }
-        float spawnBlend = smoothBetween(distanceSquared(x - CENTER_X, z - CENTER_Z),
-                SPAWN_CLEARANCE * SPAWN_CLEARANCE, 25 * 25);
-        return Math.max(9, Math.min(MAX_TERRAIN_Y, Math.round(TerrainNoise.mix(SPAWN_HEIGHT, terrain, spawnBlend))));
+        if (relief < 0.65f) {
+            return TerrainNoise.mix(34f, 63f, smoothBetween(relief, 0.30f, 0.65f));
+        }
+        float summit = Math.min(1f, (relief - 0.65f) / 0.43f);
+        return 63f + 91f * summit * summit;
     }
 
-    /** Ghi lớp đá gốc, đá, đất hoặc cát theo thứ tự từ đáy lên. */
-    private void generateStrata(World world, byte[] heights, byte[] biomes) {
+    /** Chuyển tiếp từ nền an toàn bằng phẳng sang địa hình bao quanh. */
+    private static float safeAreaBlend(int dx, int dz) {
+        return smoothBetween(distanceSquared(dx, dz), SPAWN_CLEARANCE * SPAWN_CLEARANCE, 30 * 30);
+    }
+
+    /** Lưu độ cao để so sánh độ dốc và chọn dấu chân công trình. */
+    private void sampleColumns(short[] heights, byte[] biomes) {
         for (int x = 0; x < WORLD_SIZE_X; x++) {
-            float temperature = temperature(x);
-            BiomeType climate = classify(temperature);
-            int boundaryX = x < CENTER_X ? BIOME_WIDTH : 2 * BIOME_WIDTH;
-            float eastWeight = smoothBetween(x + 0.5f, boundaryX - SURFACE_BLEND_RADIUS,
-                    boundaryX + SURFACE_BLEND_RADIUS);
-            boolean transition = eastWeight > 0f && eastWeight < 1f;
             for (int z = 0; z < WORLD_SIZE_Z; z++) {
-                // Các lượt sinh tuyết, cây và cỏ cùng đọc vật liệu đã trộn của cột.
-                BiomeType biome = transition ? blendSurface(x, z, boundaryX, eastWeight) : climate;
-                int y = surfaceY(x, z, temperature);
                 int index = columnIndex(x, z);
-                heights[index] = (byte) y;
-                biomes[index] = (byte) biome.ordinal();
-                long layers = TerrainNoise.hash(seed ^ STRATA, x / 3, z / 3);
-                int topThickness = 2 + (int) (layers & 1);
-                int sandstoneThickness = 0;
-                if (biome == BiomeType.DESERT) {
-                    topThickness++;
-                    sandstoneThickness = 3 + (int) ((layers >>> 1) & 1);
-                }
-                int topBase = y - topThickness + (biome == BiomeType.DESERT ? 1 : 0);
-
-                write(world, x, 0, z, Block.BEDROCK);
-                for (int stoneY = 1; stoneY < topBase - sandstoneThickness; stoneY++) {
-                    write(world, x, stoneY, z, Block.STONE);
-                }
-                for (int sandstoneY = topBase - sandstoneThickness; sandstoneY < topBase; sandstoneY++) {
-                    write(world, x, sandstoneY, z, Block.SANDSTONE);
-                }
-                Block soil = biome == BiomeType.DESERT ? Block.SAND : Block.DIRT;
-                for (int soilY = topBase; soilY < y; soilY++) {
-                    write(world, x, soilY, z, soil);
-                }
-                write(world, x, y, z, biome == BiomeType.DESERT ? Block.SAND : Block.GRASS);
+                float river = riverDistance(x, z);
+                heights[index] = (short) surfaceY(x, z, river);
+                int flags = river < 18f ? RIVER : 0;
+                biomes[index] = (byte) (getBiome(x, z).ordinal() | flags);
             }
         }
     }
 
+    /** Ghi địa tầng theo dải và dùng cao độ nguyên gốc để chọn vật liệu theo độ dốc. */
+    private void generateStrata(World world, short[] heights, byte[] biomes) {
+        for (int x = 0; x < WORLD_SIZE_X; x++) {
+            for (int z = 0; z < WORLD_SIZE_Z; z++) {
+                int index = columnIndex(x, z);
+                int y = heights[index];
+                int slope = slopeAt(heights, x, z, y);
+                boolean desert = biomeAt(biomes, x, z) == BiomeType.DESERT;
+                boolean beach = (biomes[index] & RIVER) != 0 && y <= WATER_LEVEL + 1;
+                long layers = TerrainNoise.hash(seed ^ STRATA, x / 3, z / 3);
+                Block surface = desert ? Block.SANDSTONE : Block.STONE;
+                int topDepth = 1;
+                int liningDepth = desert ? 3 + (int) ((layers >>> 3) & 1) : 0;
+                if (beach && (layers & 3) != 0) {
+                    surface = (layers & 1) == 0 ? Block.GRAVEL : Block.SAND;
+                    liningDepth = surface == Block.SAND ? 2 : 0;
+                } else if (slope <= 1) {
+                    surface = desert ? Block.SAND : Block.DIRT;
+                    topDepth = desert ? 3 + (int) ((layers >>> 1) & 3) % 3 : 3 + (int) (layers & 1);
+                } else if (slope == 2) {
+                    surface = (layers & 1) == 0 ? Block.STONE : Block.GRAVEL;
+                    liningDepth = 0;
+                }
+                boolean turf = surface == Block.DIRT;
+                int surfaceStart = y - topDepth + (turf ? 0 : 1);
+                int liningStart = surfaceStart - liningDepth;
+                world.fillGeneratedColumn(x, z, 0, 1, Block.BEDROCK);
+                world.fillGeneratedColumn(x, z, 1, liningStart, Block.STONE);
+                if (liningDepth != 0) {
+                    world.fillGeneratedColumn(x, z, liningStart, surfaceStart, Block.SANDSTONE);
+                }
+                world.fillGeneratedColumn(x, z, surfaceStart, turf ? y : y + 1, surface);
+                if (turf) {
+                    world.fillGeneratedColumn(x, z, y, y + 1, Block.GRASS);
+                }
+            }
+        }
+        // Đổi độ cao cột sau khi các cột xung quanh đã chọn xong vật liệu.
+        for (int x = 0; x < WORLD_SIZE_X; x++) {
+            for (int z = 0; z < WORLD_SIZE_Z; z++) {
+                int index = columnIndex(x, z);
+                int y = heights[index];
+                if ((biomes[index] & RIVER) != 0 && y < WATER_LEVEL) {
+                    world.fillGeneratedColumn(x, z, y + 1, WATER_LEVEL + 1, Block.WATER);
+                    heights[index] = WATER_LEVEL;
+                }
+            }
+        }
+    }
+
+    /** Lấy bậc dốc lớn nhất qua bốn cột chung cạnh, kể cả qua biên chunk. */
+    private static int slopeAt(short[] heights, int x, int z, int y) {
+        int west = Math.abs(y - heights[columnIndex(Math.max(0, x - 1), z)]);
+        int east = Math.abs(y - heights[columnIndex(Math.min(WORLD_SIZE_X - 1, x + 1), z)]);
+        int north = Math.abs(y - heights[columnIndex(x, Math.max(0, z - 1))]);
+        int south = Math.abs(y - heights[columnIndex(x, Math.min(WORLD_SIZE_Z - 1, z + 1))]);
+        return Math.max(Math.max(west, east), Math.max(north, south));
+    }
+
     /** Đặt trước một hồ lạnh và một ốc đảo trong hai biome tương ứng, rồi sinh hồ trên lưới so le. */
-    private void generateLakes(World world, byte[] heights, byte[] biomes) {
+    private void generateLakes(World world, short[] heights, byte[] biomes, DesertPyramid pyramid) {
         long lakeSeed = seed ^ LAKES;
         int coldLakeX = CENTER_X - BIOME_WIDTH;
         int warmLakeX = CENTER_X + BIOME_WIDTH;
         int coldLakeZ = CENTER_Z + sampleInt(lakeSeed, coldLakeX, CENTER_Z, 13) - 6;
         int warmLakeZ = CENTER_Z + sampleInt(lakeSeed, warmLakeX, CENTER_Z, 13) - 6;
-        carveLake(world, heights, biomes, coldLakeX, coldLakeZ, 8f, 3, Block.WATER);
-        carveLake(world, heights, biomes, warmLakeX, warmLakeZ, 6f, 3, Block.WATER);
+        placeLandmarkLake(world, heights, biomes, pyramid, coldLakeX, coldLakeZ, BiomeType.SNOWY_PLAINS);
+        placeLandmarkLake(world, heights, biomes, pyramid, warmLakeX, warmLakeZ, BiomeType.DESERT);
 
         int gridSpacing = 64;
         for (int gridX = gridSpacing / 2; gridX < WORLD_SIZE_X - 16; gridX += gridSpacing) {
@@ -2584,17 +3048,43 @@ final class TerrainGenerator {
                 float waterChance = biome == BiomeType.DESERT ? 0.06f : 0.36f;
                 float radiusVariation = TerrainNoise.unit(lakeSeed + 4, gridX, gridZ);
                 if (choice < lavaChance) {
-                    carveLake(world, heights, biomes, x, z, 4.5f + radiusVariation * 3f, 3, Block.LAVA);
+                    carveLake(world, heights, biomes, pyramid, x, z, 4.5f + radiusVariation * 3f, 3, Block.LAVA);
                 } else if (choice < lavaChance + waterChance) {
-                    carveLake(world, heights, biomes, x, z, 5.5f + radiusVariation * 4f, 4, Block.WATER);
+                    if (carveLake(world, heights, biomes, pyramid, x, z, 5.5f + radiusVariation * 4f, 4, Block.WATER)
+                            && biome == BiomeType.DESERT) {
+                        plantOasisPalms(world, heights, biomes, x, z);
+                    }
+                }
+            }
+        }
+    }
+
+    /** Tìm nền bằng gần tâm biome cho hồ lạnh và ốc đảo dành làm mốc địa hình. */
+    private void placeLandmarkLake(World world, short[] heights, byte[] biomes, DesertPyramid pyramid,
+                                   int centerX, int centerZ, BiomeType biome) {
+        for (int radius = 0; radius <= 320; radius += 8) {
+            for (int dx = -radius; dx <= radius; dx += 8) {
+                for (int dz = -radius; dz <= radius; dz += 8) {
+                    if (Math.max(Math.abs(dx), Math.abs(dz)) != radius) {
+                        continue;
+                    }
+                    int x = centerX + dx;
+                    int z = centerZ + dz;
+                    if (biomeAt(biomes, x, z) == biome
+                            && carveLake(world, heights, biomes, pyramid, x, z, 7f, 4, Block.WATER)) {
+                        if (biome == BiomeType.DESERT) {
+                            plantOasisPalms(world, heights, biomes, x, z);
+                        }
+                        return;
+                    }
                 }
             }
         }
     }
 
     /** Khoét hồ có mặt phẳng, đáy cong và bờ nguyên khối bao quanh ngang mực chất lỏng. */
-    private void carveLake(World world, byte[] heights, byte[] biomes, int centerX, int centerZ,
-                           float radius, int depth, Block liquid) {
+    private boolean carveLake(World world, short[] heights, byte[] biomes, DesertPyramid pyramid,
+                              int centerX, int centerZ, float radius, int depth, Block liquid) {
         boolean lava = liquid == Block.LAVA;
         BiomeType centerBiome = biomeAt(biomes, centerX, centerZ);
         Block lavaShore = centerBiome == BiomeType.DESERT ? Block.SAND : Block.GRASS;
@@ -2604,13 +3094,29 @@ final class TerrainGenerator {
         float shoreNoise = 1.1f;
         float enclosingRadius = radius + shoreNoise + shoreWidth;
         int reach = (int) Math.ceil(enclosingRadius);
+        if (nearSpawn(centerX, centerZ, reach + SPAWN_CLEARANCE + 6)
+                || pyramid.contains(centerX, centerZ, reach + 3)) {
+            return false;
+        }
         int level = MAX_TERRAIN_Y;
+        int peak = 0;
         for (int dx = -reach; dx <= reach; dx++) {
             for (int dz = -reach; dz <= reach; dz++) {
                 if (distanceSquared(dx, dz) <= enclosingRadius * enclosingRadius) {
-                    level = Math.min(level, heights[columnIndex(centerX + dx, centerZ + dz)]);
+                    int index = columnIndex(centerX + dx, centerZ + dz);
+                    if ((biomes[index] & (RIVER | LAKE)) != 0) {
+                        return false;
+                    }
+                    level = Math.min(level, heights[index]);
+                    peak = Math.max(peak, heights[index]);
+                    if (peak - level > 3) {
+                        return false;
+                    }
                 }
             }
+        }
+        if (level > MAX_LAKE_LEVEL) {
+            return false;
         }
 
         for (int dx = -reach; dx <= reach; dx++) {
@@ -2623,18 +3129,22 @@ final class TerrainGenerator {
                 if (distance > edge + shoreWidth) {
                     continue;
                 }
+                biomes[index] |= LAKE;
                 if (distance <= edge) {
                     int localDepth = Math.max(1, Math.round(depth * (1f - distance / edge * 0.82f)));
                     int bottomY = level - localDepth;
                     Block floor = lava ? lavaLining : waterLakeFloor(biomeAt(biomes, x, z), x, z);
                     write(world, x, bottomY, z, floor);
+                    if (floor == Block.SAND) {
+                        write(world, x, bottomY - 1, z, Block.SANDSTONE);
+                    }
                     for (int y = bottomY + 1; y <= level; y++) {
                         write(world, x, y, z, liquid);
                     }
                     for (int y = level + 1; y <= heights[index]; y++) {
                         write(world, x, y, z, Block.AIR);
                     }
-                    heights[index] = (byte) level;
+                    heights[index] = (short) level;
                     if (lava) {
                         markLavaColumns(biomes, x, z);
                     }
@@ -2644,7 +3154,11 @@ final class TerrainGenerator {
                     int shoreY = Math.min(heights[index], lowShore ? level : level + 1);
                     BiomeType biome = biomeAt(biomes, x, z);
                     Block shore = lava ? lavaShore : biome == BiomeType.DESERT ? Block.SAND : Block.GRASS;
+                    boolean newSand = shore == Block.SAND && world.getBlock(x, shoreY, z) != Block.SAND.getId();
                     write(world, x, shoreY, z, shore);
+                    if (newSand) {
+                        write(world, x, shoreY - 1, z, Block.SANDSTONE);
+                    }
                     // Giữ lại vật liệu bờ sẵn có và lót các thành còn hở ngang mực Lava.
                     if (lava && shoreY > level && world.getBlock(x, level, z) != shore.getId()) {
                         write(world, x, level, z, lavaLining);
@@ -2652,10 +3166,11 @@ final class TerrainGenerator {
                     for (int y = shoreY + 1; y <= heights[index]; y++) {
                         write(world, x, y, z, Block.AIR);
                     }
-                    heights[index] = (byte) shoreY;
+                    heights[index] = (short) shoreY;
                 }
             }
         }
+        return true;
     }
 
     /** Chọn vật liệu đáy phù hợp khí hậu và trộn Dirt, Sand, Gravel ở Plains. */
@@ -2684,7 +3199,7 @@ final class TerrainGenerator {
     }
 
     /** Đóng băng mặt hồ và rải các mảng tuyết có chiều dày khác nhau trên cỏ. */
-    private void generateIceAndSnow(World world, byte[] heights, byte[] biomes) {
+    private void generateIceAndSnow(World world, short[] heights, byte[] biomes) {
         for (int x = 0; x < WORLD_SIZE_X; x++) {
             for (int z = 0; z < WORLD_SIZE_Z; z++) {
                 if (biomeAt(biomes, x, z) != BiomeType.SNOWY_PLAINS) {
@@ -2694,6 +3209,8 @@ final class TerrainGenerator {
                 byte top = world.getBlock(x, y, z);
                 if (top == Block.WATER.getId() && !nearLava(world, biomes, x, y, z)) {
                     write(world, x, y, z, Block.ICE);
+                } else if (y > 110 && Block.fromId(top).isOpaque() && !nearLava(world, biomes, x, y + 1, z)) {
+                    write(world, x, y + 1, z, Block.SNOW_BLOCK);
                 } else if (top == Block.GRASS.getId() && !nearLava(world, biomes, x, y + 1, z)) {
                     float patch = TerrainNoise.fractal(seed ^ SNOW, x / 19f, z / 19f);
                     if (patch > 0.57f) {
@@ -2707,34 +3224,79 @@ final class TerrainGenerator {
         }
     }
 
-    /** Đi qua các ô lưới cây thưa; khoảng cách tối thiểu giữa hai thân giữ tán cây tách nhau. */
-    private void generateTrees(World world, byte[] heights, byte[] biomes) {
+    /** Dáng cây xác định chiều cao thân và vật liệu tán theo vùng khí hậu. */
+    private enum TreeShape {
+        OAK(4, 3, 2, 2, false),
+        OLD_OAK(9, 3, 3, 3, false),
+        OAK_BUSH(1, 1, 2, 0, false),
+        SPRUCE(7, 3, 3, 4, true),
+        PINE(7, 3, 2, 4, true),
+        DWARF_PINE(3, 2, 1, 2, true);
+
+        /** Hai mốc dùng tính chiều cao thân theo seed. */
+        final int minHeight;
+        final int variation;
+        /** Bán kính rộng nhất, độ sâu từ đỉnh thân, và kiểu lá. */
+        final int crownRadius;
+        final int crownDepth;
+        final boolean conifer;
+
+        /** Lưu kích thước và vật liệu dùng chung cho hai lượt kiểm tra và ghi hình cây. */
+        TreeShape(int minHeight, int variation, int crownRadius, int crownDepth, boolean conifer) {
+            this.minHeight = minHeight;
+            this.variation = variation;
+            this.crownRadius = crownRadius;
+            this.crownDepth = crownDepth;
+            this.conifer = conifer;
+        }
+    }
+
+    /** Lưới so le lấy mật độ liên tục từ Perlin để tạo trảng trống và cụm cây dày. */
+    private void generateTrees(World world, short[] heights, byte[] biomes, DesertPyramid pyramid) {
         long treeSeed = seed ^ TREES;
-        for (int gridX = 4; gridX < WORLD_SIZE_X - 3; gridX += 7) {
-            for (int gridZ = 4; gridZ < WORLD_SIZE_Z - 3; gridZ += 7) {
+        for (int gridX = 5; gridX < WORLD_SIZE_X - 4; gridX += 6) {
+            for (int gridZ = 5; gridZ < WORLD_SIZE_Z - 4; gridZ += 6) {
                 int x = gridX + sampleInt(treeSeed, gridX, gridZ, 3) - 1;
                 int z = gridZ + sampleInt(treeSeed + 1, gridX, gridZ, 3) - 1;
                 BiomeType biome = biomeAt(biomes, x, z);
-                if (biome == BiomeType.DESERT || nearSpawn(x, z, SPAWN_CLEARANCE + 3)) {
+                if (biome == BiomeType.DESERT || nearSpawn(x, z, SPAWN_CLEARANCE + 5)
+                        || pyramid.contains(x, z, 4)) {
                     continue;
                 }
-                boolean spruce = biome == BiomeType.SNOWY_PLAINS;
-                float choice = TerrainNoise.unit(treeSeed + 2, x, z);
                 int groundY = heights[columnIndex(x, z)];
-                if (choice >= (spruce ? 0.26f : 0.21f) || world.getBlock(x, groundY, z) != Block.GRASS.getId()) {
+                float forest = TerrainNoise.perlin(seed ^ FOREST, x / 91f, z / 91f)
+                        + 0.32f * TerrainNoise.perlin(seed ^ FOREST ^ 1L, x / 43f, z / 43f);
+                float density = TerrainNoise.mix(0.018f, 0.77f, smoothBetween(forest, -0.19f, 0.29f));
+                if (biome == BiomeType.SNOWY_PLAINS && groundY >= 62) {
+                    density *= 0.32f;
+                }
+                if (groundY > 77 || TerrainNoise.unit(treeSeed + 2, x, z) >= density
+                        || world.getBlock(x, groundY, z) != Block.GRASS.getId()) {
                     continue;
                 }
-                int height = (spruce ? 6 : 4) + sampleInt(treeSeed + 3, x, z, 3);
-                placeTree(world, biomes, x, groundY + 1, z, height, spruce);
+                TreeShape shape = treeShape(biome, groundY, TerrainNoise.unit(treeSeed + 3, x, z));
+                int height = shape.minHeight + sampleInt(treeSeed + 4, x, z, shape.variation);
+                placeTree(world, biomes, x, groundY + 1, z, height, shape);
             }
         }
     }
 
-    /** Dựng thân, tán rộng của sồi hoặc các tầng tán hình nón của vân sam và lớp tuyết trên lá lộ thiên. */
-    private void placeTree(World world, byte[] biomes, int x, int baseY, int z, int height, boolean spruce) {
+    /** Chọn dáng cây thấp dần theo cao độ trong biome tuyết, và đa dạng tuổi sồi ở Plains. */
+    private static TreeShape treeShape(BiomeType biome, int y, float variety) {
+        if (biome == BiomeType.PLAINS) {
+            return variety < 0.19f ? TreeShape.OAK_BUSH : variety < 0.34f ? TreeShape.OLD_OAK : TreeShape.OAK;
+        }
+        if (y >= 62) {
+            return TreeShape.DWARF_PINE;
+        }
+        return y >= 45 ? TreeShape.PINE : TreeShape.SPRUCE;
+    }
+
+    /** Kiểm tra thân và mọi ô tán trước khi ghi cây, rồi phủ tuyết lên tán thông hợp lệ. */
+    private void placeTree(World world, byte[] biomes, int x, int baseY, int z, int height, TreeShape shape) {
         int topY = baseY + height - 1;
         byte groundCover = world.getBlock(x, baseY, z);
-        if (groundCover != Block.AIR.getId() && (!spruce
+        if (groundCover != Block.AIR.getId() && (!shape.conifer
                 || (groundCover != Block.SNOW_LAYER.getId() && groundCover != Block.SNOW_BLOCK.getId()))) {
             return;
         }
@@ -2743,49 +3305,77 @@ final class TerrainGenerator {
                 return;
             }
         }
+        if (!treeCanopy(world, x, topY, z, shape, false)) {
+            return;
+        }
         write(world, x, baseY - 1, z, Block.DIRT);
-        Block log = spruce ? Block.SPRUCE_LOG : Block.OAK_LOG;
-        Block leaves = spruce ? Block.SPRUCE_LEAVES : Block.OAK_LEAVES;
+        Block log = shape.conifer ? Block.SPRUCE_LOG : Block.OAK_LOG;
         for (int y = baseY; y <= topY; y++) {
             write(world, x, y, z, log);
         }
-        int foliageDepth = spruce ? height - 3 : 2;
-        for (int y = topY - foliageDepth; y <= topY + 1; y++) {
-            int fromTop = topY - y;
-            int radius = spruce ? Math.min(2, (fromTop + 1) / 2) : fromTop > 0 ? 2 : 1;
+        treeCanopy(world, x, topY, z, shape, true);
+        if (shape.conifer) {
+            addCanopySnow(world, biomes, x, topY, z, shape);
+        }
+    }
+
+    /** Duyệt chung hình tán ở lượt xét khoảng trống và lượt ghi block. */
+    private boolean treeCanopy(World world, int x, int topY, int z, TreeShape shape, boolean place) {
+        Block leaves = shape.conifer ? Block.SPRUCE_LEAVES : Block.OAK_LEAVES;
+        for (int depth = -1; depth <= shape.crownDepth; depth++) {
+            int y = topY - depth;
+            int radius = crownRadius(shape, depth);
             for (int dx = -radius; dx <= radius; dx++) {
                 for (int dz = -radius; dz <= radius; dz++) {
                     int leafX = x + dx;
                     int leafZ = z + dz;
+                    if (depth >= 0 && dx == 0 && dz == 0) {
+                        continue;
+                    }
                     boolean corner = radius > 0 && Math.abs(dx) == radius && Math.abs(dz) == radius;
-                    if (corner && (spruce || y > topY
+                    if (corner && (shape.conifer || depth < 0
                             || TerrainNoise.unit(seed ^ TREES ^ y, leafX, leafZ) < 0.55f)) {
                         continue;
                     }
-                    if (world.getBlock(leafX, y, leafZ) == Block.AIR.getId()) {
+                    if (place) {
                         write(world, leafX, y, leafZ, leaves);
+                    } else if (!world.isInsideWorld(leafX, y, leafZ)
+                            || world.getBlock(leafX, y, leafZ) != Block.AIR.getId()) {
+                        return false;
                     }
                 }
             }
         }
-        if (spruce) {
-            addCanopySnow(world, biomes, x, topY, z, foliageDepth);
+        return true;
+    }
+
+    /** Tạo tán tròn của sồi, tán thông nhọn hoặc váy vân sam rộng. */
+    private static int crownRadius(TreeShape shape, int depth) {
+        if (!shape.conifer) {
+            return depth < 0 ? shape.crownRadius - 1 : shape.crownRadius;
         }
+        if (depth < 1) {
+            return 0;
+        }
+        return Math.min(shape.crownRadius, shape == TreeShape.SPRUCE ? depth : (depth + 1) / 2);
     }
 
     /** Cột lá chỉ nhận tuyết ở mặt trên đầu tiên thoáng ra bầu trời. */
-    private void addCanopySnow(World world, byte[] biomes, int x, int topY, int z, int foliageDepth) {
-        for (int leafX = x - 2; leafX <= x + 2; leafX++) {
-            for (int leafZ = z - 2; leafZ <= z + 2; leafZ++) {
-                if (TerrainNoise.unit(seed ^ SNOW, leafX, leafZ) >= 0.64f) {
+    private void addCanopySnow(World world, byte[] biomes, int x, int topY, int z, TreeShape shape) {
+        for (int leafX = x - shape.crownRadius; leafX <= x + shape.crownRadius; leafX++) {
+            for (int leafZ = z - shape.crownRadius; leafZ <= z + shape.crownRadius; leafZ++) {
+                if (biomeAt(biomes, leafX, leafZ) != BiomeType.SNOWY_PLAINS
+                        || TerrainNoise.unit(seed ^ SNOW, leafX, leafZ) >= 0.64f) {
                     continue;
                 }
-                for (int y = topY + 1; y >= topY - foliageDepth; y--) {
+                for (int y = topY + 1; y >= topY - shape.crownDepth; y--) {
                     byte top = world.getBlock(leafX, y, leafZ);
                     if (top == Block.AIR.getId()) {
                         continue;
                     }
-                    if (top == Block.SPRUCE_LEAVES.getId() && !nearLava(world, biomes, leafX, y + 1, leafZ)) {
+                    if (top == Block.SPRUCE_LEAVES.getId()
+                            && world.getBlock(leafX, y + 1, leafZ) == Block.AIR.getId()
+                            && !nearLava(world, biomes, leafX, y + 1, leafZ)) {
                         write(world, leafX, y + 1, leafZ, Block.SNOW_LAYER);
                     }
                     break;
@@ -2794,13 +3384,112 @@ final class TerrainGenerator {
         }
     }
 
+    /** Chọn tối đa hai gốc trên các bờ đối diện của ốc đảo đã tạo mặt nước. */
+    private void plantOasisPalms(World world, short[] heights, byte[] biomes, int centerX, int centerZ) {
+        boolean alongX = (TerrainNoise.hash(seed ^ TREES, centerX, centerZ) & 1) == 0;
+        for (int side = -1; side <= 1; side += 2) {
+            boolean placed = false;
+            for (int distance = 4; distance <= 13 && !placed; distance++) {
+                for (int tangent = -distance; tangent <= distance && !placed; tangent++) {
+                    int x = centerX + (alongX ? side * distance : tangent);
+                    int z = centerZ + (alongX ? tangent : side * distance);
+                    if (!world.isInsideWorld(x, 0, z) || biomeAt(biomes, x, z) != BiomeType.DESERT) {
+                        continue;
+                    }
+                    int groundY = heights[columnIndex(x, z)];
+                    if ((biomes[columnIndex(x, z)] & LAKE) == 0
+                            || world.getBlock(x, groundY, z) != Block.SAND.getId()
+                            || !hasOasisWater(world, x, groundY, z)) {
+                        continue;
+                    }
+                    placed = placePalm(world, x, groundY + 1, z);
+                }
+            }
+        }
+    }
+
+    /** Tìm mặt nước gần gốc dù nền cát có thể cao hơn mặt nước một block. */
+    private static boolean hasOasisWater(World world, int x, int groundY, int z) {
+        for (int dx = -2; dx <= 2; dx++) {
+            for (int dz = -2; dz <= 2; dz++) {
+                if (Math.abs(dx) + Math.abs(dz) > 2) {
+                    continue;
+                }
+                for (int y = groundY - 1; y <= groundY; y++) {
+                    if (world.getBlock(x + dx, y, z + dz) == Block.WATER.getId()) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /** Tạo thân thanh và chùm tàu lá xòe, với đầu tàu rủ thấp hơn tâm hai block. */
+    private boolean placePalm(World world, int x, int baseY, int z) {
+        int topY = baseY + 5 + sampleInt(seed ^ FOREST, x, z, 3);
+        for (int y = baseY; y <= topY; y++) {
+            if (world.getBlock(x, y, z) != Block.AIR.getId()) {
+                return false;
+            }
+        }
+        if (!palmCanopy(world, x, topY, z, false)) {
+            return false;
+        }
+        for (int y = baseY; y <= topY; y++) {
+            write(world, x, y, z, Block.OAK_LOG);
+        }
+        palmCanopy(world, x, topY, z, true);
+        return true;
+    }
+
+    /** Ghi tán tám hướng bằng hai loại cung dài/ngắn và cạnh lá xen kẽ. */
+    private static boolean palmCanopy(World world, int x, int y, int z, boolean place) {
+        if (!palmLeaf(world, x, y + 1, z, place)) {
+            return false;
+        }
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                if (dx == 0 && dz == 0) {
+                    continue;
+                }
+                boolean diagonal = dx != 0 && dz != 0;
+                int length = diagonal ? 3 : 4;
+                int previousY = y + 1;
+                for (int step = 1; step <= length; step++) {
+                    int leafY = y + (step < length - 1 ? 1 : step == length ? -1 : 0);
+                    int nextX = x + dx * step;
+                    int nextZ = z + dz * step;
+                    // Nối tàu lá bằng các mặt chung cả khi đổi cao độ hoặc đi chéo.
+                    if ((diagonal && !palmLeaf(world, nextX, previousY, nextZ - dz, place))
+                            || (leafY != previousY && !palmLeaf(world, nextX, previousY, nextZ, place))
+                            || !palmLeaf(world, nextX, leafY, nextZ, place)) {
+                        return false;
+                    }
+                    previousY = leafY;
+                }
+            }
+        }
+        return true;
+    }
+
+    /** Kiểm tra trước, sau đó cho phép các nhánh dùng chung ô nối khi ghi lá. */
+    private static boolean palmLeaf(World world, int x, int y, int z, boolean place) {
+        if (place) {
+            write(world, x, y, z, Block.OAK_LEAVES);
+            return true;
+        }
+        return world.isInsideWorld(x, y, z) && world.getBlock(x, y, z) == Block.AIR.getId();
+    }
+
     /** Rải thực vật sau khi có nền, nước và cây; bỏ qua các vị trí đã bị cấu trúc khác chiếm. */
-    private void generatePlants(World world, byte[] heights, byte[] biomes) {
+    private void generatePlants(World world, short[] heights, byte[] biomes, DesertPyramid pyramid) {
         long plantSeed = seed ^ PLANTS;
         for (int x = 0; x < WORLD_SIZE_X; x++) {
             for (int z = 0; z < WORLD_SIZE_Z; z++) {
                 int y = heights[columnIndex(x, z)] + 1;
-                if (nearSpawn(x, z, SPAWN_CLEARANCE) || world.getBlock(x, y, z) != Block.AIR.getId()) {
+                if (nearSpawn(x, z, SPAWN_CLEARANCE) || pyramid.contains(x, z, 0)
+                        || world.getBlock(x, y, z) != Block.AIR.getId()) {
                     continue;
                 }
                 byte soil = world.getBlock(x, y - 1, z);
@@ -2840,10 +3529,22 @@ final class TerrainGenerator {
     /** Dùng noise để tạo cụm cỏ, cụm hoa và công bố đủ hai nửa cỏ cao. */
     private static void plantMeadow(World world, int x, int y, int z, float roll, long plantSeed) {
         float patch = TerrainNoise.fractal(plantSeed + 3, x / 16f, z / 16f);
-        if (patch > 0.20f && roll < 0.043f) {
-            int species = sampleInt(plantSeed + 4, x / 11, z / 11, FLOWERS.length);
-            write(world, x, y, z, FLOWERS[species]);
-        } else if (patch > -0.09f && roll < 0.26f) {
+        if (roll < 0.14f) {
+            float strength = 0.43f;
+            Block species = null;
+            for (int index = 0; index < FLOWERS.length; index++) {
+                float flowerPatch = TerrainNoise.simplex(plantSeed + 7 + index, x / 31f, z / 31f);
+                if (flowerPatch > strength) {
+                    strength = flowerPatch;
+                    species = FLOWERS[index];
+                }
+            }
+            if (species != null) {
+                write(world, x, y, z, species);
+                return;
+            }
+        }
+        if (patch > -0.09f && roll < 0.26f) {
             if (roll < 0.055f && world.getBlock(x, y + 1, z) == Block.AIR.getId()) {
                 write(world, x, y, z, Block.TALL_GRASS);
                 world.setBlockInternal(x, y + 1, z, Block.TALL_GRASS.getId(), 1);
@@ -2865,7 +3566,7 @@ final class TerrainGenerator {
 
     /** Tra mã biome của một cột, bỏ qua cờ phát hiện Lava. */
     private static BiomeType biomeAt(byte[] biomes, int x, int z) {
-        return BIOMES[biomes[columnIndex(x, z)] & ~NEAR_LAVA];
+        return BIOMES[biomes[columnIndex(x, z)] & 3];
     }
 
     /** Tính vị trí cột trong bộ đệm liên tục theo trục Z. */
@@ -2878,9 +3579,10 @@ final class TerrainGenerator {
         return (int) (TerrainNoise.unit(seed, x, z) * bound);
     }
 
-    /** Kiểm tra khoảng cách theo mặt phẳng ngang tới tâm spawn. */
+    /** Kiểm tra khoảng cách ngang tới cả hai vùng an toàn cho người chơi. */
     private static boolean nearSpawn(int x, int z, int radius) {
-        return distanceSquared(x - CENTER_X, z - CENTER_Z) <= radius * radius;
+        return distanceSquared(x - CENTER_X, z - CENTER_Z) <= radius * radius
+                || distanceSquared(x - World.RESPAWN_X, z - World.RESPAWN_Z) <= radius * radius;
     }
 
     /** Ánh xạ một đoạn hữu hạn về trọng số mượt trong khoảng [0, 1]. */
@@ -2936,6 +3638,78 @@ final class TerrainNoise {
         return (value(seed, x, z)
                 + 0.5f * value(seed + 1, x * 2f, z * 2f)
                 + 0.25f * value(seed + 2, x * 4f, z * 4f)) / OCTAVE_WEIGHT;
+    }
+
+    /** Perlin hai chiều với gradient băm theo seed và trọng số bậc năm. */
+    static float perlin(long seed, float x, float z) {
+        int ix = (int) Math.floor(x);
+        int iz = (int) Math.floor(z);
+        float dx = x - ix;
+        float dz = z - iz;
+        float u = fade(dx);
+        float v = fade(dz);
+        float near = mix(gradient(seed, ix, iz, dx, dz), gradient(seed, ix + 1, iz, dx - 1f, dz), u);
+        float far = mix(gradient(seed, ix, iz + 1, dx, dz - 1f),
+                gradient(seed, ix + 1, iz + 1, dx - 1f, dz - 1f), u);
+        return mix(near, far, v);
+    }
+
+    /** Tích lũy các đỉnh nhọn và dùng octave trước làm trọng số cho octave sau. */
+    static float ridged(long seed, float x, float z) {
+        float sum = 0f;
+        float weight = 1f;
+        float amplitude = 1f;
+        for (int octave = 0; octave < 4; octave++) {
+            float ridge = 1f - Math.abs(perlin(seed + octave, x, z));
+            float signal = ridge * ridge * weight;
+            sum += signal * amplitude;
+            weight = Math.min(1f, signal * 1.65f);
+            amplitude *= 0.5f;
+            x *= 2.06f;
+            z *= 2.06f;
+        }
+        return sum / 1.875f;
+    }
+
+    /** Simplex hai chiều lấy mẫu ba đỉnh tam giác để tạo các mảng hoa liên tục. */
+    static float simplex(long seed, float x, float z) {
+        float skew = (x + z) * 0.3660254f;
+        int i = (int) Math.floor(x + skew);
+        int j = (int) Math.floor(z + skew);
+        float unskew = (i + j) * 0.21132487f;
+        float dx = x - (i - unskew);
+        float dz = z - (j - unskew);
+        int ix = dx > dz ? 1 : 0;
+        int iz = 1 - ix;
+        return 70f * (simplexCorner(seed, i, j, dx, dz)
+                + simplexCorner(seed, i + ix, j + iz, dx - ix + 0.21132487f, dz - iz + 0.21132487f)
+                + simplexCorner(seed, i + 1, j + 1, dx - 0.57735026f, dz - 0.57735026f));
+    }
+
+    /** Làm suy giảm đóng góp gradient theo khoảng cách đến đỉnh Simplex. */
+    private static float simplexCorner(long seed, int x, int z, float dx, float dz) {
+        float t = Math.max(0f, 0.5f - dx * dx - dz * dz);
+        t *= t;
+        return t * t * gradient(seed, x, z, dx, dz);
+    }
+
+    /** Đạo hàm bậc nhất và bậc hai bằng 0 ở đường biên ô Perlin. */
+    private static float fade(float t) {
+        return t * t * t * (t * (t * 6f - 15f) + 10f);
+    }
+
+    /** Tích vô hướng với một trong tám hướng có độ dài đơn vị. */
+    private static float gradient(long seed, int x, int z, float dx, float dz) {
+        return switch ((int) (hash(seed, x, z) & 7)) {
+            case 0 -> dx;
+            case 1 -> -dx;
+            case 2 -> dz;
+            case 3 -> -dz;
+            case 4 -> (dx + dz) * 0.70710677f;
+            case 5 -> (dx - dz) * 0.70710677f;
+            case 6 -> (-dx + dz) * 0.70710677f;
+            default -> (-dx - dz) * 0.70710677f;
+        };
     }
 
     /** Băm bốn đỉnh ô rồi nội suy theo X và Z để không có khe tại biên ô. */
@@ -3033,6 +3807,13 @@ public class Texture implements Disposable {
     public static final int TILE_OXEYE_DAISY = 30;
     public static final int TILE_SUGAR_CANE = 31;
     public static final int TILE_GRAVEL = 32;
+
+    /** Mặt gỗ sơn có khóa đồng của rương trang trí. */
+    public static final int TILE_CHEST_FRONT = 33;
+    /** Mặt gỗ ghép có nẹp dọc của rương trang trí. */
+    public static final int TILE_CHEST_SIDE = 34;
+    /** Nắp rương với họa tiết khảm hình thoi. */
+    public static final int TILE_CHEST_TOP = 35;
 
     // Hệ số nhân RGB cho thảm thực vật đồng bằng và lá vân sam, lần lượt theo mã màu RGB.
     private static final int PLAINS_TINT = 0x91BD59;
@@ -3146,6 +3927,38 @@ public class Texture implements Disposable {
         loadTileOrFallback(atlasPixmap, TILE_OXEYE_DAISY, TileStyle.CUTOUT, 0xEEE8CF, "oxeye_daisy");
         loadTileOrFallback(atlasPixmap, TILE_SUGAR_CANE, TileStyle.PLAINS, 0x8BB05B, "sugar_cane");
         loadTileOrFallback(atlasPixmap, TILE_GRAVEL, TileStyle.OPAQUE, 0x807B78, "gravel");
+        drawDecorativeChest(atlasPixmap);
+    }
+
+    /** Vẽ rương theo bảng màu gỗ sơn xanh và đồng, ghi đè trực tiếp ba ô atlas. */
+    private void drawDecorativeChest(Pixmap atlas) {
+        for (int tile = TILE_CHEST_FRONT; tile <= TILE_CHEST_TOP; tile++) {
+            for (int y = 0; y < TILE_SIZE; y++) {
+                for (int x = 0; x < TILE_SIZE; x++) {
+                    int distanceToEdge = Math.min(Math.min(x, TILE_SIZE - 1 - x),
+                            Math.min(y, TILE_SIZE - 1 - y));
+                    int centerDistance = Math.abs(2 * x - 15) + Math.abs(2 * y - 15);
+                    int rgb;
+                    if (distanceToEdge == 0) {
+                        rgb = 0x223B37;
+                    } else if (tile == TILE_CHEST_FRONT && Math.abs(2 * x - 15) + 2 * Math.abs(y - 6) <= 5) {
+                        rgb = (x == 7 || y == 5) ? 0xF5D49B : 0xB36D3A;
+                    } else if (tile != TILE_CHEST_TOP && y == 5) {
+                        rgb = 0x223B37;
+                    } else if (distanceToEdge == 1 || (tile == TILE_CHEST_TOP && centerDistance == 12)
+                            || (tile != TILE_CHEST_TOP && (x == 3 || x == 12))) {
+                        rgb = ((x + y) % 7 == 0) ? 0xE4AC72 : 0x90613C;
+                    } else if (tile == TILE_CHEST_TOP && centerDistance < 8) {
+                        rgb = 0x5E9B90;
+                    } else {
+                        rgb = y % 4 == 0 ? 0x375953 : 0x477971;
+                    }
+                    int grain = ((x * 13 + y * 7 + x * y * 3) % 11) - 5;
+                    putAtlasPixel(atlas, tile, x, y, ((rgb >>> 16) & 255) + grain,
+                            ((rgb >>> 8) & 255) + grain, (rgb & 255) + grain, 255);
+                }
+            }
+        }
     }
 
     /** Tận dụng sheet cỏ cũ cho mặt còn thiếu và lấy ô đất của sheet làm dự phòng. */
@@ -4698,7 +5511,7 @@ import java.util.List;
  *    - Trong `breakBlockAndSpawnDrop(int, int, int)`, `World` gọi đa hình `target.onBreak(this, worldX, worldY, worldZ)`
  *      để mỗi loại `Block` tự quyết định vật phẩm rơi ra (ví dụ: `GrassBlock` rơi ra `Block.DIRT`).
  * 2. Tính Đóng gói (Encapsulation):
- *    - Đóng gói mảng `chunks`, `surfaceHeights` và danh sách `entities` ở phạm vi `private final`,
+ *    - Đóng gói mảng `chunks` và danh sách `entities` ở phạm vi `private final`,
  *      chỉ cung cấp các phương thức giao tiếp an toàn (`registerPlayer`, `spawnDroppedItem`, `getBlock`, `setBlock`).
  */
 public class World implements Disposable {
@@ -4713,18 +5526,22 @@ public class World implements Disposable {
     public static final int WORLD_SIZE_Y = WORLD_CHUNKS_Y * Chunk.SIZE;
     public static final int WORLD_SIZE_Z = WORLD_CHUNKS_Z * Chunk.SIZE;
 
-    // Tâm hình học của bản đồ theo phương ngang, dùng chung cho spawn và hồi vị trí.
+    // Tâm hình học dùng cho lần xuất phát đầu tiên và tọa độ hồi sinh ưu tiên.
     public static final int CENTER_X = WORLD_SIZE_X / 2;
     public static final int CENTER_Z = WORLD_SIZE_Z / 2;
+    static final int RESPAWN_X = 1500;
+    static final int RESPAWN_Z = 1500;
+    /** Số block tối đa tìm quanh tâm biome để tránh cột ngập nước hoặc bị che kín. */
+    private static final int BIOME_LANDING_RADIUS = 32;
     // Dựng sẵn khu vực 5 × 5 cột chunk quanh spawn.
     private static final int SPAWN_MESH_RADIUS = 2;
     // Giới hạn công việc dựng mesh mỗi khung hình và thời gian giữ mesh ngoài khung nhìn.
     private static final int MESH_BUILDS_PER_FRAME = 16;
     private static final int MESH_RETENTION_FRAMES = 120;
 
-    // Giới hạn nghiêm ngặt: Tổng số lớp địa hình từ đáy (y = 0) đến đỉnh cao nhất <= 20 lớp (tức y <= 19)
-    public static final int MAX_TERRAIN_LAYERS = 20;
-    public static final int MAX_TERRAIN_Y = MAX_TERRAIN_LAYERS - 1; // y = 19
+    // Chừa phần không gian trên đỉnh tự nhiên cho tuyết, cây và xây dựng.
+    public static final int MAX_TERRAIN_LAYERS = 155;
+    public static final int MAX_TERRAIN_Y = MAX_TERRAIN_LAYERS - 1;
     /** Seed ổn định dùng cho toàn bộ vùng khí hậu và đặc trưng địa hình. */
     public static final long WORLD_SEED = 20261114L;
 
@@ -4808,6 +5625,126 @@ public class World implements Disposable {
     /** Trả về vị trí chân người chơi ở tâm bản đồ, ngay trên mặt đất khi tạo thế giới. */
     public Vector3 getSpawnPosition() {
         return new Vector3(CENTER_X, spawnY, CENTER_Z);
+    }
+
+    /** Tìm điểm đứng khô theo từng vành vuông quanh tâm biome. Chỉ ghi vị trí khi có nền hợp lệ. */
+    public boolean setBiomeCenterPosition(Vector3 position, BiomeType biome) {
+        int centerX = switch (biome) {
+            case SNOWY_PLAINS -> CENTER_X - BIOME_WIDTH;
+            case PLAINS -> CENTER_X;
+            case DESERT -> CENTER_X + BIOME_WIDTH;
+        };
+        for (int radius = 0; radius <= BIOME_LANDING_RADIUS; radius++) {
+            for (int dx = -radius; dx <= radius; dx++) {
+                for (int dz = -radius; dz <= radius; dz++) {
+                    if (Math.max(Math.abs(dx), Math.abs(dz)) != radius) {
+                        continue;
+                    }
+                    int x = centerX + dx;
+                    int z = CENTER_Z + dz;
+                    float feet = biomeLandingFeetY(x, z);
+                    if (feet > 0 && getBiome(x, z) == biome) {
+                        // Dấu chân rộng 0,6 block nằm trọn trong cột khi đặt ở chính giữa ô.
+                        position.set(x + 0.5f, feet, z + 0.5f);
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /** Tìm mặt đỡ ngoài trời trong dữ liệu voxel hiện tại, kể cả tuyết và các block đã sửa. */
+    private float biomeLandingFeetY(int x, int z) {
+        for (int y = findHighestBlockY(x, z); y >= 0; y--) {
+            Block block = Block.fromId(getBlock(x, y, z));
+            if (block.isLiquid()) {
+                return 0f;
+            }
+            Block.Bounds bounds = block.getCollisionBounds(getBlockState(x, y, z));
+            if (bounds == null) {
+                continue;
+            }
+            // Bỏ cột có mặt đỡ là băng, xương rồng hoặc cây, kể cả tuyết phủ trên tán lá.
+            Block base = block == Block.SNOW_LAYER ? Block.fromId(getBlock(x, y - 1, z)) : block;
+            if (base == Block.ICE || base == Block.CACTUS || base == Block.OAK_LOG || base == Block.SPRUCE_LOG
+                    || base == Block.OAK_LEAVES || base == Block.SPRUCE_LEAVES || y + 2 >= WORLD_SIZE_Y) {
+                return 0f;
+            }
+            return y + bounds.maxY();
+        }
+        return 0f;
+    }
+
+    /** Đưa người chơi tới cột hồi sinh thông thoáng, kể cả khi đã có người xây ở đó. */
+    public void setRespawnPosition(Vector3 position) {
+        if (tryRespawnNear(position, RESPAWN_X, RESPAWN_Z)
+                || tryRespawnNear(position, CENTER_X, CENTER_Z)) {
+            return;
+        }
+        // Cho phép người chơi di chuyển trở lại bản đồ nếu cả hai vùng đã bị xây kín.
+        position.set(CENTER_X, WORLD_SIZE_Y, CENTER_Z);
+    }
+
+    /** Duyệt các vành vuông theo khoảng cách tăng dần quanh giao điểm bốn cột. */
+    private boolean tryRespawnNear(Vector3 position, int centerX, int centerZ) {
+        for (int radius = 0; radius <= 12; radius++) {
+            for (int dx = -radius; dx <= radius; dx++) {
+                for (int dz = -radius; dz <= radius; dz++) {
+                    if (Math.max(Math.abs(dx), Math.abs(dz)) != radius) {
+                        continue;
+                    }
+                    int x = centerX + dx;
+                    int z = centerZ + dz;
+                    float feet = respawnFeetY(x, z);
+                    if (feet > 0) {
+                        position.set(x, feet, z);
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /** Yêu cầu một nền rắn và hai ô Air trên toàn bộ bốn cột chạm dấu chân. */
+    private float respawnFeetY(int x, int z) {
+        float feet = 0f;
+        for (int dx = -1; dx <= 0; dx++) {
+            for (int dz = -1; dz <= 0; dz++) {
+                int wx = x + dx;
+                int wz = z + dz;
+                for (int y = findHighestBlockY(wx, wz); y + 1 > feet; y--) {
+                    if (y < 0) {
+                        break;
+                    }
+                    Block ground = Block.fromId(getBlock(wx, y, wz));
+                    Block.Bounds bounds = ground.getCollisionBounds(getBlockState(wx, y, wz));
+                    if (bounds != null && ground != Block.CACTUS) {
+                        feet = Math.max(feet, y + bounds.maxY());
+                        break;
+                    }
+                }
+            }
+        }
+        int clearanceY = (int) Math.ceil(feet);
+        if (feet == 0 || clearanceY + 1 >= WORLD_SIZE_Y) {
+            return 0;
+        }
+        for (int dx = -1; dx <= 0; dx++) {
+            for (int dz = -1; dz <= 0; dz++) {
+                int wx = x + dx;
+                int wz = z + dz;
+                int supportY = clearanceY - 1;
+                Block.Bounds bounds = getCollisionBounds(wx, supportY, wz);
+                if ((bounds != null && supportY + bounds.maxY() > feet)
+                        || getBlock(wx, clearanceY, wz) != Block.AIR.getId()
+                        || getBlock(wx, clearanceY + 1, wz) != Block.AIR.getId()) {
+                    return 0;
+                }
+            }
+        }
+        return feet;
     }
 
     /** Trả vùng khí hậu tại cột, kể cả khi chunk chưa có mesh. */
@@ -4898,6 +5835,7 @@ public class World implements Disposable {
         }
     }
 
+    /** Tìm ô khác Air cao nhất của một cột trong bản đồ. */
     private int findHighestBlockY(int wx, int wz) {
         int cx = wx / Chunk.SIZE;
         int cz = wz / Chunk.SIZE;
@@ -4915,6 +5853,26 @@ public class World implements Disposable {
             }
         }
         return 0;
+    }
+
+    /** Chia dải địa tầng khác Air tại từng biên chunk; chỉ dùng khi khởi tạo thế giới. */
+    void fillGeneratedColumn(int x, int z, int firstY, int endY, Block block) {
+        int cx = x / Chunk.SIZE;
+        int cz = z / Chunk.SIZE;
+        int lx = x % Chunk.SIZE;
+        int lz = z % Chunk.SIZE;
+        for (int y = firstY; y < endY; ) {
+            int cy = y / Chunk.SIZE;
+            int originY = cy * Chunk.SIZE;
+            int nextY = Math.min(endY, originY + Chunk.SIZE);
+            Chunk chunk = chunks[cx][cy][cz];
+            if (chunk == null) {
+                chunk = new Chunk(cx, cy, cz);
+                chunks[cx][cy][cz] = chunk;
+            }
+            chunk.fillGeneratedColumnSegment(lx, lz, y - originY, nextY - originY, block.getId());
+            y = nextY;
+        }
     }
 
     /** Ghi block và cấp phát hoặc giải phóng chunk khi nó chuyển trạng thái rỗng. */
@@ -5102,35 +6060,20 @@ public class World implements Disposable {
         int ly = worldY % Chunk.SIZE;
         int lz = worldZ % Chunk.SIZE;
 
-        if (lx == 0 && cx > 0) {
-            markChunkDirty(cx - 1, cy, cz);
-        } else if (lx == Chunk.SIZE - 1 && cx < WORLD_CHUNKS_X - 1) {
-            markChunkDirty(cx + 1, cy, cz);
-        }
-
-        if (ly == 0 && cy > 0) {
-            markChunkDirty(cx, cy - 1, cz);
-        } else if (ly == Chunk.SIZE - 1 && cy < WORLD_CHUNKS_Y - 1) {
-            markChunkDirty(cx, cy + 1, cz);
-        }
-
-        if (lz == 0 && cz > 0) {
-            markChunkDirty(cx, cy, cz - 1);
-        } else if (lz == Chunk.SIZE - 1 && cz < WORLD_CHUNKS_Z - 1) {
-            markChunkDirty(cx, cy, cz + 1);
-        }
-
-        // Mặt bên chất lỏng một ô dưới có thể đổi độ cao qua cả biên ngang lẫn biên đứng.
-        if (ly == 0 && cy > 0 && Block.fromId(getBlock(worldX, worldY - 1, worldZ)).isLiquid()) {
-            if (lx == 0 && cx > 0) {
-                markChunkDirty(cx - 1, cy - 1, cz);
-            } else if (lx == Chunk.SIZE - 1 && cx < WORLD_CHUNKS_X - 1) {
-                markChunkDirty(cx + 1, cy - 1, cz);
-            }
-            if (lz == 0 && cz > 0) {
-                markChunkDirty(cx, cy - 1, cz - 1);
-            } else if (lz == Chunk.SIZE - 1 && cz < WORLD_CHUNKS_Z - 1) {
-                markChunkDirty(cx, cy - 1, cz + 1);
+        // AO và mặt chất lỏng có thể phụ thuộc ô ở chunk chung mặt, cạnh hoặc góc.
+        int minX = lx == 0 && cx > 0 ? -1 : 0;
+        int maxX = lx == Chunk.SIZE - 1 && cx + 1 < WORLD_CHUNKS_X ? 1 : 0;
+        int minY = ly == 0 && cy > 0 ? -1 : 0;
+        int maxY = ly == Chunk.SIZE - 1 && cy + 1 < WORLD_CHUNKS_Y ? 1 : 0;
+        int minZ = lz == 0 && cz > 0 ? -1 : 0;
+        int maxZ = lz == Chunk.SIZE - 1 && cz + 1 < WORLD_CHUNKS_Z ? 1 : 0;
+        for (int dx = minX; dx <= maxX; dx++) {
+            for (int dy = minY; dy <= maxY; dy++) {
+                for (int dz = minZ; dz <= maxZ; dz++) {
+                    if (dx != 0 || dy != 0 || dz != 0) {
+                        markChunkDirty(cx + dx, cy + dy, cz + dz);
+                    }
+                }
             }
         }
 
@@ -5298,6 +6241,12 @@ public class World implements Disposable {
     /** Cho phép vẽ tầng mây sau pha ghi chiều sâu và trước khi hòa màu nước/băng. */
     public void render(ShaderProgram shader, Matrix4 projection, Matrix4 view, Vector3 cameraPosition,
                        Runnable beforeTranslucent) {
+        render(shader, projection, view, cameraPosition, beforeTranslucent, Float.POSITIVE_INFINITY);
+    }
+
+    /** Bỏ các chunk nằm hoàn toàn ngoài tầm nhìn màu sắc khi sương đạt độ đậm tối đa. */
+    public void render(ShaderProgram shader, Matrix4 projection, Matrix4 view, Vector3 cameraPosition,
+                       Runnable beforeTranslucent, float drawDistance) {
         // libGDX dùng nghịch đảo của Projection × View để dựng sáu mặt phẳng khung nhìn.
         inverseViewProjection.set(projection).mul(view).inv();
         frustum.update(inverseViewProjection);
@@ -5307,7 +6256,8 @@ public class World implements Disposable {
         pendingMeshCount = 0;
         visibleChunkCount = 0;
 
-        collectVisibleChunks();
+        Vector3 eye = cameraPosition == null ? nearCenter : cameraPosition;
+        collectVisibleChunks(eye, drawDistance);
         for (int i = 0; i < pendingMeshCount; i++) {
             Chunk chunk = pendingMeshes[i];
             pendingMeshes[i] = null;
@@ -5316,7 +6266,6 @@ public class World implements Disposable {
         releaseOffscreenMeshes();
 
         int translucentCount = 0;
-        Vector3 eye = cameraPosition == null ? nearCenter : cameraPosition;
         shader.setUniformMatrix4f("uModel", identityMatrix);
         for (int i = 0; i < visibleChunkCount; i++) {
             Chunk chunk = visibleChunks[i];
@@ -5363,7 +6312,7 @@ public class World implements Disposable {
     }
 
     /** Duyệt khung nhìn theo thứ tự tọa độ X, Y, Z để khóa hòa ổn định. */
-    private void collectVisibleChunks() {
+    private void collectVisibleChunks(Vector3 eye, float range) {
         float minX = Float.POSITIVE_INFINITY;
         float minZ = Float.POSITIVE_INFINITY;
         float maxX = Float.NEGATIVE_INFINITY;
@@ -5374,6 +6323,11 @@ public class World implements Disposable {
             maxX = Math.max(maxX, corner.x);
             maxZ = Math.max(maxZ, corner.z);
         }
+        minX = Math.max(minX, eye.x - range);
+        minZ = Math.max(minZ, eye.z - range);
+        maxX = Math.min(maxX, eye.x + range);
+        maxZ = Math.min(maxZ, eye.z + range);
+        float rangeSquared = range * range;
         // Mở rộng thêm một ô ở mép dưới để tính cả chunk tiếp xúc mặt hộp bao.
         int firstX = Math.max(0, (int) Math.floor(minX / Chunk.SIZE) - 1);
         int firstZ = Math.max(0, (int) Math.floor(minZ / Chunk.SIZE) - 1);
@@ -5383,7 +6337,7 @@ public class World implements Disposable {
             for (int cy = 0; cy < WORLD_CHUNKS_Y; cy++) {
                 for (int cz = firstZ; cz <= lastZ; cz++) {
                     Chunk chunk = chunks[cx][cy][cz];
-                    if (chunk != null && chunk.intersectsFrustum(frustum)) {
+                    if (chunk != null && chunk.distanceSquaredTo(eye) <= rangeSquared && chunk.intersectsFrustum(frustum)) {
                         chunk.lastVisibleFrame = renderFrame;
                         if (chunk.isDirty()) {
                             queueMeshBuild(chunk);
@@ -5647,6 +6601,8 @@ public abstract class Block extends Entity {
     public static final Block ICE = new IceBlock();
     public static final Block SPRUCE_LOG = new SpruceLogBlock();
     public static final Block SPRUCE_LEAVES = new SpruceLeavesBlock();
+    /** Rương gỗ trang trí được sinh trong tầng ngầm của kim tự tháp. */
+    public static final Block CHEST = new DecorativeChestBlock();
 
     /** Lớp kết xuất quyết định cách ghi chiều sâu và hòa trộn alpha. */
     public enum RenderLayer { OPAQUE, CUTOUT, TRANSLUCENT }
@@ -5742,11 +6698,11 @@ public abstract class Block extends Entity {
     }
 
     /**
-     * Phương thức trừu tượng buộc mỗi loại Block cụ thể tự định nghĩa chỉ số ô ảnh (Tile Index 0..15)
+     * Phương thức trừu tượng buộc mỗi loại Block cụ thể tự định nghĩa chỉ số ô ảnh
      * trên Texture Atlas cho từng mặt (TOP, BOTTOM, NORTH, SOUTH, EAST, WEST).
      *
      * @param face mặt lập phương cần lấy chỉ số tile
-     * @return chỉ số tile (0..15) trên Texture Atlas
+     * @return chỉ số tile trên Texture Atlas
      */
     public abstract int getTileIndex(Face face);
 
@@ -6007,6 +6963,37 @@ final class DeadBushBlock extends PlantBlock {
     public boolean canPlaceAt(World world, int x, int y, int z) {
         Block below = fromId(world.getBlock(x, y - 1, z));
         return below == SAND || below == DIRT;
+    }
+}
+
+
+
+==================== FILE: D:\VoxelGame\src\main\java\com\voxelgame\entity\DecorativeChestBlock.java ====================
+package com.voxelgame.entity;
+
+import com.voxelgame.engine.Texture;
+
+/** Rương trang trí bằng gỗ sơn, dùng hình khối và tương tác đào, đặt mặc định. */
+public final class DecorativeChestBlock extends Block {
+    /** Nối mã rương sau các mã khối đã dùng trong thế giới. */
+    private static final byte ID = 26;
+    /** Thời gian đào tay của khối gỗ trang trí, tính theo giây. */
+    private static final float HARDNESS = 2.5f;
+
+    /** Đăng ký rương là khối rắn đục có thể đào để nhận lại chính nó. */
+    DecorativeChestBlock() {
+        super(ID, "Decorative Chest", HARDNESS, true, false, true,
+                new float[]{0.21f, 0.43f, 0.40f});
+    }
+
+    /** Hiển thị khóa trên mặt nam và hoa văn khảm trên nắp. */
+    @Override
+    public int getTileIndex(Face face) {
+        return switch (face) {
+            case SOUTH -> Texture.TILE_CHEST_FRONT;
+            case TOP -> Texture.TILE_CHEST_TOP;
+            case NORTH, EAST, WEST, BOTTOM -> Texture.TILE_CHEST_SIDE;
+        };
     }
 }
 
@@ -7255,6 +8242,7 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.math.Vector3;
 import com.voxelgame.engine.AudioManager;
+import com.voxelgame.engine.BiomeType;
 import com.voxelgame.engine.Camera;
 import com.voxelgame.engine.ShaderProgram;
 import com.voxelgame.engine.World;
@@ -7332,6 +8320,10 @@ public class Player extends Entity {
     private boolean isSprinting = false;
     private boolean isSneaking = false;
 
+    /** Các mức tốc độ kiểm tra địa hình áp dụng cho di chuyển ngang và điều khiển độ cao khi bay. */
+    private static final int[] TERRAIN_SPEED_MULTIPLIERS = {1, 3, 5, 10, 25, 50};
+    private int terrainSpeedIndex;
+
     // Biến phục vụ nhận diện thao tác bấm đúp phím Space (Double-tap Space)
     private boolean wasSpacePressed = false;
     private float lastSpaceTapTime = -1.0f;
@@ -7346,6 +8338,34 @@ public class Player extends Entity {
 
     public Player(float startX, float startY, float startZ) {
         super(startX, startY, startZ, PLAYER_HALF_WIDTH, PLAYER_HEIGHT);
+    }
+
+    /** Chuyển sang mức tốc độ kế tiếp và quay về 1x sau 50x. */
+    public void cycleTerrainSpeed() {
+        terrainSpeedIndex = (terrainSpeedIndex + 1) % TERRAIN_SPEED_MULTIPLIERS.length;
+    }
+
+    /** Đặt chân lên nền hợp lệ gần tâm biome và đồng bộ trạng thái chuyển động với vị trí mới. */
+    public boolean teleportToBiome(World world, BiomeType biome) {
+        if (!world.setBiomeCenterPosition(position, biome)) {
+            return false;
+        }
+
+        // Xóa đà, lực đẩy, chuỗi nhấn đúp và quãng đường âm thanh ở vị trí cũ.
+        velocity.setZero();
+        pushX = pushZ = 0f;
+        isFlying = false;
+        onGround = true;
+        lastSpaceTapTime = Float.NEGATIVE_INFINITY;
+        lastShiftTapTime = Float.NEGATIVE_INFINITY;
+        airborneTime = stepDistance = swimDistance = 0f;
+        previousLiquid = Block.AIR;
+        wasUnderwater = false;
+        nearbyLiquidDelay = 0f;
+        if (camera != null) {
+            camera.setPosition(position.x, position.y + currentEyeHeight, position.z);
+        }
+        return true;
     }
 
     /**
@@ -7396,7 +8416,7 @@ public class Player extends Entity {
         // Nếu rơi xuống dưới đáy bản đồ, đưa người chơi trở lại vị trí an toàn trên mặt đất
         boolean respawned = position.y < -25.0f;
         if (respawned) {
-            position.set(World.CENTER_X, 22.0f, World.CENTER_Z);
+            world.setRespawnPosition(position);
             velocity.set(0.0f, 0.0f, 0.0f);
             isFlying = false;
             lastShiftTapTime = Float.NEGATIVE_INFINITY;
@@ -7496,7 +8516,8 @@ public class Player extends Entity {
         // 4. Tính tốc độ di chuyển (Sprint 1.5x / Sneak 0.5x / Fly)
         isSprinting = ctrlDown && isMovingHorizontally && !isSneaking;
 
-        float currentSpeed = MOVE_SPEED;
+        int terrainSpeedMultiplier = TERRAIN_SPEED_MULTIPLIERS[terrainSpeedIndex];
+        float currentSpeed = MOVE_SPEED * terrainSpeedMultiplier;
         if (isFlying) {
             currentSpeed *= FLY_SPEED_MULTIPLIER;
             if (isSprinting) {
@@ -7528,12 +8549,12 @@ public class Player extends Entity {
             velocity.z = wishDir.z;
         }
 
-        // 5. Khi bay, Space ưu tiên bay lên. Left Shift hạ dần, thả cả hai phím thì giữ độ cao.
+        // 5. Nhân tốc độ bay lên và hạ độ cao với mức F1. Space vẫn ưu tiên khi giữ cả hai phím.
         if (isFlying) {
             if (spaceDown) {
-                velocity.y = FLY_ASCEND_SPEED;
+                velocity.y = FLY_ASCEND_SPEED * terrainSpeedMultiplier;
             } else if (shiftDown) {
-                velocity.y = -FLY_DESCEND_SPEED;
+                velocity.y = -FLY_DESCEND_SPEED * terrainSpeedMultiplier;
             } else {
                 velocity.y = 0.0f;
             }
@@ -7632,7 +8653,8 @@ public class Player extends Entity {
             swimDistance += (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
             if (swimDistance >= 1.2f) {
                 audio.playEffect(AudioManager.Effect.SWIM, 0.30f);
-                swimDistance -= 1.2f;
+                // Bỏ các nhịp đã đi qua trong cùng khung hình khi dùng hệ số tốc độ cao.
+                swimDistance %= 1.2f;
             }
         }
         if (isFlying || liquid.isLiquid()) {
@@ -7652,7 +8674,8 @@ public class Player extends Entity {
                 stepDistance += (float) Math.sqrt(dx * dx + dz * dz);
                 if (stepDistance >= 1.6f) {
                     audio.playStep(surface, isSneaking);
-                    stepDistance -= 1.6f;
+                    // Giữ phần lẻ để tránh phát dồn tiếng bước chân khi đã dừng lại.
+                    stepDistance %= 1.6f;
                 }
             }
             airborneTime = 0f;
@@ -8315,6 +9338,7 @@ import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Vector3;
 import com.voxelgame.engine.AudioManager;
+import com.voxelgame.engine.BiomeType;
 import com.voxelgame.engine.Camera;
 import com.voxelgame.engine.Raycast;
 import com.voxelgame.engine.ShaderProgram;
@@ -8348,6 +9372,14 @@ import com.voxelgame.entity.Player;
  *    {@code com.badlogic.gdx.utils.Disposable} và được gọi {@code dispose()} đồng loạt.
  */
 public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
+
+    /** Thứ tự ghé thăm các biome theo trục X từ tây sang đông. */
+    private static final BiomeType[] BIOME_TOUR = {BiomeType.SNOWY_PLAINS, BiomeType.PLAINS, BiomeType.DESERT};
+    private int nextBiomeIndex;
+
+    /** Trạng thái Ctrl theo thứ tự sự kiện trong hàng đợi bàn phím của libGDX. */
+    private boolean leftControlDown;
+    private boolean rightControlDown;
 
     // =====================================================================
     // Các hệ thống cốt lõi của Engine
@@ -8605,11 +9637,14 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         camera.copyPosition(eyePosition);
 
         // Vòm trời và thiên thể nằm sau mọi hình học; mây và giáng thủy xét độ sâu.
-        skyRenderer.renderSky(shaderProgram, view, worldTime, weather.skyStrength());
+        float stormStrength = weather.skyStrength();
+        skyRenderer.renderSky(shaderProgram, view, worldTime, stormStrength);
 
         // Kết xuất các chunk giao khung nhìn và toàn bộ thực thể trong thế giới.
         textureAtlas.bind();
-        world.render(shaderProgram, projection, view, eyePosition, renderCloudLayer);
+        float terrainDistance = skyRenderer.enableWorldFog(shaderProgram, eyePosition, stormStrength);
+        world.render(shaderProgram, projection, view, eyePosition, renderCloudLayer, terrainDistance);
+        shaderProgram.disableDistanceFog();
         weatherRenderer.render(shaderProgram, world, eyePosition, weather);
         textureAtlas.unbind();
         shaderProgram.setUniformVec3("uWorldLight", 1f, 1f, 1f);
@@ -8992,12 +10027,30 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
      * Xử lý sự kiện phím bàn phím được nhấn xuống.
      * - Phím ESC: Tạm dừng game (lần 1) hoặc thoát hoàn toàn (lần 2 khi đang Pause)
      * - Phím 1-9: Chọn ô Hotbar tương ứng
+     * - F1: Đổi mức tốc độ kiểm tra địa hình, kể cả khi đang tạm dừng
+     * - Ctrl+C: Ghé tâm biome để kiểm tra địa hình
      *
      * @param keycode mã phím libGDX (hằng số {@link Input.Keys})
      * @return true nếu sự kiện đã được xử lý
      */
     @Override
     public boolean keyDown(int keycode) {
+        // Backend chỉ gửi keyDown ở lần nhấn đầu, nên giữ F1 không làm đổi thêm mức.
+        if (keycode == Input.Keys.F1 && player != null) {
+            player.cycleTerrainSpeed();
+            return true;
+        }
+
+        // Ghi nhận Ctrl cả khi Pause để Ctrl+C đọc đúng trạng thái tại lúc nhấn.
+        if (keycode == Input.Keys.CONTROL_LEFT) {
+            leftControlDown = true;
+            return false;
+        }
+        if (keycode == Input.Keys.CONTROL_RIGHT) {
+            rightControlDown = true;
+            return false;
+        }
+
         // Phím ESC: Tạm dừng (lần 1) hoặc thoát game (lần 2 khi đang Pause)
         if (keycode == Input.Keys.ESCAPE) {
             if (!isPaused) {
@@ -9011,6 +10064,15 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
 
         // Phím số 1..9: Chọn ô trên thanh 9 ô Hotbar (chỉ khi đang chơi, không Pause)
         if (!isPaused && player != null) {
+            // Dùng trạng thái theo sự kiện vì Ctrl có thể đã được nhả khi hàng đợi được xử lý.
+            if (keycode == Input.Keys.C && (leftControlDown || rightControlDown)) {
+                BiomeType biome = BIOME_TOUR[nextBiomeIndex];
+                nextBiomeIndex = (nextBiomeIndex + 1) % BIOME_TOUR.length;
+                if (player.teleportToBiome(world, biome)) {
+                    resetMiningProgress();
+                }
+                return true;
+            }
             // Phím thử môi trường chỉ hoạt động khi đang chơi.
             switch (keycode) {
                 case Input.Keys.F6 -> {
@@ -9055,13 +10117,18 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
 
     /**
      * Xử lý sự kiện phím bàn phím được nhả ra.
-     * Hiện tại không có logic đặc biệt khi nhả phím (xử lý liên tục nằm trong Player.update).
+     * Cập nhật trạng thái Ctrl dùng cho phím tắt ghé tâm biome.
      *
      * @param keycode mã phím libGDX
      * @return false (không tiêu thụ sự kiện)
      */
     @Override
     public boolean keyUp(int keycode) {
+        if (keycode == Input.Keys.CONTROL_LEFT) {
+            leftControlDown = false;
+        } else if (keycode == Input.Keys.CONTROL_RIGHT) {
+            rightControlDown = false;
+        }
         return false;
     }
 
@@ -9251,6 +10318,7 @@ public final class ChunkMeshRegressionChecks {
         checkLeafAndCactusFaces();
         checkCactusTextureRegion();
         checkCrossPlantAndSnowFaces();
+        checkAmbientOcclusionAtChunkCorner();
         checkIndexedQuadPacking();
     }
 
@@ -9292,6 +10360,42 @@ public final class ChunkMeshRegressionChecks {
         } finally {
             world.dispose();
         }
+    }
+
+    /** Khối chéo qua ba biên chỉ làm tối góc tiếp xúc và ảnh hưởng đường chéo của hai tam giác. */
+    private static void checkAmbientOcclusionAtChunkCorner() {
+        World world = World.empty();
+        try {
+            Chunk chunk = new Chunk(0, 0, 0);
+            FloatArray opaque = new FloatArray();
+            FloatArray translucent = new FloatArray();
+            place(world, chunk, 15, 15, 15, Block.STONE, 0);
+            world.setBlockInternal(16, 16, 16, Block.STONE.getId(), 0);
+            chunk.buildVertices(world, opaque, translucent);
+
+            float shaded = shadeOnQuad(opaque, 0, 16, 16, 16);
+            float clear = shadeOnQuad(opaque, 0, 15, 16, 15);
+            require(shaded < clear && clear == 1.0f, "AO phải đọc ô chắn ở góc chéo của chunk");
+            require(opaque.items[0] == 16.0f && opaque.items[2] == 16.0f,
+                    "Mặt có một góc che phải dùng đường chéo qua góc tối");
+            require(opaque.items[5] == shaded && opaque.items[23] == shaded,
+                    "Hai tam giác dùng chung giá trị AO tại đỉnh trùng");
+            Chunk.compactQuads(opaque, 6);
+            require(opaque.items[5] == shaded && opaque.items[17] == clear,
+                    "Nén mesh phải giữ nguyên độ sáng hai đầu đường chéo");
+        } finally {
+            world.dispose();
+        }
+    }
+
+    /** Đọc giá trị độ sáng của một góc thuộc mặt đang kiểm tra. */
+    private static float shadeOnQuad(FloatArray vertices, int first, float x, float y, float z) {
+        for (int i = first; i < first + 36; i += 6) {
+            if (vertices.items[i] == x && vertices.items[i + 1] == y && vertices.items[i + 2] == z) {
+                return vertices.items[i + 5];
+            }
+        }
+        throw new AssertionError("Không tìm thấy góc cần đo độ sáng");
     }
 
     /** Kiểm tra việc nén tại chỗ giữ đủ vị trí, UV và độ sáng của bốn đỉnh qua nhiều mặt. */
@@ -9434,6 +10538,147 @@ public final class ChunkMeshRegressionChecks {
 
 
 
+==================== FILE: D:\VoxelGame\src\test\java\com\voxelgame\engine\DesertPyramidChecks.java ====================
+package com.voxelgame.engine;
+
+import com.voxelgame.entity.Block;
+
+import java.util.Arrays;
+
+/** Kiểm thử CPU cho khối trang trí và công trình sa mạc. */
+final class DesertPyramidChecks {
+    /** Chỉ được gọi từ bộ kiểm thử hồi quy. */
+    private DesertPyramidChecks() {
+    }
+
+    /** Cho phép chạy nhóm kiểm thử độc lập trong lúc sửa bộ sinh. */
+    public static void main(String[] args) {
+        run();
+    }
+
+    /** Kiểm tra rương đăng ký thành khối trang trí dùng quy tắc đào và đặt mặc định. */
+    static void run() {
+        checkChest();
+        checkPyramid();
+    }
+
+    /** Kiểm tra công trình được tạo trong lượt sinh thực tế, sau khi đã ghép với địa tầng và hồ. */
+    static void checkGenerated(World world, DesertPyramid pyramid) {
+        int x = pyramid.centerX();
+        int z = pyramid.centerZ();
+        int base = pyramid.baseY();
+        if (world.getBiome(x, z) != BiomeType.DESERT) {
+            throw new AssertionError("Kim tự tháp sinh ngoài biome sa mạc");
+        }
+        requireBlock(world, x, base + 16, z, Block.SANDSTONE);
+        requireBlock(world, x + 4, base - 7, z - 4, Block.CHEST);
+        requirePassage(world, x, base, z + 8);
+        for (int dx : new int[]{-8, 8}) {
+            for (int dz : new int[]{-8, 8}) {
+                requireBlock(world, x + dx, base - 8, z + dz, Block.SANDSTONE);
+                Block below = Block.fromId(world.getBlock(x + dx, base - 9, z + dz));
+                if (below != Block.STONE && below != Block.SANDSTONE) {
+                    throw new AssertionError("Chân móng kim tự tháp cần chạm đá tại " + (x + dx) + ", " + (z + dz));
+                }
+            }
+        }
+    }
+
+    /** Kiểm tra đăng ký, kết xuất và tương tác cơ bản của rương. */
+    private static void checkChest() {
+        Block chest = Block.fromId((byte) 26);
+        if (chest != Block.CHEST || !chest.isBreakable() || chest.getSelectionBounds(0) != Block.FULL_BOUNDS
+                || chest.getCollisionBounds(0) != Block.FULL_BOUNDS) {
+            throw new AssertionError("Rương trang trí phải đăng ký tại ID 26 và là khối rắn đào được");
+        }
+        if (chest.getTileIndex(Block.Face.SOUTH) == chest.getTileIndex(Block.Face.EAST)
+                || chest.getTileIndex(Block.Face.TOP) == chest.getTileIndex(Block.Face.EAST)) {
+            throw new AssertionError("Mặt có khóa và nắp rương phải có ảnh riêng");
+        }
+    }
+
+    /** Dựng trên nền cồn cát giả lập và đi theo đường từ sảnh đến tầng ngầm. */
+    private static void checkPyramid() {
+        short[] heights = new short[World.WORLD_SIZE_X * World.WORLD_SIZE_Z];
+        byte[] biomes = new byte[heights.length];
+        int zoneX = 2 * World.BIOME_WIDTH + 13;
+        int zoneZ = World.CENTER_Z;
+        for (int x = zoneX - 13; x <= zoneX + 35; x++) {
+            int first = x * World.WORLD_SIZE_Z + zoneZ - 24;
+            Arrays.fill(heights, first, first + 49, (short) 31);
+            Arrays.fill(biomes, first, first + 49, (byte) BiomeType.DESERT.ordinal());
+        }
+        // Khép một dải sông trên phần gần Plains để kiểm tra việc chọn dấu chân khô.
+        int riverX = zoneX - 1;
+        for (int z = zoneZ - 24; z <= zoneZ + 24; z++) {
+            biomes[riverX * World.WORLD_SIZE_Z + z] |= 8;
+        }
+        DesertPyramid pyramid = DesertPyramid.select(heights, biomes);
+        if (pyramid == null || pyramid.contains(riverX, pyramid.centerZ(), 0)) {
+            throw new AssertionError("Kim tự tháp phải chọn dấu chân khô gần đồng bằng");
+        }
+
+        World world = World.empty();
+        try {
+            int centerX = pyramid.centerX();
+            int centerZ = pyramid.centerZ();
+            int base = pyramid.baseY();
+            for (int x = centerX - 11; x <= centerX + 11; x++) {
+                for (int z = centerZ - 11; z <= centerZ + 11; z++) {
+                    world.setBlockInternal(x, 0, z, Block.BEDROCK.getId(), 0);
+                    for (int y = 1; y <= base; y++) {
+                        Block layer = y <= 17 ? Block.STONE : y <= 22 ? Block.SANDSTONE : Block.SAND;
+                        world.setBlockInternal(x, y, z, layer.getId(), 0);
+                    }
+                }
+            }
+            pyramid.build(world);
+            for (int dx : new int[]{-8, 8}) {
+                for (int dz : new int[]{-8, 8}) {
+                    for (int y = 22; y <= base + 1; y++) {
+                        requireBlock(world, centerX + dx, y, centerZ + dz, Block.SANDSTONE);
+                    }
+                }
+            }
+            requireBlock(world, centerX + 9, 22, centerZ, Block.SANDSTONE);
+            world.setBlock(centerX + 10, base, centerZ, Block.AIR.getId());
+            requireBlock(world, centerX + 9, base, centerZ, Block.SAND);
+            for (int dz = 5; dz <= 9; dz++) {
+                requirePassage(world, centerX, base, centerZ + dz);
+            }
+            for (int dz = 4; dz >= -3; dz--) {
+                requirePassage(world, centerX - 3, base - (5 - dz), centerZ + dz);
+            }
+            requirePassage(world, centerX - 2, base - 8, centerZ - 3);
+            requireBlock(world, centerX + 4, base - 7, centerZ - 4, Block.CHEST);
+            world.breakBlockAndSpawnDrop(centerX + 4, base - 7, centerZ - 4);
+            requireBlock(world, centerX + 4, base - 7, centerZ - 4, Block.AIR);
+            if (!world.tryPlaceBlock(centerX + 4, base - 7, centerZ - 4, Block.CHEST, null)) {
+                throw new AssertionError("Rương trang trí phải đặt được như khối thường");
+            }
+        } finally {
+            world.dispose();
+        }
+    }
+
+    /** Đường đi có sàn rắn và đủ hai ô trống cho người chơi. */
+    private static void requirePassage(World world, int x, int floor, int z) {
+        requireBlock(world, x, floor, z, Block.SANDSTONE);
+        requireBlock(world, x, floor + 1, z, Block.AIR);
+        requireBlock(world, x, floor + 2, z, Block.AIR);
+    }
+
+    /** Chẩn đoán tọa độ đầu tiên có vật liệu khác dự tính. */
+    private static void requireBlock(World world, int x, int y, int z, Block expected) {
+        if (world.getBlock(x, y, z) != expected.getId()) {
+            throw new AssertionError("Sai khối kim tự tháp tại " + x + ", " + y + ", " + z
+                    + " cần " + expected.getDisplayName());
+        }
+    }
+}
+
+
+
 ==================== FILE: D:\VoxelGame\src\test\java\com\voxelgame\engine\EnvironmentChecks.java ====================
 package com.voxelgame.engine;
 
@@ -9518,6 +10763,7 @@ final class EnvironmentChecks {
 ==================== FILE: D:\VoxelGame\src\test\java\com\voxelgame\engine\TerrainGenerationChecks.java ====================
 package com.voxelgame.engine;
 
+import com.badlogic.gdx.math.Vector3;
 import com.voxelgame.entity.Block;
 
 /** Kiểm tra CPU cho vùng khí hậu và tính liên tục của địa hình. */
@@ -9533,6 +10779,7 @@ final class TerrainGenerationChecks {
     static void run() {
         TerrainGenerator generator = new TerrainGenerator(WORLD_SEED);
         TerrainGenerator repeat = new TerrainGenerator(WORLD_SEED);
+        checkSnowyPeak(generator);
         checkClimate(generator, repeat);
         long sample = sampleWorld(generator, true);
         long regenerated = sampleWorld(repeat, false);
@@ -9541,47 +10788,58 @@ final class TerrainGenerationChecks {
         }
     }
 
-    /** Đo bề rộng theo X qua các hàng chunk và kiểm tra tính tất định cùng độ mượt ở ranh giới. */
+    /** Tìm đỉnh địa chất trên lưới lấy mẫu ba block và kiểm tra biome ở đỉnh. */
+    private static void checkSnowyPeak(TerrainGenerator generator) {
+        int peak = 0;
+        for (int x = 0; x < World.BIOME_WIDTH; x += 3) {
+            for (int z = 0; z < World.WORLD_SIZE_Z; z += 3) {
+                if (generator.getBiome(x, z) == BiomeType.SNOWY_PLAINS) {
+                    peak = Math.max(peak, generator.getSurfaceY(x, z));
+                }
+            }
+        }
+        if (peak < 140) {
+            throw new AssertionError("Đỉnh núi tuyết phải đạt Y=140, đo được Y=" + peak);
+        }
+    }
+
+    /** Kiểm tra ranh giới uốn lượn, thứ tự biome, độ liên tục và tính tất định. */
     private static void checkClimate(TerrainGenerator generator, TerrainGenerator repeat) {
         TerrainGenerator otherSeed = new TerrainGenerator(WORLD_SEED + 1);
-        boolean changedSeed = false;
         BiomeType[] expected = {BiomeType.SNOWY_PLAINS, BiomeType.PLAINS, BiomeType.DESERT};
-        for (int row = 0; row <= World.WORLD_CHUNKS_Z; row++) {
-            int z = Math.min(row * Chunk.SIZE, World.WORLD_SIZE_Z - 1);
+        int[] lowestBoundary = {World.WORLD_SIZE_X, World.WORLD_SIZE_X};
+        int[] highestBoundary = new int[2];
+        boolean changedSeed = false;
+        for (int z = 0; z < World.WORLD_SIZE_Z; z += Chunk.SIZE) {
             int band = 0;
-            int start = 0;
-            BiomeType biome = generator.getBiome(0, z);
-            for (int x = 1; x <= World.WORLD_SIZE_X; x++) {
-                BiomeType next = x == World.WORLD_SIZE_X ? null : generator.getBiome(x, z);
-                if (next == biome) {
+            if (generator.getBiome(0, z) != expected[0]) {
+                throw new AssertionError("Thiếu biome tuyết ở mép tây");
+            }
+            for (int x = 1; x < World.WORLD_SIZE_X; x++) {
+                BiomeType biome = generator.getBiome(x, z);
+                if (biome == expected[band]) {
                     continue;
                 }
-                int width = x - start;
-                if (band >= expected.length || biome != expected[band] || width != 1000) {
-                    throw new AssertionError("Sai thứ tự hoặc chiều rộng biome tại Z=" + z + ": " + biome + ", " + width);
+                if (band >= 2 || biome != expected[band + 1] || Math.abs(x - (band + 1) * 1000) > 80) {
+                    throw new AssertionError("Sai thứ tự hoặc phạm vi biome tại X=" + x + ", Z=" + z);
                 }
+                lowestBoundary[band] = Math.min(lowestBoundary[band], x);
+                highestBoundary[band] = Math.max(highestBoundary[band], x);
+                int height = generator.getSurfaceY(x, z);
+                if (biome != repeat.getBiome(x, z) || height != repeat.getSurfaceY(x, z)) {
+                    throw new AssertionError("Cùng seed cho ranh giới hoặc độ cao khác nhau");
+                }
+                changedSeed |= biome != otherSeed.getBiome(x, z) || height != otherSeed.getSurfaceY(x, z);
+                checkTransition(generator, x - 1, z, x, z, expected[band], generator.getSurfaceY(x - 1, z));
                 band++;
-                if (next != null) {
-                    int height = generator.getSurfaceY(x, z);
-                    if (next != repeat.getBiome(x, z) || biome != repeat.getBiome(x - 1, z)
-                            || height != repeat.getSurfaceY(x, z)) {
-                        throw new AssertionError("Cùng seed cho ranh giới hoặc độ cao khác nhau");
-                    }
-                    changedSeed |= height != otherSeed.getSurfaceY(x, z);
-                    checkTransition(generator, x - 1, z, x, z, biome, generator.getSurfaceY(x - 1, z));
-                }
-                start = x;
-                biome = next;
             }
-            if (band != expected.length) {
+            if (band != 2) {
                 throw new AssertionError("Thiếu biome tại Z=" + z);
             }
         }
-        if (generator.getBiome(World.CENTER_X, World.CENTER_Z) != BiomeType.PLAINS) {
-            throw new AssertionError("Vùng spawn phải là Plains");
-        }
-        if (!changedSeed) {
-            throw new AssertionError("Đổi seed phải đổi độ cao địa hình");
+        if (!changedSeed || highestBoundary[0] - lowestBoundary[0] < 8
+                || highestBoundary[1] - lowestBoundary[1] < 8) {
+            throw new AssertionError("Ranh giới phải uốn lượn và thay đổi theo seed");
         }
     }
 
@@ -9589,10 +10847,14 @@ final class TerrainGenerationChecks {
     private static long sampleWorld(TerrainGenerator generator, boolean validate) {
         World world = World.empty();
         try {
-            generator.generate(world);
+            DesertPyramid pyramid = generator.generate(world);
             if (validate) {
                 checkSpawn(world, generator);
-                checkSurfaceMix(world, generator);
+                checkSurfaceAndRiver(world, generator);
+                checkRespawn(world);
+                DesertPyramidChecks.run();
+                DesertPyramidChecks.checkGenerated(world, pyramid);
+                checkDesertSlope(world, generator);
                 checkLavaBanks(world, generator);
             }
             long hash = 0xCBF29CE484222325L;
@@ -9603,10 +10865,12 @@ final class TerrainGenerationChecks {
             for (int centerX = bandWidth / 2; centerX < World.WORLD_SIZE_X; centerX += bandWidth) {
                 for (int x = centerX - 144; x <= centerX + 144; x++) {
                     for (int z = World.CENTER_Z - 144; z <= World.CENTER_Z + 144; z++) {
+                        int surface = generator.getSurfaceY(x, z);
                         if (validate) {
-                            checkStrata(world, generator, x, z);
+                            checkStrata(world, x, surface, z, generator.getBiome(x, z) == BiomeType.DESERT);
                         }
-                        for (int y = 0; y <= World.MAX_TERRAIN_Y + 11; y++) {
+                        int scanTop = Math.min(World.WORLD_SIZE_Y - 1, Math.max(42, surface + 12));
+                        for (int y = 0; y <= scanTop; y++) {
                             byte id = world.getBlock(x, y, z);
                             int state = world.getBlockState(x, y, z);
                             hash = (hash ^ ((Byte.toUnsignedInt(id) << 8) | state)) * 0x100000001B3L;
@@ -9645,45 +10909,66 @@ final class TerrainGenerationChecks {
         }
     }
 
-    /** Kiểm tra vật liệu thực sự xen kẽ ở hai phía của cả hai ranh giới. */
-    private static void checkSurfaceMix(World world, TerrainGenerator generator) {
-        int[] crossovers = new int[4];
-        for (int z = 96; z < World.WORLD_SIZE_Z - 96; z += 2) {
-            for (int offset = 1; offset <= 14; offset++) {
-                int cold = 1000 - offset;
-                int plainsWest = 1000 + offset - 1;
-                int plainsEast = 2000 - offset;
-                int hot = 2000 + offset - 1;
-                if (topSoil(world, generator, cold, z) == Block.GRASS && !hasSnow(world, generator, cold, z)) {
-                    crossovers[0]++;
-                }
-                if (hasSnow(world, generator, plainsWest, z)) {
-                    crossovers[1]++;
-                }
-                if (topSoil(world, generator, plainsEast, z) == Block.SAND) {
-                    crossovers[2]++;
-                }
-                if (topSoil(world, generator, hot, z) == Block.GRASS) {
-                    crossovers[3]++;
-                }
-            }
-        }
-        for (int count : crossovers) {
-            if (count < 250) {
-                throw new AssertionError("Bề mặt chưa xen đủ mảng ở hai phía ranh giới biome");
-            }
+    /** Kiểm tra đan xen đá và sỏi ở dốc 2 tại cụm cồn cát ngoài khu công trình. */
+    private static void checkDesertSlope(World world, TerrainGenerator generator) {
+        int x = 2350;
+        int z = 1086;
+        int y = generator.getSurfaceY(x, z);
+        Block surface = Block.fromId(world.getBlock(x, y, z));
+        if (surface != Block.STONE && surface != Block.GRAVEL) {
+            throw new AssertionError("Dốc vừa ở sa mạc phải dùng đá hoặc sỏi");
         }
     }
 
-    /** Đọc mặt nền ở cao độ địa tầng gốc để bỏ qua hoa, cỏ và lá cây trên mặt. */
-    private static Block topSoil(World world, TerrainGenerator generator, int x, int z) {
-        return Block.fromId(world.getBlock(x, generator.getSurfaceY(x, z), z));
+    /** Kiểm tra mực sông và lớp phủ thực tế ở vùng chuyển tiếp đã uốn. */
+    private static void checkSurfaceAndRiver(World world, TerrainGenerator generator) {
+        int[] reaches = new int[3];
+        int[] lowland = new int[3];
+        int snowyPeak = 0;
+        for (int x = 0; x < World.WORLD_SIZE_X; x += 4) {
+            for (int z = 0; z < World.WORLD_SIZE_Z; z += 4) {
+                int y = generator.getSurfaceY(x, z);
+                BiomeType biome = world.getBiome(x, z);
+                if (biome != generator.getBiome(x, z)) {
+                    throw new AssertionError("World và bộ sinh lệch biome tại " + x + ", " + z);
+                }
+                if (y >= 26 && y <= 34) {
+                    lowland[biome.ordinal()]++;
+                }
+                if (y >= 140 && biome == BiomeType.SNOWY_PLAINS
+                        && world.getBlock(x, y + 1, z) == Block.SNOW_BLOCK.getId()) {
+                    snowyPeak = Math.max(snowyPeak, y);
+                }
+                if (z < 380 || z > 750 || y > TerrainGenerator.WATER_LEVEL - 2) {
+                    continue;
+                }
+                byte surface = world.getBlock(x, TerrainGenerator.WATER_LEVEL, z);
+                byte below = world.getBlock(x, TerrainGenerator.WATER_LEVEL - 1, z);
+                if (surface == (biome == BiomeType.SNOWY_PLAINS ? Block.ICE : Block.WATER).getId()
+                        && below == Block.WATER.getId()) {
+                    reaches[biome.ordinal()]++;
+                }
+            }
+        }
+        if (snowyPeak < 140 || reaches[0] < 50 || reaches[1] < 50 || reaches[2] < 50
+                || lowland[BiomeType.PLAINS.ordinal()] < 1000 || lowland[BiomeType.DESERT.ordinal()] < 1000) {
+            throw new AssertionError("Thiếu đỉnh, địa hình thấp hoặc đoạn sông đúng cao độ");
+        }
     }
 
-    /** Tìm lớp tuyết nằm trên mặt nền gốc. */
-    private static boolean hasSnow(World world, TerrainGenerator generator, int x, int z) {
-        Block cover = Block.fromId(world.getBlock(x, generator.getSurfaceY(x, z) + 1, z));
-        return cover == Block.SNOW_LAYER || cover == Block.SNOW_BLOCK;
+    /** Dấu chân hồi sinh có nền rắn và đủ chỗ, kể cả sau khi xây lên cao. */
+    private static void checkRespawn(World world) {
+        Vector3 position = new Vector3();
+        world.setRespawnPosition(position);
+        if (position.x != World.RESPAWN_X || position.z != World.RESPAWN_Z || position.y != 31f) {
+            throw new AssertionError("Sai vị trí hồi sinh tự nhiên: " + position);
+        }
+        world.setBlock(World.RESPAWN_X, 130, World.RESPAWN_Z, Block.OAK_LEAVES.getId());
+        world.setRespawnPosition(position);
+        if (position.y != 131f) {
+            throw new AssertionError("Hồi sinh không tìm được mặt đỡ cao nhất: " + position);
+        }
+        world.setBlock(World.RESPAWN_X, 130, World.RESPAWN_Z, Block.AIR.getId());
     }
 
     /** Mỗi loại biome phải có hồ với bờ đúng chất liệu ở các ô chung cạnh mặt dung nham. */
@@ -9696,7 +10981,8 @@ final class TerrainGenerationChecks {
                 continue;
             }
             for (int z = World.CENTER_Z - 320; z <= World.CENTER_Z + 320; z++) {
-                for (int y = 1; y <= World.MAX_TERRAIN_Y; y++) {
+                int originalY = generator.getSurfaceY(x, z);
+                for (int y = originalY - 3; y <= originalY; y++) {
                     if (world.getBlock(x, y, z) != Block.LAVA.getId()
                             || world.getBlock(x, y + 1, z) == Block.LAVA.getId()) {
                         continue;
@@ -9733,26 +11019,30 @@ final class TerrainGenerationChecks {
     }
 
     /** Kiểm tra mặt cắt địa tầng nguyên vẹn bên ngoài các cột đã đổi khi sinh hồ hoặc cây. */
-    private static void checkStrata(World world, TerrainGenerator generator, int x, int z) {
+    private static void checkStrata(World world, int x, int y, int z, boolean desert) {
         if (world.getBlock(x, 0, z) != Block.BEDROCK.getId()) {
             throw new AssertionError("Thiếu đá gốc tại " + x + ", " + z);
         }
-        int y = generator.getSurfaceY(x, z);
-        boolean desert = generator.getBiome(x, z) == BiomeType.DESERT;
         if (world.getBlock(x, y, z) != (desert ? Block.SAND : Block.GRASS).getId()) {
             return;
         }
         int cursor = desert ? y : y - 1;
         Block top = desert ? Block.SAND : Block.DIRT;
         int topDepth = countLayers(world, x, cursor, z, top);
-        int min = desert ? 3 : 2;
-        if (topDepth < min || topDepth > min + 1) {
+        int min = 3;
+        if (topDepth < min || topDepth > (desert ? 5 : 4)) {
+            if (touchesBasin(world, x, y, z)) {
+                return;
+            }
             throw new AssertionError("Sai độ dày " + top.getDisplayName() + " tại " + x + ", " + z);
         }
         cursor -= topDepth;
         if (desert) {
             int sandstoneDepth = countLayers(world, x, cursor, z, Block.SANDSTONE);
             if (sandstoneDepth < 3 || sandstoneDepth > 4) {
+                if (touchesBasin(world, x, y, z)) {
+                    return;
+                }
                 throw new AssertionError("Sai độ dày đá cát tại " + x + ", " + z);
             }
             cursor -= sandstoneDepth;
@@ -9760,6 +11050,21 @@ final class TerrainGenerationChecks {
         if (cursor < 1 || countLayers(world, x, cursor, z, Block.STONE) != cursor) {
             throw new AssertionError("Lớp Stone phải liên tục đến đá gốc tại " + x + ", " + z);
         }
+    }
+
+    /** Loại cột bờ đã được lượt sinh hồ hoặc sông cắt lại khỏi kiểm tra tầng đất nguyên gốc. */
+    private static boolean touchesBasin(World world, int x, int y, int z) {
+        for (int dx = -4; dx <= 4; dx++) {
+            for (int dz = -4; dz <= 4; dz++) {
+                for (int dy = -4; dy <= 1; dy++) {
+                    byte id = world.getBlock(x + dx, y + dy, z + dz);
+                    if (id == Block.WATER.getId() || id == Block.ICE.getId() || id == Block.LAVA.getId()) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     /** Đếm các ô cùng loại liên tiếp đi xuống, chừa tầng đá gốc riêng. */
@@ -9787,6 +11092,10 @@ final class TerrainGenerationChecks {
 
     /** Xác nhận các cấu trúc sinh hàng loạt vẫn hợp lệ ngay khi chạm vào trong gameplay. */
     private static void verifySupport(World world, int x, int y, int z, Block block, int state) {
+        if ((block == Block.SAND || block == Block.GRAVEL)
+                && !Block.fromId(world.getBlock(x, y - 1, z)).isSolid()) {
+            throw new AssertionError("Cát hoặc sỏi thiếu nền tại " + x + ", " + y + ", " + z);
+        }
         if ((block == Block.ICE || block == Block.SNOW_LAYER || block == Block.SNOW_BLOCK)
                 && world.hasLavaNear(x, y, z)) {
             throw new AssertionError("Băng/tuyết sinh gần dung nham tại " + x + ", " + y + ", " + z);
@@ -9828,7 +11137,9 @@ import com.voxelgame.entity.Block;
 import com.voxelgame.entity.Player;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
+import com.badlogic.gdx.InputEventQueue;
 import com.badlogic.gdx.math.Vector3;
+import com.voxelgame.VoxelGameApp;
 import java.lang.reflect.Proxy;
 
 /** Chạy kiểm tra hồi quy của các hệ thống voxel mà không khởi tạo OpenGL. */
@@ -9840,6 +11151,7 @@ public final class VoxelRegressionChecks {
         checkFallingBlocks();
         checkRaycast();
         checkPlayerSurfaces();
+        checkTerrainSpeedShortcut();
         ChunkMeshRegressionChecks.run();
         TerrainGenerationChecks.run();
         EnvironmentChecks.run();
@@ -9898,6 +11210,108 @@ public final class VoxelRegressionChecks {
             before = player.getPosition().x;
             tickPlayer(world, player, 5);
             require(player.getPosition().x < before, "Chạm cạnh cactus phải tạo phản lực");
+        } finally {
+            Gdx.input = previous;
+            world.dispose();
+        }
+    }
+
+    /** Kiểm tra mỗi lần bấm F1 đổi đúng một mức tốc độ cho di chuyển ngang và dọc khi bay. */
+    private static void checkTerrainSpeedShortcut() {
+        Input previous = Gdx.input;
+        boolean[] held = new boolean[256];
+        Gdx.input = (Input) Proxy.newProxyInstance(Input.class.getClassLoader(), new Class<?>[]{Input.class},
+                (proxy, method, args) -> held[(int) args[0]]);
+        World world = World.empty();
+        try {
+            Player player = new Player(100.5f, 30f, 100.5f);
+            player.attachControls(new Camera());
+            VoxelGameApp app = new VoxelGameApp();
+            // Gắn người chơi vào bộ xử lý thật mà không mở cửa sổ hay nạp tài nguyên đồ họa.
+            var playerField = VoxelGameApp.class.getDeclaredField("player");
+            playerField.setAccessible(true);
+            playerField.set(app, player);
+            var pausedField = VoxelGameApp.class.getDeclaredField("isPaused");
+            pausedField.setAccessible(true);
+
+            InputEventQueue queue = new InputEventQueue();
+            int[] multipliers = {3, 5, 10, 25, 50, 1};
+            int[][] directions = {{Input.Keys.W}, {Input.Keys.A}, {Input.Keys.S}, {Input.Keys.D},
+                    {Input.Keys.W, Input.Keys.D}};
+            for (int index = 0; index < multipliers.length; index++) {
+                // Lần bấm đầu diễn ra khi Pause. Các lần lẻ giữ F1 qua nhiều lần cập nhật.
+                pausedField.setBoolean(app, index == 0);
+                held[Input.Keys.F1] = index % 2 != 0;
+                queue.keyDown(Input.Keys.F1, 1);
+                if (!held[Input.Keys.F1]) {
+                    queue.keyUp(Input.Keys.F1, 2);
+                }
+                queue.drain(app);
+                pausedField.setBoolean(app, false);
+
+                for (int[] direction : directions) {
+                    for (int key : direction) {
+                        held[key] = true;
+                    }
+                    tickPlayer(world, player, 2);
+                    Vector3 velocity = player.getVelocity();
+                    require(Math.abs(Math.hypot(velocity.x, velocity.z) - 5.5f * multipliers[index]) < 0.1f,
+                            "F1 phải đặt tốc độ " + multipliers[index] + "x cho hướng " + Input.Keys.toString(direction[0]));
+                    for (int key : direction) {
+                        held[key] = false;
+                    }
+                }
+                if (held[Input.Keys.F1]) {
+                    held[Input.Keys.F1] = false;
+                    queue.keyUp(Input.Keys.F1, 3);
+                    queue.drain(app);
+                }
+            }
+
+            // Ctrl+S chỉ dùng điều khiển chạy lùi thông thường.
+            queue.keyDown(Input.Keys.CONTROL_LEFT, 4);
+            queue.keyDown(Input.Keys.S, 5);
+            held[Input.Keys.S] = held[Input.Keys.CONTROL_LEFT] = true;
+            queue.drain(app);
+            tickPlayer(world, player, 1);
+            Vector3 velocity = player.getVelocity();
+            require(player.isSprinting() && Math.abs(Math.hypot(velocity.x, velocity.z) - 8.25f) < 0.1f,
+                    "Ctrl+S phải chạy lùi ở tốc độ Sprint của mức 1x");
+
+            // Bật chế độ bay bằng hai lần nhấn Space, ở xa mặt đất để kiểm tra vận tốc.
+            held[Input.Keys.S] = held[Input.Keys.CONTROL_LEFT] = false;
+            queue.keyUp(Input.Keys.S, 6);
+            queue.keyUp(Input.Keys.CONTROL_LEFT, 7);
+            queue.drain(app);
+            player.setPosition(100.5f, 100f, 100.5f);
+            held[Input.Keys.SPACE] = true;
+            tickPlayer(world, player, 1);
+            held[Input.Keys.SPACE] = false;
+            tickPlayer(world, player, 1);
+            held[Input.Keys.SPACE] = true;
+            tickPlayer(world, player, 1);
+            require(player.isFlying(), "Nhấn đúp Space phải bật chế độ bay");
+
+            for (int multiplier : multipliers) {
+                queue.keyDown(Input.Keys.F1, 8);
+                queue.keyUp(Input.Keys.F1, 9);
+                queue.drain(app);
+                held[Input.Keys.SPACE] = true;
+                tickPlayer(world, player, 1);
+                require(player.getVelocity().y == 7f * multiplier, "Bay lên phải áp dụng mức " + multiplier + "x");
+
+                held[Input.Keys.SPACE] = false;
+                held[Input.Keys.SHIFT_LEFT] = true;
+                tickPlayer(world, player, 1);
+                require(player.getVelocity().y == -4f * multiplier, "Hạ độ cao phải áp dụng mức " + multiplier + "x");
+
+                // Cách lần thử sau hơn 0,30 giây để Space hoặc Shift không bị tính là nhấn đúp.
+                held[Input.Keys.SHIFT_LEFT] = false;
+                tickPlayer(world, player, 19);
+                require(player.isFlying() && player.getVelocity().y == 0f, "Thả phím phải giữ độ cao");
+            }
+        } catch (ReflectiveOperationException e) {
+            throw new AssertionError("Không gắn được người chơi để kiểm tra phím tắt", e);
         } finally {
             Gdx.input = previous;
             world.dispose();
@@ -10178,29 +11592,30 @@ Phần A mô tả **100% tính chất hiện có** của dự án **VoxelGame**.
 - **Tài nguyên (`src/main/resources/`):**
   - **Âm thanh:** `audio/music/` chứa 5 bản Ogg Vorbis từ `import.zip`. `audio/sfx/` chứa 93 mẫu OGG được chọn từ gói hiệu ứng đi kèm, gồm biến thể vật liệu và mẫu dùng cho các tương tác hiện có. Tài nguyên được tìm theo đường dẫn cố định trong classpath.
   - **Texture khối:** `textures/` đóng gói bộ ảnh gốc của dự án và 13 PNG nhập nguyên byte từ `assets/minecraft/textures/block/` trong `1.21.11.zip`. Các tệp mới gồm `sandstone.png`, `sandstone_top.png`, `sandstone_bottom.png`, `spruce_log_top.png`, `short_grass.png`, `tall_grass_bottom.png`, `tall_grass_top.png`, `dandelion.png`, `poppy.png`, `cornflower.png`, `oxeye_daisy.png`, `sugar_cane.png` và `gravel.png`. Game nạp ảnh đã đóng gói và dùng bộ nạp dự phòng khi thiếu tài nguyên.
+  - **Rương trang trí:** Ba tile pixel art mặt có khóa, mặt bên và nắp được tạo khi dựng atlas. Cây cọ có hình dáng riêng và dùng tile thân, lá đã có của dự án.
   - **Tài nguyên môi trường:** `textures/environment/rain.png` và `snow.png` giữ nguyên ảnh 64 × 256 có sẵn. `celestial/sun.png` lấy từ `1.21.11.zip`, tám ảnh `celestial/moon/` lấy từ `Blue-Moon.zip` và `clouds.png` lấy từ `Cloudier Clouds.zip`. `audio/weather/rain.wav` là đoạn lặp nối chồng 0,65 giây từ bản thu `Kao - Minecraft Vanilla Rain Sounds Sample.mp3` đi kèm.
-- **Kiểm thử:** Gradle `regressionChecks` chạy bộ kiểm tra CPU về ID block, vòng đời thực thể rơi, cập nhật lân cận, va chạm, raycast, hình học chunk, sắp xếp mesh, sinh địa hình tất định, các mốc ngày–đêm, chuyển thời tiết và mái che. `check` gọi task này. Trình biên dịch dùng `options.release = 17`.
+- **Kiểm thử:** Gradle `regressionChecks` chạy bộ kiểm tra CPU về ID block, vòng đời thực thể rơi, cập nhật lân cận, va chạm, raycast, phím tắt đổi tốc độ, hình học chunk và AO, sắp xếp mesh, sinh địa hình tất định, sông, hồi sinh, kim tự tháp, các mốc ngày–đêm, chuyển thời tiết và mái che. `check` gọi task này. Trình biên dịch dùng `options.release = 17`.
 
 ---
 
-### 2. Kiến Trúc Mã Nguồn Hiện Tại (50 File Java)
+### 2. Kiến Trúc Mã Nguồn Hiện Tại (52 File Java)
 - **`com.voxelgame` (2 file):** `Main.java` khởi chạy desktop. `VoxelGameApp.java` quản lý Game Loop, sự kiện đầu vào, Pause Menu, đào/đặt block và vòng đời tài nguyên.
-- **`com.voxelgame.engine` (18 file):**
+- **`com.voxelgame.engine` (19 file):**
   - `Camera.java` quản lý góc nhìn, Dynamic FOV và ma trận. `Raycast.java` duyệt DDA và kiểm tra hộp chọn có thể tái sử dụng kết quả.
   - `Texture.java` dựng atlas 128 × 80 bằng Pixmap. `ShaderProgram.java` quản lý GLSL 330 cho 3D và UI. `Chunk.java` lưu ID và metadata cấp phát theo nhu cầu, dựng mesh đục/khoét alpha và mesh trong suốt.
   - `World.java` quản lý chunk, thực thể, gọi bộ sinh và điều phối kết xuất. `BlockUpdateQueue.java` quản lý FIFO tọa độ lân cận. `TranslucentChunkSort.java` sắp xếp mesh nước/băng theo khoảng cách.
-  - `BiomeType.java`, `TerrainNoise.java`, `TerrainGenerator.java` định nghĩa biome, noise tất định và các lượt sinh thế giới.
+  - `BiomeType.java`, `TerrainNoise.java`, `TerrainGenerator.java` định nghĩa biome, noise tất định và các lượt sinh thế giới. `DesertPyramid.java` chọn dấu chân khô và dựng kim tự tháp.
   - `UIRenderer.java` vẽ khung ngắm, HUD, hiệu ứng xương rồng và Pause Menu. `AudioManager.java` phát nhạc nền theo vòng xáo, chọn hiệu ứng âm thanh và giải phóng tài nguyên OpenAL.
   - `WorldTime.java` theo dõi đồng hồ và quỹ đạo thiên thể. `WeatherManager.java` điều khiển chu kỳ, cường độ cục bộ, âm lượng mưa và các lượt tích tuyết. `SkyRenderer.java` vẽ vòm trời, thiên thể và mây. `WeatherRenderer.java` vẽ hai lô mưa và tuyết. `EnvironmentMesh.java` chia sẻ định dạng đỉnh và bộ đệm VAO/VBO cho các lượt vẽ này.
-- **`com.voxelgame.entity` (30 file):**
+- **`com.voxelgame.entity` (31 file):**
   - `Entity.java` chứa tọa độ, vận tốc và quét AABB theo trục. `Player.java` xử lý điều khiển, bảo vệ mép, bước tuyết, quán tính trên băng và phản hồi xương rồng.
   - `Hotbar.java` quản lý 9 ô. `ItemEntity.java` quản lý vật phẩm rơi và mesh dùng chung. `FallingBlockEntity.java` quản lý trạng thái cát/sỏi đang rơi.
-  - `Block.java` đăng ký 26 singleton vào bảng 256 ID tra theo byte không dấu. `PlantBlock.java` chia sẻ hình học và luật nền thực vật. Các lớp block còn lại được liệt kê trong bảng bên dưới. Bốn hoa dùng chung `FlowerBlock.java`.
-- **Kiểm thử CPU (4 file):** `VoxelRegressionChecks.java`, `ChunkMeshRegressionChecks.java`, `TerrainGenerationChecks.java` và `EnvironmentChecks.java` thuộc `src/test/java/com/voxelgame/engine/`.
+  - `Block.java` đăng ký 27 singleton vào bảng 256 ID tra theo byte không dấu. `PlantBlock.java` chia sẻ hình học và luật nền thực vật. Các lớp block còn lại được liệt kê trong bảng bên dưới. Bốn hoa dùng chung `FlowerBlock.java`.
+- **Kiểm thử CPU (5 file):** `VoxelRegressionChecks.java`, `ChunkMeshRegressionChecks.java`, `TerrainGenerationChecks.java`, `DesertPyramidChecks.java` và `EnvironmentChecks.java` thuộc `src/test/java/com/voxelgame/engine/`.
 
 ---
 
-### 3. Hệ Thống Block (26 Loại) & Cơ Chế Đào / Rơi Item
+### 3. Hệ Thống Block (27 Loại) & Cơ Chế Đào / Rơi Item
 
 | ID | Lớp | Độ cứng (giây) | Hình học và lớp vẽ | Tile theo mặt | Hành vi |
 | --- | --- | ---: | --- | --- | --- |
@@ -10227,6 +11642,7 @@ Phần A mô tả **100% tính chất hiện có** của dự án **VoxelGame**.
 | 23 | `IceBlock` | 0,75 | Khối rắn trong suốt | 18 | Trơn. Đào tay không thành Water nếu dưới có nền rắn hoặc Water, thành Air nếu thiếu nền. |
 | 24 | `SpruceLogBlock` | 3,0 | Khối rắn đục | Đầu 23, cạnh 16 | Rơi Spruce Log. |
 | 25 | `SpruceLeavesBlock` | 0,30 | Khối rắn khoét alpha | 17 | Có thể đỡ tuyết. |
+| 26 | `DecorativeChestBlock` | 2,5 | Khối rắn đục | Nam 33, cạnh và đáy 34, trên 35 | Rương trang trí dùng âm thanh gỗ, đào rơi rương và đặt được qua Hotbar. |
 
 - Metadata dùng 0–7 cho một đến tám lớp tuyết, 0/1 cho nửa dưới/trên của Tall Grass. ID cũ 0–8 giữ nguyên. Ô mặc định không cần mảng metadata riêng. Chiều cao vẽ tuyết là số lớp × 0,125. Va chạm của lớp 2–7 thấp hơn hình vẽ một lớp. Tám lớp va chạm cao 1 block.
 - Khi sửa block, hàng đợi xử lý ô vừa đổi, sáu ô chung mặt và các phụ thuộc ngoài nhóm này. Mía kiểm tra nước ở cao độ nền. Snow Layer tan thành Air và Ice tan thành Water khi có Lava trong bán kính Manhattan 2. Cát/sỏi tạo thực thể đúng một lần khi mất nền, rồi đặt lại hoặc rơi item tùy mặt đáp.
@@ -10237,11 +11653,13 @@ Phần A mô tả **100% tính chất hiện có** của dự án **VoxelGame**.
 ### 4. Gameplay & Hệ Thống Điều Khiển
 - **Di chuyển & Xoay góc nhìn:** `W, A, S, D` di chuyển 4 hướng trên mặt phẳng ngang XZ theo hướng `yaw`; di chuột xoay góc nhìn 360° với độ nhạy `MOUSE_SENSITIVITY = 0.12f` và giới hạn `pitch` trong `[-89.0°, 89.0°]`[cite: 1].
 - **Nhảy & Bơi (`Space` 1 lần):** Nhảy khi `onGround == true` (`JUMP_VELOCITY = 8.6f`)[cite: 1]; khi đang trong Nước hoặc Lava sẽ bơi nổi lên với vận tốc dọc `4.2f`[cite: 1].
-- **Chế độ Bay (nhấn đúp `Space` trong tối đa `0.30s`):** Bật/tắt Fly Mode. Khi bay, trọng lực tắt, giữ `Space` để bay lên với tốc độ `7.0` block/s. Giữ cả hai phím thì ưu tiên `Space`. Thả cả `Space` và `Left Shift` để giữ độ cao. Tốc độ ngang là `1.8x`, nhân thêm `1.35x` khi chạy nhanh. Chạm mặt đất sẽ tự thoát Fly Mode.
+- **Chế độ Bay (nhấn đúp `Space` trong tối đa `0.30s`):** Bật/tắt Fly Mode. Khi bay, trọng lực tắt, giữ `Space` để bay lên với tốc độ cơ bản `7.0` block/s nhân với mức `F1`. Giữ cả hai phím thì ưu tiên `Space`. Thả cả `Space` và `Left Shift` để giữ độ cao. Tốc độ ngang là `1.8x`, nhân thêm `1.35x` khi chạy nhanh. Chạm mặt đất sẽ tự thoát Fly Mode.
 - **Hạ độ cao, thoát bay và rón rén (`Left Shift`):**
-  - Khi đang bay, giữ `Left Shift` để hạ độ cao với tốc độ `4.0` block/s. Nhấn đúp `Left Shift` trong tối đa `0.30s` để thoát bay và bật lại trọng lực.
+  - Khi đang bay, giữ `Left Shift` để hạ độ cao với tốc độ cơ bản `4.0` block/s nhân với mức `F1`. Nhấn đúp `Left Shift` trong tối đa `0.30s` để thoát bay và bật lại trọng lực.
   - Khi đứng/đi trên mặt đất: bật **Sneak**, giảm tốc độ còn `0.5x`, nội suy mượt tầm mắt Camera từ `1.62f` xuống `1.45f` (tốc độ nội suy `deltaTime * 14.0f`), và kích hoạt **giữ mép block** (`preventFallingOffEdgeX/Z` theo bước `0.02f`) không cho rơi xuống vực[cite: 1].
 - **Chạy nhanh (`Left Ctrl`):** Bật **Sprint** khi đang di chuyển ngang và không Sneak; tăng `1.5x` tốc độ đi bộ kèm hiệu ứng mở rộng Dynamic FOV[cite: 1].
+- **Đổi tốc độ kiểm tra địa hình (`F1`):** Mặc định `1x`. Mỗi lần bấm chuyển đúng một mức theo vòng `1x → 3x → 5x → 10x → 25x → 50x → 1x`, kể cả trong Pause Menu. Mức đã chọn giữ nguyên khi nhả phím hoặc giữ phím và chỉ đổi ở lần bấm tiếp theo. Hệ số áp dụng cho mọi hướng di chuyển ngang và cả tốc độ bay lên, hạ độ cao trong Fly Mode.
+- **Ghé tâm biome (`Ctrl+C` khi đang chơi):** Dịch chuyển lần lượt qua Snowy Plains, Plains, Desert rồi lặp lại. Tìm mặt đỡ khô ngay tâm hoặc trong phạm vi 32 block gần tâm của cùng biome, đặt chân trên mặt đỡ, xóa vận tốc và tắt chế độ Bay. Nếu không có nền hợp lệ, người chơi giữ nguyên vị trí và lần nhấn sau chuyển sang biome kế tiếp. Phím tắt dùng được với Ctrl trái hoặc phải.
 - **9 Ô Hotbar (`1`–`9` hoặc Cuộn chuột):**
   - `SLOT_COUNT = 9`, `MAX_STACK_SIZE = 64`[cite: 1].
   - Cuộn chuột lên giảm chỉ số ô, cuộn xuống tăng chỉ số ô (xoay vòng modulo 9)[cite: 1].
@@ -10262,7 +11680,7 @@ Phần A mô tả **100% tính chất hiện có** của dự án **VoxelGame**.
 
 ### 5. Vật Lý & Thuật Toán Sinh Thế Giới
 - **Vật lý Người chơi (`Player`):**
-  - Spawn tại tâm ngang `(x = 1500, z = 896)`. Độ cao chân bằng đỉnh cao nhất trong bốn cột block giáp tâm. Nếu rơi xuống dưới `y < -25.0f`, tự động đưa về `(1500, 22, 896)`, reset vận tốc và tắt bay.
+  - Spawn tại tâm ngang `(x = 1500, z = 896)`, trên nền cỏ Y=30. Khi chân rơi dưới Y=−25, hồi sinh quanh `(1500, 1500)` trên mặt đỡ rắn cao nhất có hai ô trống cho dấu chân, đặt lại vận tốc và tắt bay. Nếu vị trí đó bị xây kín hoặc không đủ chỗ, tìm vị trí hợp lệ quanh đó rồi tới vùng spawn.
   - Hộp va chạm AABB: `PLAYER_HALF_WIDTH = 0.3f` (rộng `0.6f`), `PLAYER_HEIGHT = 1.8f`[cite: 1].
   - Thông số vận tốc: `MOVE_SPEED = 5.5f`, `GRAVITY = -26.0f`, `TERMINAL_VELOCITY = -45.0f`[cite: 1].
   - Nhận diện chất lỏng (`isInLiquid`): kiểm tra block tại chân (`y + 0.1f`) và thắt lưng (`y + 0.9f`)[cite: 1]. Trong chất lỏng (không bay): tốc độ ngang `0.65x`, trọng lực `0.25x`, vận tốc chìm tối đa `-3.5f`[cite: 1].
@@ -10278,14 +11696,14 @@ Phần A mô tả **100% tính chất hiện có** của dự án **VoxelGame**.
   - Hoạt ảnh 3D: nhấp nhô `sin(age * 3.8f) * 0.07f + 0.08f` và tự xoay quanh trục Y theo góc `age * 110.0f` độ[cite: 1].
 - **Thế giới & Sinh Địa hình (`World`, seed `20261114L`):**
   - Bản đồ có **`3000 × 256 × 1792` block**, dùng lưới `188 × 16 × 112` chunk (`Chunk.SIZE = 16`). Tọa độ hợp lệ là `x = 0..2999`, `y = 0..255`, `z = 0..1791`. Chunk cuối theo X chỉ chứa tám cột hợp lệ. Ô lưới chỉ chứa không khí dùng `null`. Đặt block đầu tiên tạo chunk và xóa block cuối cùng giải phóng chunk cùng mesh của nó.
-  - Giới hạn chiều cao địa hình tự nhiên: `MAX_TERRAIN_LAYERS = 20` (`MAX_TERRAIN_Y = 19`)[cite: 1].
-  - Từ tây sang đông là Snowy Plains, Plains và Desert. Mỗi vùng khí hậu rộng 1.000 block theo X và trải dài 1.792 block theo Z. Quanh các mốc X=1000 và X=2000 có dải chuyển tiếp 64 block, dùng tỷ lệ nội suy và noise theo seed để xen mảng cỏ với tuyết hoặc cát. Địa tầng, lớp phủ, cây và thực vật cùng dùng kiểu bề mặt đã trộn. Hồ lạnh và ốc đảo nằm gần giữa biome tương ứng.
-  - `TerrainNoise` dùng value noise 2D ba tầng và hash theo seed/tọa độ. Nhiệt độ dựa trên khoảng cách đến ranh giới và phân loại ở ngưỡng ±0,31. Độ cao trộn qua vùng đệm quanh ngưỡng. Nền địa chất có đỉnh Y=9–19. Nền ngay spawn ở Plains là cỏ phẳng ở Y=12, chân người chơi bắt đầu Y=13.
-  - **Plains:** Bedrock → Stone → 2–3 Dirt → Grass Block. Có sồi thưa, cỏ, hoa và mía, hồ nước có đáy trộn Dirt/Sand/Gravel.
-  - **Desert:** Bedrock → Stone → 3–4 Sandstone → 3–4 Sand. Có cồn cát, cactus cao 1–3 block, bụi khô, ốc đảo và hồ Lava.
-  - **Snowy Plains:** Địa tầng tương tự Plains, phủ Snow Layer thường 1 lớp, có vùng 2–3 lớp và Snow Block. Hồ có mặt Ice và nước bên dưới, cây vân sam có tán hình nón và tuyết trên lá thoáng. Băng và tuyết tránh vùng gần dung nham khi sinh.
+  - Nền vùng thấp khoảng Y=26–34, núi tuyết của seed mặc định đạt ít nhất Y=140. Giới hạn nền địa chất là Y=154. Noise lục địa, Perlin xói mòn và ridged multifractal được ánh xạ bằng spline phân đoạn. Sa mạc có tầng cồn cát phân bậc hai block.
+  - Từ tây sang đông là Snowy Plains, Plains và Desert. Perlin làm uốn ranh giới quanh X=1000 và X=2000. Địa tầng, cây, tuyết, HUD và thời tiết dùng cùng công thức phân loại biome.
+  - **Plains:** Bedrock → Stone → 3–4 Dirt → Grass Block ở chỗ thoải. Dốc vừa lộ đá xen sỏi, dốc lớn lộ đá. Perlin quyết định trảng cỏ và cụm rừng với sồi thường, sồi cổ thụ, bụi sồi. Bốn trường Simplex tạo cụm riêng cho từng loài hoa.
+  - **Desert:** Bedrock → Stone → 3–4 Sandstone → 3–5 Sand ở chỗ thoải. Có vách sandstone, cactus cao 1–3 block, bụi khô, ốc đảo có cọ và hồ Lava. Một kim tự tháp giật cấp có nền móng sandstone, lối vào, sảnh cột, cầu thang và phòng ngầm có rương trang trí.
+  - **Snowy Plains:** Nền đá và sỏi lộ trên dốc, cỏ thoải phủ Snow Layer thường 1 lớp, có vùng 2–3 lớp và Snow Block. Đỉnh trên Y=110 có lớp Snow Block. Vân sam tán rộng ở vùng thấp, thông nhọn trên sườn và thông lùn thưa gần giới hạn cây. Tuyết đọng trên tán lá thoáng và tránh dung nham.
+  - **Sông và hồ:** Sông uốn theo dải noise, có mực nước Y=28, bờ cát hoặc sỏi có nền đỡ và mía ở ô sát nước hợp lệ. Mặt sông và hồ trong vùng lạnh đóng băng. Hồ chỉ sinh ở vùng thấp có mực hồ tối đa Y=48 và chênh cao toàn dấu chân tối đa 3 block, tránh dải sông, công trình và vùng an toàn của người chơi.
   - Hồ dung nham chọn vật liệu theo kiểu bề mặt ở tâm hồ. Desert có bờ Sand và lót Sandstone. Plains và Snowy Plains có bờ Grass Block và lót Dirt. Quy tắc tránh băng và tuyết gần dung nham áp dụng cả trên bờ.
-  - Các lượt sinh là địa tầng, hồ, băng/tuyết, cây và thực vật. Hai bộ đệm cột kiểu byte phục vụ các lượt sinh và được bỏ sau khi khởi tạo.
+  - Bộ đệm độ cao cột dùng `short[]`, mã biome và cờ sinh dùng `byte[]`. Bộ sinh tính độ cao trước, chọn dấu chân kim tự tháp, ghi địa tầng và nước theo dải cột được cắt tại biên chunk, rồi sinh hồ, băng/tuyết, công trình, cây và thực vật. Hai bộ đệm cột được bỏ sau khởi tạo. ID block trong chunk tiếp tục chiếm một byte.
 
 ---
 
@@ -10297,16 +11715,18 @@ Phần A mô tả **100% tính chất hiện có** của dự án **VoxelGame**.
 - **Định dạng Đỉnh & Shader (`ShaderProgram`):**
   - 6 floats/đỉnh: `[x, y, z, u, v, shade]` (`location 0: vec3 aPos`, `location 1: vec2 aTexCoord`, `location 2: float aShade`) quản lý qua `VertexAttributes` của libGDX.
   - Fragment Shader chọn màu từ `uTexture * uTintColor` hoặc `uTintColor`. Hình học thế giới và UI loại pixel có `alpha < 0.05`. Màu khối và thực thể nhân với độ lớn `vShade` và `uWorldLight`. Dấu âm của `vShade` đánh dấu dung nham tự phát sáng. `enable2DUIMode` đặt `uWorldLight = (1, 1, 1)`. `uEnvironmentMode` chọn xử lý vòm trời, mây, thiên thể hoặc giáng thủy.
+  - Sương xa hòa màu RGB của block và thực thể với màu khí quyển cùng hướng nhìn. Khoảng sương nội suy từ 288–640 block khi quang tới 96–384 block khi giáng thủy đạt cường độ tối đa. Bộ kết xuất bỏ qua chunk nằm hoàn toàn ngoài tầm sương cộng biên 32 block và ngoài khoảng có thể che mây. Các lượt vẽ HUD, overlay và môi trường giữ quy tắc màu và alpha riêng.
   - Xóa tiền tố `prependVertexCode`/`prependFragmentCode` để giữ `#version 330 core` ở dòng đầu tiên.
 - **Ánh sáng & Face Culling (`Chunk`):**
   - Directional Face Shading: `SHADE_TOP = 1.00f`, `SHADE_BOTTOM = 0.55f`, `SHADE_NORTH_SOUTH = 0.85f`, `SHADE_EAST_WEST = 0.72f`.
+  - AO ở mỗi góc mặt hộp đọc hai ô cạnh và một ô chéo, kể cả qua biên chunk. Khối đục và tuyết 8 lớp che đầy, lá che một phần. Độ sáng theo góc đi qua `aShade`. Cách chọn đường chéo thống nhất giữa mesh có chỉ số và mesh sáu đỉnh mỗi mặt.
   - Khối đục che phần mặt khối kề được phủ kín. Lá khoét alpha cho thấy bề mặt phía sau khe. Xương rồng có bốn mặt ngang lùi 1/16. Mặt bên tuyết chỉ giữ phần vượt chiều cao lớp kề. Cây hình chữ X vẽ cả hai phía. Nước/băng bỏ mặt trong cùng loại và giữ phần lộ ra cạnh loại không đục khác. Mặt thoáng Water/Lava cao 0,88 nếu phía trên là Air.
-  - Sửa ở biên đánh dấu mesh kề bị ảnh hưởng. Đổi độ cao bề mặt chất lỏng tại giao biên ngang và đứng còn làm mới chunk bên cạnh mặt chất lỏng.
+  - Sửa ở biên đánh dấu các mesh chung mặt, cạnh hoặc góc bị ảnh hưởng, gồm cả ô chéo dùng cho AO và mặt chất lỏng.
   - Khối xương rồng, vật phẩm rơi và biểu tượng Hotbar dùng chung vùng UV đã bỏ viền trong suốt. Mặt bên lấy vùng 14 × 16 pixel, mặt trên và dưới lấy vùng 14 × 14 pixel từ PNG gốc.
 - **Hai pha vẽ:** Chunk đục/khoét alpha và thực thể ghi depth trước. Nước/băng giữ depth test, tắt depth write, dùng blend `GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA` rồi khôi phục trạng thái. Heapsort tại chỗ sắp xa đến gần theo bình phương khoảng cách mắt–tâm chunk và phá hòa theo tọa độ. Mảng chunk, khoảng cách và khóa được cấp phát trước. Thứ tự giữa các mặt trong một chunk là xấp xỉ.
   - Vòm trời và thiên thể vẽ trước các chunk. Mây ở Y=140 vẽ sau địa hình đục và trước nước/băng. Mưa và tuyết vẽ sau thế giới với depth test và alpha blend. Các lượt môi trường tắt ghi độ sâu, khôi phục trạng thái sau khi vẽ và dùng lại mảng đỉnh.
 - **Frustum culling và bộ nhớ đệm:** Dựng trước 5 × 5 cột quanh spawn, mỗi frame cập nhật tối đa 16 chunk giao khung nhìn, ưu tiên gần camera. Thu hồi cả hai mesh sau 120 frame ngoài khung nhìn và giữ dữ liệu voxel. Hai bộ đệm đỉnh và bảng UV dùng lại.
-- **Texture Atlas:** Lưới 8 × 5 ô 16 × 16, kích thước 128 × 80 RGBA. Dùng Nearest, ClampToEdge và biên UV 0,0008. Các tile 0–19 giữ chỉ số cũ; tile 20–32 tương ứng thứ tự PNG mới ở mục 1. Xử lý một lần khi dựng atlas: nhuộm tông Plains cho cỏ/lá sồi/mía, tông xanh thông cho lá vân sam, giữ alpha nguồn của texture khoét và độ trong của Ice/Water. Nước và dung nham lấy khung đầu. Dùng pixel art dự phòng khi nguồn thiếu hoặc lỗi đọc và giải phóng các Pixmap sau dựng atlas.
+- **Texture Atlas:** Lưới 8 × 5 ô 16 × 16, kích thước 128 × 80 RGBA. Dùng Nearest, ClampToEdge và biên UV 0,0008. Tile 0–19 giữ chỉ số cũ, tile 20–32 dùng PNG ở mục 1, tile 33–35 dành cho rương. Xử lý một lần khi dựng atlas: nhuộm tông Plains cho cỏ/lá sồi/mía, tông xanh thông cho lá vân sam, giữ alpha nguồn của texture khoét và độ trong của Ice/Water. Nước và dung nham lấy khung đầu. Dùng pixel art dự phòng khi nguồn thiếu hoặc lỗi đọc và giải phóng các Pixmap sau dựng atlas.
 
 - **Tối ưu Hiệu năng & Quản lý Bộ nhớ:**
   - Mesh chunk dùng VAO qua OpenGL 3.3. Với tối đa 16.384 mặt, mesh nén tại chỗ còn bốn đỉnh mỗi mặt và dùng chung mẫu chỉ số 16 bit cho hai tam giác. Mesh lớn hơn tải đủ sáu đỉnh mỗi mặt.

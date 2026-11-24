@@ -13,6 +13,7 @@ import java.lang.reflect.Proxy;
 public final class VoxelRegressionChecks {
     /** Chạy toàn bộ nhóm kiểm tra và ném lỗi khi hành vi sai. */
     public static void main(String[] args) {
+        CombatAndLivingChecks.run();
         checkBlockRegistry();
         checkBlockUpdates();
         checkFallingBlocks();

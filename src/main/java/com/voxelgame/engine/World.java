@@ -13,6 +13,7 @@ import com.voxelgame.entity.Entity;
 import com.voxelgame.entity.FallingBlockEntity;
 import com.voxelgame.entity.Hotbar;
 import com.voxelgame.entity.ItemEntity;
+import com.voxelgame.entity.LivingEntity;
 import com.voxelgame.entity.Player;
 
 import java.util.ArrayList;
@@ -73,6 +74,8 @@ public class World implements Disposable {
     private final List<Entity> entities = new ArrayList<>();
     /** Hệ thống âm thanh do ứng dụng sở hữu và vị trí nghe dùng lại khi tính độ xa. */
     private AudioManager audio;
+    /** Thời tiết dùng chung với bộ kết xuất để dập lửa ngoài trời. */
+    private WeatherManager weather;
     private final Vector3 audioListener = new Vector3();
     // Các luật có thể ghi thêm ô trong lúc hàng đợi đang được xử lý.
     private final BlockUpdateQueue blockUpdates = new BlockUpdateQueue();
@@ -287,6 +290,38 @@ public class World implements Disposable {
         return player;
     }
 
+    /** Đưa thực thể sống vào danh sách cập nhật và kết xuất đúng một lần. */
+    public void addLivingEntity(LivingEntity entity) {
+        if (entity != null && !entities.contains(entity)) {
+            entities.add(entity);
+        }
+    }
+
+    /** Trả số thực thể hiện diện để raycast duyệt theo chỉ số. */
+    int entityCount() {
+        return entities.size();
+    }
+
+    /** Đọc một thực thể mà không công khai danh sách có thể sửa. */
+    Entity entityAt(int index) {
+        return entities.get(index);
+    }
+
+    /** Gắn đồng hồ thời tiết đang điều khiển giáng thủy của thế giới. */
+    public void setWeather(WeatherManager weather) {
+        this.weather = weather;
+    }
+
+    /** Kiểm tra vị trí lộ thiên ở cột mưa, có xét khí hậu tại thực thể. */
+    public boolean isRainingAt(float x, float y, float z) {
+        if (weather == null || weather.strength() <= 0f) {
+            return false;
+        }
+        int blockX = (int) Math.floor(x);
+        int blockZ = (int) Math.floor(z);
+        return getBiome(blockX, blockZ) == BiomeType.PLAINS && !hasWeatherRoof(blockX, y, blockZ);
+    }
+
     /**
      * Thêm một thực thể vật phẩm rơi (`ItemEntity`) vào danh sách đa hình `List<Entity>`.
      *
@@ -311,7 +346,8 @@ public class World implements Disposable {
             entity.update(this, deltaTime);
 
             if ((entity instanceof ItemEntity item && item.isCollected())
-                    || (entity instanceof FallingBlockEntity falling && falling.isFinished())) {
+                    || (entity instanceof FallingBlockEntity falling && falling.isFinished())
+                    || (entity instanceof LivingEntity living && living.isReadyToRemove())) {
                 entities.remove(i);
                 frameEntityCount--;
                 i--;

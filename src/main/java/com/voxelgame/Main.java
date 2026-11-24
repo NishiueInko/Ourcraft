@@ -37,7 +37,7 @@ public class Main {
         config.setOpenGLEmulation(Lwjgl3ApplicationConfiguration.GLEmulation.GL30, 3, 3);
 
         // Tiêu đề cửa sổ game hiển thị trên thanh tiêu đề hệ điều hành
-        config.setTitle("Voxel Game 3D - Minecraft OOP Edition (Java & libGDX LWJGL3)");
+        config.setTitle("Ourcraft");
 
         // Kích thước mặc định 1280 x 720 pixel (tỷ lệ 16:9 chuẩn HD)
         config.setWindowedMode(1280, 720);

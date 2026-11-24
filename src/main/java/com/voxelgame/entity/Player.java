@@ -22,7 +22,7 @@ import java.util.concurrent.ThreadLocalRandom;
  *    Left Shift, chạy nhanh bằng Left Ctrl và rón rén giữ mép block.
  * 3. Đa hình (Polymorphism): Ghi đè `update(World, float)` và `render(ShaderProgram)` của `Entity`.
  */
-public class Player extends Entity {
+public class Player extends LivingEntity {
 
     // Kích thước hộp va chạm AABB tiêu chuẩn của nhân vật (Rộng 0.6 -> halfWidth = 0.3, Cao 1.8)
     private static final float PLAYER_HALF_WIDTH = 0.3f;
@@ -53,6 +53,15 @@ public class Player extends Entity {
     private static final float CACTUS_COOLDOWN = 0.5f;
     private static final float CACTUS_FLASH_DURATION = 0.25f;
     private static final float CACTUS_PUSH = 2.0f;
+    /** Máu, độ đói và nhịp chiến đấu cơ bản của người chơi. */
+    private static final float PLAYER_HEALTH = 20f;
+    private static final float MAX_HUNGER = 20f;
+    private static final float MELEE_COOLDOWN = 0.6f;
+    private static final float LAVA_BURN_SECONDS = 15f;
+    /** Hồi một HP và tiêu hao một điểm đói sau mỗi bốn giây đủ điều kiện. */
+    private static final float REGEN_HUNGER_THRESHOLD = 18f;
+    private static final float REGEN_INTERVAL = 4f;
+    private static final float HUNGER_EFFECT_PER_SECOND = 0.5f;
     /** Bộ đệm điều khiển dùng lại mỗi khung hình. */
     private final Vector3 forwardXZ = new Vector3();
     private final Vector3 rightXZ = new Vector3();
@@ -61,6 +70,10 @@ public class Player extends Entity {
     private float cactusFlash;
     private float pushX;
     private float pushZ;
+    /** Các bộ đếm sinh tồn độc lập với điều khiển và phản hồi xương rồng. */
+    private float hunger = MAX_HUNGER;
+    private float regenElapsed;
+    private float attackCooldown;
 
     /** Tích lũy quãng đường và thời gian trên không để phát âm theo chuyển động thực. */
     private float stepDistance;
@@ -95,11 +108,11 @@ public class Player extends Entity {
     private float playerElapsedTime = 0.0f;
 
     public Player(Vector3 startPosition) {
-        super(startPosition.x, startPosition.y, startPosition.z, PLAYER_HALF_WIDTH, PLAYER_HEIGHT);
+        this(startPosition.x, startPosition.y, startPosition.z);
     }
 
     public Player(float startX, float startY, float startZ) {
-        super(startX, startY, startZ, PLAYER_HALF_WIDTH, PLAYER_HEIGHT);
+        super(startX, startY, startZ, PLAYER_HALF_WIDTH, PLAYER_HEIGHT, PLAYER_HEALTH, 0f, false);
     }
 
     /** Chuyển sang mức tốc độ kế tiếp và quay về 1x sau 50x. */
@@ -115,6 +128,7 @@ public class Player extends Entity {
 
         // Xóa đà, lực đẩy, chuỗi nhấn đúp và quãng đường âm thanh ở vị trí cũ.
         velocity.setZero();
+        resetFallTracking();
         pushX = pushZ = 0f;
         isFlying = false;
         onGround = true;
@@ -155,33 +169,42 @@ public class Player extends Entity {
     }
 
     /**
-     * Ghi đè phương thức trừu tượng `update` của `Entity`:
+     * Cập nhật phần điều khiển của thực thể sống:
      * Thực thi toàn bộ điều khiển bàn phím, trạng thái Bay/Chạy/Rón rén, vật lý va chạm AABB
      * và đồng bộ vị trí mắt Camera.
      */
     @Override
-    public void update(World world, float deltaTime) {
-        if (camera == null || world == null) {
+    protected void updateLiving(World world, float deltaTime) {
+        playerElapsedTime += deltaTime;
+        attackCooldown = Math.max(0f, attackCooldown - deltaTime);
+        cactusCooldown = Math.max(0, cactusCooldown - deltaTime);
+        cactusFlash = Math.max(0, cactusFlash - deltaTime);
+        updateRegeneration(deltaTime);
+        if (camera == null) {
+            updateLavaContact(world);
             return;
         }
 
-        playerElapsedTime += deltaTime;
-
-        cactusCooldown = Math.max(0, cactusCooldown - deltaTime);
-        cactusFlash = Math.max(0, cactusFlash - deltaTime);
         float startX = position.x;
         float startY = position.y;
         float startZ = position.z;
-        handleInput(world, camera, deltaTime);
+        if (Gdx.input != null) {
+            handleInput(world, camera, deltaTime);
+        }
         Block support = applyPhysicsAndCollision(world, deltaTime);
+        if (!isAlive()) {
+            return;
+        }
 
         // Nếu rơi xuống dưới đáy bản đồ, đưa người chơi trở lại vị trí an toàn trên mặt đất
         boolean respawned = position.y < -25.0f;
         if (respawned) {
-            world.setRespawnPosition(position);
-            velocity.set(0.0f, 0.0f, 0.0f);
-            isFlying = false;
-            lastShiftTapTime = Float.NEGATIVE_INFINITY;
+            moveToRespawn(world);
+        } else {
+            updateLavaContact(world);
+            if (!isAlive()) {
+                return;
+            }
         }
 
         // Nội suy mượt mà chiều cao tầm mắt Camera khi chuyển đổi giữa Đứng thẳng (1.62f) và Sneak (1.45f)
@@ -204,6 +227,109 @@ public class Player extends Entity {
                         position.x - startX, position.y - startY, position.z - startZ);
             }
         }
+    }
+
+    /** Xử lý hồi sinh sau khi các bước sát thương của lượt cập nhật kết thúc. */
+    @Override
+    protected void finishLivingUpdate(World world) {
+        if (isAlive()) {
+            return;
+        }
+        resetRespawnMotion(world);
+        restoreLife();
+        hunger = MAX_HUNGER;
+        regenElapsed = attackCooldown = 0f;
+        cactusCooldown = cactusFlash = 0f;
+        if (camera != null) {
+            camera.setPosition(position.x, position.y + currentEyeHeight, position.z);
+        }
+    }
+
+    /** Dùng lại bộ tìm vị trí an toàn và xóa đà từ nơi vừa rơi hoặc chết. */
+    private void moveToRespawn(World world) {
+        world.setRespawnPosition(position);
+        velocity.setZero();
+        resetFallTracking();
+        isFlying = false;
+        lastShiftTapTime = Float.NEGATIVE_INFINITY;
+    }
+
+    /** Dọn thêm trạng thái điều khiển và âm thanh khi người chơi thực sự chết. */
+    private void resetRespawnMotion(World world) {
+        moveToRespawn(world);
+        pushX = pushZ = 0f;
+        isSprinting = false;
+        isSneaking = false;
+        onGround = false;
+        lastSpaceTapTime = Float.NEGATIVE_INFINITY;
+        airborneTime = stepDistance = swimDistance = 0f;
+        previousLiquid = Block.AIR;
+        wasUnderwater = false;
+        nearbyLiquidDelay = 0f;
+    }
+
+    /** Gây sát thương theo cửa sổ miễn đòn và duy trì thời gian cháy khi còn trong dung nham. */
+    private void updateLavaContact(World world) {
+        if (touchesLiquid(world, Block.LAVA)) {
+            damage(world, 4f, DamageSource.LAVA, null, 0f, 0f);
+            ignite(LAVA_BURN_SECONDS);
+        }
+    }
+
+    /** Tích lũy thời gian hồi máu khi người chơi đang bị thương và còn đủ độ đói. */
+    private void updateRegeneration(float deltaTime) {
+        if (hunger < REGEN_HUNGER_THRESHOLD || getHealth() >= getMaxHealth()) {
+            regenElapsed = 0f;
+            return;
+        }
+        regenElapsed += deltaTime;
+        if (regenElapsed >= REGEN_INTERVAL) {
+            regenElapsed -= REGEN_INTERVAL;
+            heal(1f);
+            hunger -= 1f;
+        }
+    }
+
+    /** Trừ độ đói theo cấp và số giây Hunger thực sự có hiệu lực. */
+    @Override
+    protected void onHungerEffect(int amplifier, float activeTime) {
+        hunger = Math.max(0f, hunger - HUNGER_EFFECT_PER_SECOND * (amplifier + 1f) * activeTime);
+    }
+
+    /** Trả mức đói hiện tại cho HUD. */
+    public float getHunger() {
+        return hunger;
+    }
+
+    /** Trả sức chứa thanh đói cho HUD. */
+    public float getMaxHunger() {
+        return MAX_HUNGER;
+    }
+
+    /** Đánh một mục tiêu còn sống trong nhịp cho phép; hướng ngang truyền lực đẩy. */
+    public void attack(World world, LivingEntity target, Vector3 direction) {
+        if (!isAlive() || !target.isAlive() || target == this || attackCooldown > 0.000001f) {
+            return;
+        }
+        attackCooldown = MELEE_COOLDOWN;
+        boolean critical = velocity.y < -0.1f && !onGround && !isFlying && !isInLiquid(world);
+        float amount = getMeleeDamage(1f) * (critical ? 1.5f : 1f);
+        float horizontalLength = (float) Math.sqrt(direction.x * direction.x + direction.z * direction.z);
+        float push = horizontalLength > 0.000001f ? 2f / horizontalLength : 0f;
+        target.damage(world, amount, DamageSource.MELEE, this, direction.x * push, direction.z * push);
+    }
+
+    /** Giữ lực đẩy cận chiến ngay cả khi đầu vào ghi lại vận tốc di chuyển. */
+    @Override
+    protected void applyKnockback(float x, float z) {
+        pushX += x;
+        pushZ += z;
+    }
+
+    /** Bỏ theo dõi rơi khi đang bay hoặc ngồi trên thú. */
+    @Override
+    protected boolean ignoresFall() {
+        return isFlying || super.ignoresFall();
     }
 
     /**
@@ -279,7 +405,7 @@ public class Player extends Entity {
         isSprinting = ctrlDown && isMovingHorizontally && !isSneaking;
 
         int terrainSpeedMultiplier = TERRAIN_SPEED_MULTIPLIERS[terrainSpeedIndex];
-        float currentSpeed = MOVE_SPEED * terrainSpeedMultiplier;
+        float currentSpeed = MOVE_SPEED * terrainSpeedMultiplier * getMovementSpeedMultiplier();
         if (isFlying) {
             currentSpeed *= FLY_SPEED_MULTIPLIER;
             if (isSprinting) {
@@ -373,6 +499,10 @@ public class Player extends Entity {
             onGround = velocity.y < 0;
             velocity.y = 0;
             if (verticalHit == Block.CACTUS) {
+                // Chốt quãng rơi tại mặt gai trước khi phản lực làm chân rời đất.
+                if (onGround && !ignoresFall()) {
+                    updateFall(world);
+                }
                 touchCactus(world, 0, 0, onGround);
             }
         }
@@ -530,6 +660,7 @@ public class Player extends Entity {
         }
         pushX = x;
         pushZ = z;
+        damage(world, 1f, DamageSource.CACTUS, null, 0f, 0f);
         if (above && !isFlying) {
             velocity.y = CACTUS_PUSH;
             onGround = false;

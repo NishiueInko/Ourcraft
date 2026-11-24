@@ -11,6 +11,7 @@ import com.badlogic.gdx.utils.Disposable;
 import com.voxelgame.entity.Block;
 import com.voxelgame.entity.Hotbar;
 import com.voxelgame.entity.Player;
+import com.voxelgame.entity.StatusEffectType;
 
 /**
  * Hệ thống Kết xuất Giao diện Người dùng 2D & Hiệu ứng Tương tác 3D (UI & HUD Renderer),
@@ -66,6 +67,14 @@ public class UIRenderer implements Disposable {
     private static final String[] VOLUME_LABELS = new String[101];
     /** Đồng hồ và trạng thái thời tiết dùng bộ đệm ký tự, tránh tạo chuỗi theo frame. */
     private final StringBuilder environmentLabel = new StringBuilder(48);
+    /** Nhãn trạng thái và mẫu pixel dùng lại khi vẽ tim và đùi thịt. */
+    private final StringBuilder effectLabel = new StringBuilder(32);
+    private static final int[] HEART_ROWS = {0b0110110, 0b1111111, 0b1111111, 0b0111110, 0b0011100, 0b0001000};
+    private static final int[] FOOD_ROWS = {0b0001110, 0b0011111, 0b0011111, 0b0111110, 0b1111000, 0b1100000};
+    /** Mỗi biểu tượng đại diện hai điểm, với hai pixel màn hình trên mỗi pixel mẫu. */
+    private static final int VITAL_ICON_COUNT = 10;
+    private static final float VITAL_PIXEL = 2f;
+    private static final float VITAL_SPACING = 17f;
     private WorldTime worldTime;
     private WeatherManager weather;
     static {
@@ -244,7 +253,8 @@ public class UIRenderer implements Disposable {
                 miningProgress,
                 isPaused,
                 mouseX,
-                mouseY
+                mouseY,
+                player
         );
     }
 
@@ -264,6 +274,14 @@ public class UIRenderer implements Disposable {
             double mouseX,
             double mouseY
     ) {
+        render2DHUD(shader, textureAtlas, camera, hotbar, audioManager, windowWidth, windowHeight,
+                miningProgress, isPaused, mouseX, mouseY, null);
+    }
+
+    /** Kết xuất HUD dùng chung và vẽ chỉ số sinh tồn khi có người chơi. */
+    private void render2DHUD(ShaderProgram shader, Texture textureAtlas, Camera camera, Hotbar hotbar,
+                             AudioManager audioManager, int windowWidth, int windowHeight, float miningProgress,
+                             boolean isPaused, double mouseX, double mouseY, Player player) {
         this.currentShader = shader;
 
         Gdx.gl.glDisable(GL20.GL_DEPTH_TEST);
@@ -277,8 +295,14 @@ public class UIRenderer implements Disposable {
         if (hotbar != null) {
             renderHotbar(shader, textureAtlas, hotbar, windowWidth, windowHeight);
         }
+        if (player != null) {
+            renderVitals(player, windowWidth, windowHeight);
+        }
 
         if (!isPaused) {
+            if (player != null) {
+                renderStatusEffects(player, windowWidth);
+            }
             if (worldTime != null && weather != null) {
                 renderEnvironment();
             }
@@ -298,6 +322,78 @@ public class UIRenderer implements Disposable {
         Gdx.gl.glDisable(GL20.GL_BLEND);
         Gdx.gl.glEnable(GL20.GL_CULL_FACE);
         Gdx.gl.glEnable(GL20.GL_DEPTH_TEST);
+    }
+
+    /** Vẽ hai hàng biểu tượng phía trên tên vật phẩm, dùng chung bộ đệm đỉnh với chữ. */
+    private void renderVitals(Player player, int windowWidth, int windowHeight) {
+        float halfBarWidth = (Hotbar.SLOT_COUNT * HOTBAR_SLOT_SIZE
+                + (Hotbar.SLOT_COUNT + 1) * HOTBAR_SLOT_PADDING) * 0.5f;
+        float span = (VITAL_ICON_COUNT - 1) * VITAL_SPACING + 7f * VITAL_PIXEL;
+        float inset = Math.max(4f, windowWidth * 0.5f - halfBarWidth);
+        float y = windowHeight - HOTBAR_SLOT_SIZE - HOTBAR_SLOT_PADDING * 2f - 58f;
+        float foodX = windowWidth - inset - span;
+        currentShader.setUniform1i("uUseTexture", 0);
+
+        currentShader.setUniformVec4("uTintColor", 0.15f, 0.12f, 0.17f, 0.95f);
+        int length = writeVitalIcons(HEART_ROWS, inset, y, VITAL_ICON_COUNT * 2, 0);
+        length = writeVitalIcons(FOOD_ROWS, foodX, y, VITAL_ICON_COUNT * 2, length);
+        uploadAndDrawTriangles(textVertices, length);
+
+        currentShader.setUniformVec4("uTintColor", 0.94f, 0.29f, 0.35f, 1f);
+        int hp = (int) Math.ceil(player.getHealth());
+        uploadAndDrawTriangles(textVertices, writeVitalIcons(HEART_ROWS, inset, y, hp, 0));
+        currentShader.setUniformVec4("uTintColor", 0.97f, 0.64f, 0.30f, 1f);
+        int food = (int) Math.ceil(player.getHunger());
+        uploadAndDrawTriangles(textVertices, writeVitalIcons(FOOD_ROWS, foodX, y, food, 0));
+    }
+
+    /** Gộp từng dải pixel liên tiếp thành một quad, cắt nửa biểu tượng khi còn một điểm. */
+    private int writeVitalIcons(int[] rows, float x, float y, int units, int offset) {
+        for (int icon = 0; icon < VITAL_ICON_COUNT && units > icon * 2; icon++) {
+            int width = units - icon * 2 >= 2 ? 7 : 4;
+            float iconX = x + icon * VITAL_SPACING;
+            for (int row = 0; row < rows.length; row++) {
+                int col = 0;
+                while (col < width) {
+                    if ((rows[row] & (1 << (6 - col))) == 0) {
+                        col++;
+                        continue;
+                    }
+                    int first = col++;
+                    while (col < width && (rows[row] & (1 << (6 - col))) != 0) {
+                        col++;
+                    }
+                    float x0 = iconX + first * VITAL_PIXEL;
+                    float x1 = iconX + col * VITAL_PIXEL;
+                    float y0 = y + row * VITAL_PIXEL;
+                    float y1 = y0 + VITAL_PIXEL;
+                    writeQuad(textVertices, offset, x0, y1, 0f, x1, y1, 0f, x1, y0, 0f,
+                            x0, y0, 0f, 0f, 0f, 1f, 1f);
+                    offset += 36;
+                }
+            }
+        }
+        return offset;
+    }
+
+    /** Vẽ tên và số giây làm tròn lên của từng hiệu ứng ở góc trên phải. */
+    private void renderStatusEffects(Player player, int windowWidth) {
+        float y = 10f;
+        for (int i = 0; i < StatusEffectType.COUNT; i++) {
+            StatusEffectType type = StatusEffectType.at(i);
+            float remaining = player.getEffectDuration(type);
+            if (remaining <= 0f) {
+                continue;
+            }
+            effectLabel.setLength(0);
+            effectLabel.append(type.name()).append(' ').append((int) Math.ceil(remaining)).append('S');
+            float x = windowWidth - 10f - effectLabel.length() * 9f;
+            currentShader.setUniformVec4("uTintColor", 0f, 0f, 0f, 0.8f);
+            drawPixelText(effectLabel, x + 1.5f, y + 1.5f, 1.5f);
+            currentShader.setUniformVec4("uTintColor", 1f, 1f, 1f, 0.95f);
+            drawPixelText(effectLabel, x, y, 1.5f);
+            y += 15f;
+        }
     }
 
     /** Vẽ hai dòng góc trên trái bằng font 5 × 7 có sẵn. */

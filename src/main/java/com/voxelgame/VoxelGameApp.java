@@ -142,11 +142,16 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
 
     /** Tầm với tối đa của tia bắn Raycast khi đào/đặt Block (5 ô voxel) */
     private static final float RAYCAST_REACH = 5.0f;
+    /** Tầm với riêng dành cho đòn cận chiến. */
+    private static final float MELEE_REACH = 3.0f;
     /** Bộ đệm riêng cho lần ngắm trong render và lần bấm đặt block. */
     private final Vector3 eyePosition = new Vector3();
     private final Vector3 aimDirection = new Vector3();
     private final Raycast.HitResult renderHit = Raycast.HitResult.miss();
     private final Raycast.HitResult placementHit = Raycast.HitResult.miss();
+    /** Hai kết quả dùng lại để chọn thực thể và kiểm tra tia bị vật cản che. */
+    private final Raycast.HitResult occluderHit = Raycast.HitResult.miss();
+    private final Raycast.EntityHitResult entityHit = new Raycast.EntityHitResult();
 
     // =====================================================================
     // VÒNG ĐỜI ỨNG DỤNG LIBGDX
@@ -192,6 +197,7 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
 
         // Sinh địa hình và chuẩn bị mesh quanh tâm bản đồ.
         world = new World();
+        world.setWeather(weather);
 
         // UI Renderer: Chuẩn bị tài nguyên GPU cho Overlay 3D, Crosshair, Hotbar, Pause Menu, font bitmap
         uiRenderer = new UIRenderer();
@@ -341,7 +347,7 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
                 shaderProgram,
                 textureAtlas,
                 camera,
-                player.getHotbar(),
+                player,
                 audioManager,
                 screenWidth,
                 screenHeight,
@@ -576,6 +582,28 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         nextMiningSoundTime = 0.0f;
     }
 
+    /** Chọn thực thể từ mắt người chơi và giới hạn tia tại hộp va chạm của địa hình. */
+    private Raycast.EntityHitResult aimAtEntity(float reach) {
+        camera.copyPosition(eyePosition);
+        camera.copyFront(aimDirection);
+        Raycast.castOccluder(world, eyePosition, aimDirection, reach, occluderHit);
+        return Raycast.castEntity(world, eyePosition, aimDirection, reach, occluderHit.getDistance(),
+                player, entityHit);
+    }
+
+    /** Mỗi lần nhấn chọn đòn đánh hoặc bắt đầu giữ để đào. */
+    private void handleLeftClick() {
+        if (world == null || camera == null || player == null) {
+            return;
+        }
+        Raycast.EntityHitResult hit = aimAtEntity(MELEE_REACH);
+        isLeftMouseDown = !hit.isHit();
+        if (hit.isHit()) {
+            resetMiningProgress();
+            player.attack(world, hit.getEntity(), aimDirection);
+        }
+    }
+
     /**
      * Xử lý sự kiện click chuột phải: Đặt block từ Hotbar vào thế giới.
      * - Lấy block đang chọn trong Hotbar
@@ -585,6 +613,12 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
      */
     private void handleRightClickPlaceBlock() {
         if (world == null || camera == null || player == null) {
+            return;
+        }
+
+        // Tương tác thực thể được ưu tiên, kể cả khi ô Hotbar đang trống.
+        Raycast.EntityHitResult target = aimAtEntity(RAYCAST_REACH);
+        if (target.isHit() && target.getEntity().onPlayerInteract(world, player)) {
             return;
         }
 
@@ -841,7 +875,7 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
 
         // Trạng thái chơi: xử lý đào và đặt block
         if (button == Input.Buttons.LEFT) {
-            isLeftMouseDown = true;
+            handleLeftClick();
         } else if (button == Input.Buttons.RIGHT) {
             handleRightClickPlaceBlock();
         }

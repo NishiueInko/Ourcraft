@@ -9,7 +9,7 @@ Phần A mô tả **100% tính chất hiện có** của dự án **VoxelGame**.
 ### 1. Thông Tin Dự Án, Build & Tài Nguyên
 - **Tên dự án / Gradle:** `VoxelGame` (`group = 'com.voxelgame'`, `version = '1.0-SNAPSHOT'`).
 - **Java & Biên dịch:** Java 17 (`sourceCompatibility = JavaVersion.VERSION_17`, `targetCompatibility = JavaVersion.VERSION_17`), ép mã hóa nguồn `UTF-8` cho `JavaCompile`.
-- **Entry Point & Cửa sổ:** `com.voxelgame.Main` khởi tạo `Lwjgl3ApplicationConfiguration` (kích thước mặc định `1280 x 720`, V-Sync `true`, Back Buffer RGBA 8-8-8-8/Depth 24 bit, Resizable `true`) và chạy `new Lwjgl3Application(new VoxelGameApp(), config)`. Tiêu đề cửa sổ: `"Voxel Game 3D - Minecraft OOP Edition (Java & libGDX LWJGL3)"`. Trên macOS tự động truyền tham số JVM `-XstartOnFirstThread`.
+- **Entry Point & Cửa sổ:** `com.voxelgame.Main` khởi tạo `Lwjgl3ApplicationConfiguration` (kích thước mặc định `1280 x 720`, V-Sync `true`, Back Buffer RGBA 8-8-8-8/Depth 24 bit, Resizable `true`) và chạy `new Lwjgl3Application(new VoxelGameApp(), config)`. Tiêu đề cửa sổ là `Ourcraft`. Trên macOS tự động truyền tham số JVM `-XstartOnFirstThread`.
 - **Thư viện phụ thuộc (`build.gradle`):**
   - **libGDX `1.13.1`** (`com.badlogicgames.gdx`): `gdx` (Core API), `gdx-backend-lwjgl3` (Backend Desktop LWJGL 3), `gdx-platform:natives-desktop` (Native tự động cho Windows/Linux/macOS, x64/arm64).
   - Đã loại bỏ hoàn toàn: LWJGL BOM 3.3.3, JOML 1.10.5, JLayer 1.0.1 (libGDX đã tích hợp sẵn LWJGL 3, GLFW, OpenGL, STB, OpenAL và thư viện toán học).
@@ -18,11 +18,11 @@ Phần A mô tả **100% tính chất hiện có** của dự án **VoxelGame**.
   - **Texture khối:** `textures/` đóng gói bộ ảnh gốc của dự án và 13 PNG nhập nguyên byte từ `assets/minecraft/textures/block/` trong `1.21.11.zip`. Các tệp mới gồm `sandstone.png`, `sandstone_top.png`, `sandstone_bottom.png`, `spruce_log_top.png`, `short_grass.png`, `tall_grass_bottom.png`, `tall_grass_top.png`, `dandelion.png`, `poppy.png`, `cornflower.png`, `oxeye_daisy.png`, `sugar_cane.png` và `gravel.png`. Game nạp ảnh đã đóng gói và dùng bộ nạp dự phòng khi thiếu tài nguyên.
   - **Rương trang trí:** Ba tile pixel art mặt có khóa, mặt bên và nắp được tạo khi dựng atlas. Cây cọ có hình dáng riêng và dùng tile thân, lá đã có của dự án.
   - **Tài nguyên môi trường:** `textures/environment/rain.png` và `snow.png` giữ nguyên ảnh 64 × 256 có sẵn. `celestial/sun.png` lấy từ `1.21.11.zip`, tám ảnh `celestial/moon/` lấy từ `Blue-Moon.zip` và `clouds.png` lấy từ `Cloudier Clouds.zip`. `audio/weather/rain.wav` là đoạn lặp nối chồng 0,65 giây từ bản thu `Kao - Minecraft Vanilla Rain Sounds Sample.mp3` đi kèm.
-- **Kiểm thử:** Gradle `regressionChecks` chạy bộ kiểm tra CPU về ID block, vòng đời thực thể rơi, cập nhật lân cận, va chạm, raycast, phím tắt đổi tốc độ, hình học chunk và AO, sắp xếp mesh, sinh địa hình tất định, sông, hồi sinh, kim tự tháp, các mốc ngày–đêm, chuyển thời tiết và mái che. `check` gọi task này. Trình biên dịch dùng `options.release = 17`.
+- **Kiểm thử:** Gradle `regressionChecks` chạy bộ kiểm tra CPU về ID block, vòng đời thực thể rơi, cập nhật lân cận, va chạm, raycast, phím tắt đổi tốc độ, hình học chunk và AO, sắp xếp mesh, sinh địa hình tất định, sông, hồi sinh, kim tự tháp, các mốc ngày–đêm, chuyển thời tiết, mái che, sát thương, hiệu ứng sinh tồn và nhắm mục tiêu thực thể. `check` gọi task này. Trình biên dịch dùng `options.release = 17`.
 
 ---
 
-### 2. Kiến Trúc Mã Nguồn Hiện Tại (52 File Java)
+### 2. Kiến Trúc Mã Nguồn Hiện Tại (56 File Java)
 - **`com.voxelgame` (2 file):** `Main.java` khởi chạy desktop. `VoxelGameApp.java` quản lý Game Loop, sự kiện đầu vào, Pause Menu, đào/đặt block và vòng đời tài nguyên.
 - **`com.voxelgame.engine` (19 file):**
   - `Camera.java` quản lý góc nhìn, Dynamic FOV và ma trận. `Raycast.java` duyệt DDA và kiểm tra hộp chọn có thể tái sử dụng kết quả.
@@ -31,11 +31,11 @@ Phần A mô tả **100% tính chất hiện có** của dự án **VoxelGame**.
   - `BiomeType.java`, `TerrainNoise.java`, `TerrainGenerator.java` định nghĩa biome, noise tất định và các lượt sinh thế giới. `DesertPyramid.java` chọn dấu chân khô và dựng kim tự tháp.
   - `UIRenderer.java` vẽ khung ngắm, HUD, hiệu ứng xương rồng và Pause Menu. `AudioManager.java` phát nhạc nền theo vòng xáo, chọn hiệu ứng âm thanh và giải phóng tài nguyên OpenAL.
   - `WorldTime.java` theo dõi đồng hồ và quỹ đạo thiên thể. `WeatherManager.java` điều khiển chu kỳ, cường độ cục bộ, âm lượng mưa và các lượt tích tuyết. `SkyRenderer.java` vẽ vòm trời, thiên thể và mây. `WeatherRenderer.java` vẽ hai lô mưa và tuyết. `EnvironmentMesh.java` chia sẻ định dạng đỉnh và bộ đệm VAO/VBO cho các lượt vẽ này.
-- **`com.voxelgame.entity` (31 file):**
-  - `Entity.java` chứa tọa độ, vận tốc và quét AABB theo trục. `Player.java` xử lý điều khiển, bảo vệ mép, bước tuyết, quán tính trên băng và phản hồi xương rồng.
+- **`com.voxelgame.entity` (35 file):**
+  - `Entity.java` chứa tọa độ, vận tốc và quét AABB theo trục. `LivingEntity.java` thêm HP, giáp, hiệu ứng, lửa, sát thương rơi, vòng đời chết và liên kết ghế hai chiều. `DamageSource.java`, `StatusEffectType.java` và `StatusEffectInstance.java` định nghĩa nguồn sát thương cùng các khe hiệu ứng. `Player.java` kế thừa `LivingEntity`, xử lý điều khiển, sinh tồn, đòn đánh tay không, bảo vệ mép, bước tuyết, quán tính trên băng và phản hồi xương rồng.
   - `Hotbar.java` quản lý 9 ô. `ItemEntity.java` quản lý vật phẩm rơi và mesh dùng chung. `FallingBlockEntity.java` quản lý trạng thái cát/sỏi đang rơi.
   - `Block.java` đăng ký 27 singleton vào bảng 256 ID tra theo byte không dấu. `PlantBlock.java` chia sẻ hình học và luật nền thực vật. Các lớp block còn lại được liệt kê trong bảng bên dưới. Bốn hoa dùng chung `FlowerBlock.java`.
-- **Kiểm thử CPU (5 file):** `VoxelRegressionChecks.java`, `ChunkMeshRegressionChecks.java`, `TerrainGenerationChecks.java`, `DesertPyramidChecks.java` và `EnvironmentChecks.java` thuộc `src/test/java/com/voxelgame/engine/`.
+- **Kiểm thử CPU (6 file):** `VoxelRegressionChecks.java`, `ChunkMeshRegressionChecks.java`, `TerrainGenerationChecks.java`, `DesertPyramidChecks.java`, `EnvironmentChecks.java` và `CombatAndLivingChecks.java` thuộc `src/test/java/com/voxelgame/engine/`.
 
 ---
 
@@ -94,7 +94,11 @@ Phần A mô tả **100% tính chất hiện có** của dự án **VoxelGame**.
   - Tích lũy `miningElapsedTime` cho đến khi `>= hardness` sẽ đổi ô thành `Block.AIR` hoặc Water khi đào Ice có nền phù hợp, sau đó gọi luật rơi vật phẩm tại tâm block `(x + 0.5, y + 0.5, z + 0.5)`[cite: 1].
   - Nhả chuột, nhìn sang ô khác, hoặc ngắm vào khối không phá được sẽ reset tiến trình về `0`[cite: 1].
 - **Đặt Block (Click Chuột Phải):**
-  - Ưu tiên tăng lớp tuyết đang ngắm, đặt đè ô có thể thay thế, rồi thử ô kề mặt trúng. Kiểm tra nền, biên, ô phụ và giao cắt hộp người chơi. Chỉ trừ 1 item sau khi đặt thành công.
+  - Trước khi đặt block, gọi điểm móc tương tác trên thực thể sống ngay trước mặt trong tầm 5 block, có xét vật cản. Khi tương tác không sử dụng cú bấm, lần lượt thử tăng lớp tuyết đang ngắm, đặt đè ô có thể thay thế rồi đặt ở ô kề mặt trúng. Kiểm tra nền, biên, ô phụ và giao cắt hộp người chơi. Chỉ trừ 1 item sau khi đặt thành công.
+- **Đánh cận chiến (Click Chuột Trái):** Chọn thực thể sống gần nhất trong tầm 3 block và nằm trước hộp va chạm địa hình. Cú bấm trúng thực thể dùng cho chiến đấu. Đánh tay không gây 1 HP mỗi 0,6 giây và đẩy lùi theo hướng nhìn ngang. Đòn trong lúc đang rơi ngoài chất lỏng và ngoài Fly Mode nhân 1,5 lần sát thương. Khi cú bấm không trúng thực thể, thao tác giữ chuột bắt đầu đào theo quy tắc trên.
+- **Sinh tồn:** Người chơi có 20 HP và 20 điểm đói. Khi đói còn ít nhất 18 điểm, mỗi 4 giây đang bị thương hồi 1 HP và tiêu 1 điểm đói. Va xương rồng gây 1 HP, chạm dung nham gây 4 HP theo cửa sổ miễn sát thương và bật cháy 15 giây. Hết HP hồi sinh tại vị trí an toàn, đầy HP và độ đói, xóa hiệu ứng, lửa và vận tốc, tắt bay.
+- **Vòng đời chiến đấu:** Sát thương hợp lệ kích hoạt 0,5 giây miễn sát thương lặp và nháy bị thương. Giáp tự nhiên giảm sát thương vật lý tùy độ mạnh của đòn. Lửa gây 1 HP mỗi giây khi qua cửa sổ miễn sát thương và tắt khi chạm nước hoặc đứng ngoài trời mưa. Thực thể chết thông thường tồn tại 1 giây trước khi World dọn.
+- **Hiệu ứng trạng thái:** Mỗi loại dùng một khe tái sử dụng. Hiệu ứng mới thay thế khi mạnh hơn hoặc dài hơn. Slowness giảm tốc ngang 15% mỗi cấp. Weakness trừ 4 HP cận chiến mỗi cấp, giới hạn dưới 0 HP. Poison gây tối đa 1 HP mỗi 1,25 giây và giữ mục tiêu ở ngưỡng tối thiểu 1 HP, undead miễn nhiễm. Hunger làm mất 0,5 điểm đói mỗi giây mỗi cấp.
 - **Tạm dừng & Thoát (`ESC`):**
   - Nhấn `ESC` lần 1: bật `isPaused`, reset tiến trình đào, mở con trỏ chuột (`GLFW_CURSOR_NORMAL`), đóng băng cập nhật thực thể[cite: 1].
   - Nhấn `ESC` lần 2 khi đang Pause: đặt cờ đóng cửa sổ và thoát hoàn toàn khỏi game[cite: 1].
@@ -109,8 +113,10 @@ Phần A mô tả **100% tính chất hiện có** của dự án **VoxelGame**.
   - Thông số vận tốc: `MOVE_SPEED = 5.5f`, `GRAVITY = -26.0f`, `TERMINAL_VELOCITY = -45.0f`[cite: 1].
   - Nhận diện chất lỏng (`isInLiquid`): kiểm tra block tại chân (`y + 0.1f`) và thắt lưng (`y + 0.9f`)[cite: 1]. Trong chất lỏng (không bay): tốc độ ngang `0.65x`, trọng lực `0.25x`, vận tốc chìm tối đa `-3.5f`[cite: 1].
   - Quét AABB theo thứ tự X → Z → Y trên hộp thực. Bước lên bậc tuyết thấp tối đa 0,5 block khi đủ chỗ. Ice giữ đà ngang với hệ số 0,98. Chạm xương rồng đẩy nhẹ và nháy đỏ 0,25 s, hồi chiêu 0,5 s.
+  - Khi tiếp đất, quãng rơi tính từ đỉnh quỹ đạo trừ 3 block và hệ số giảm rơi của thực thể cho ra lượng HP mất, với mức thấp nhất là 0. Chạm nước, bay hoặc dịch chuyển đặt lại bộ theo dõi quãng rơi.
 - **Raycast 3D DDA (`Raycast`):**
   - DDA duyệt voxel dọc tia, giao cắt hộp chọn trong đoạn đi qua mỗi ô. Tia xuyên Air, Water, Lava và phần ngoài hộp chọn của xương rồng, tuyết hoặc cây.
+  - Tia thực thể đo giao điểm đầu tiên với AABB của thực thể còn sống, bỏ qua người phát tia. Tia dùng hộp va chạm block để giới hạn khoảng cách, cho phép chọn xuyên qua cây chữ X.
 - **Vật lý Vật phẩm Rơi (`ItemEntity`):**
   - Kích thước `ITEM_SCALE = 0.28f` (`HALF_SIZE = 0.14f`)[cite: 1].
   - Vận tốc văng ban đầu ngẫu nhiên: `vx, vz ∈ [-0.7, 0.7]`, `vy = 3.2f`[cite: 1].
@@ -172,6 +178,7 @@ Phần A mô tả **100% tính chất hiện có** của dự án **VoxelGame**.
   - **Thanh tiến trình đập Block (khi đang đập):** Kích thước `110 x 10` nằm dưới tâm ngắm `20px`, viền tối `2px`, thanh màu chuyển từ vàng cam sang xanh theo phần trăm tiến trình[cite: 1].
   - **Thanh 9 ô Hotbar (luôn hiển thị):** Căn giữa cạnh dưới (cách đáy `16px`), mỗi ô `50 x 50` px, đệm `4px`; ô đang chọn có viền vàng `3px` và nền sáng hơn; góc trên-trái hiển thị số phím `1..9`; chính giữa vẽ icon texture `28 x 28` lấy từ `Block.Face.SOUTH`; góc dưới-phải hiển thị số lượng có bóng đổ; phía trên thanh Hotbar hiển thị tên Block in hoa màu vàng nhạt[cite: 1].
   - **Thông tin môi trường:** Khi đang chơi, góc trên trái hiện tên biome, `CLEAR`/`RAIN`/`SNOW` và hai chỉ số ngày, giờ theo dạng `DAY 1 - 07:00`. Chữ dùng font 5 × 7 và bộ đệm ký tự dùng lại.
+  - **Chỉ số sinh tồn:** Phía trên tên block và Hotbar, 10 tim bên trái hiển thị HP và 10 đùi thịt bên phải hiển thị độ đói. Mỗi biểu tượng có trạng thái đầy, nửa đầy và trống. Góc trên phải hiện tên hiệu ứng và số giây còn lại khi đang chơi. Biểu tượng dùng hình học pixel vẽ theo lô, còn nhãn tái sử dụng `StringBuilder` và bộ đệm đỉnh của font 5 × 7.
   - **Pause Menu (khi `isPaused == true`):**
     - Phủ màn tối bán trong suốt toàn màn hình (`alpha = 0.68`)[cite: 1].
     - Hộp thoại trung tâm `420 x 270`, tiêu đề `GAME PAUSED` (màu vàng, có bóng)[cite: 1].
