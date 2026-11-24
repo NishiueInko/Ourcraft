@@ -74,6 +74,8 @@ public class World implements Disposable {
     private final List<Entity> entities = new ArrayList<>();
     /** Hệ thống âm thanh do ứng dụng sở hữu và vị trí nghe dùng lại khi tính độ xa. */
     private AudioManager audio;
+    /** Lượt vẽ mob do ứng dụng cung cấp khi có ngữ cảnh OpenGL. */
+    private MobRenderer mobRenderer;
     /** Thời tiết dùng chung với bộ kết xuất để dập lửa ngoài trời. */
     private WeatherManager weather;
     private final Vector3 audioListener = new Vector3();
@@ -281,9 +283,8 @@ public class World implements Disposable {
      */
     public void registerPlayer(Player player) {
         this.player = player;
-        if (player != null && !entities.contains(player)) {
-            entities.add(player);
-        }
+        addEntity(player);
+        syncMobListener();
     }
 
     public Player getPlayer() {
@@ -292,6 +293,11 @@ public class World implements Disposable {
 
     /** Đưa thực thể sống vào danh sách cập nhật và kết xuất đúng một lần. */
     public void addLivingEntity(LivingEntity entity) {
+        addEntity(entity);
+    }
+
+    /** Đăng ký thực thể dùng đường cập nhật đa hình, kể cả đối tượng có hình vẽ đạn đạo. */
+    public void addEntity(Entity entity) {
         if (entity != null && !entities.contains(entity)) {
             entities.add(entity);
         }
@@ -344,6 +350,9 @@ public class World implements Disposable {
         for (int i = 0; i < frameEntityCount; i++) {
             Entity entity = entities.get(i);
             entity.update(this, deltaTime);
+            if (entity == player) {
+                syncMobListener();
+            }
 
             if ((entity instanceof ItemEntity item && item.isCollected())
                     || (entity instanceof FallingBlockEntity falling && falling.isFinished())
@@ -358,6 +367,20 @@ public class World implements Disposable {
     /** Nhận hệ thống âm thanh sau khi thế giới và các tài nguyên đã sẵn sàng. */
     public void setAudio(AudioManager audio) {
         this.audio = audio;
+        syncMobListener();
+    }
+
+    /** Cập nhật điểm nghe tại tâm người chơi ngay sau bước di chuyển. */
+    private void syncMobListener() {
+        if (audio != null && player != null) {
+            player.copyCenterPosition(audioListener);
+            audio.setMobListener(audioListener.x, audioListener.y, audioListener.z);
+        }
+    }
+
+    /** Gắn bộ vẽ ngoại hình do ứng dụng sở hữu. */
+    public void setMobRenderer(MobRenderer mobRenderer) {
+        this.mobRenderer = mobRenderer;
     }
 
     /** Cho thực thể phát âm thanh tại điểm xảy ra tương tác gameplay. */
@@ -834,8 +857,17 @@ public class World implements Disposable {
             }
         }
         // Thực thể đục phải ghi chiều sâu trước khi vẽ nước và băng.
+        boolean hasVisualMob = false;
         for (int i = 0; i < entities.size(); i++) {
-            entities.get(i).render(shader);
+            Entity entity = entities.get(i);
+            if (mobRenderer != null && entity instanceof MobVisual) {
+                hasVisualMob = true;
+            } else {
+                entity.render(shader);
+            }
+        }
+        if (hasVisualMob) {
+            mobRenderer.render(entities, shader, frustum, eye, drawDistance);
         }
         shader.setUniformMatrix4f("uModel", identityMatrix);
         if (beforeTranslucent != null) {

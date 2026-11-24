@@ -14,6 +14,7 @@ public final class VoxelRegressionChecks {
     /** Chạy toàn bộ nhóm kiểm tra và ném lỗi khi hành vi sai. */
     public static void main(String[] args) {
         CombatAndLivingChecks.run();
+        MobAssetAndModelChecks.run();
         checkBlockRegistry();
         checkBlockUpdates();
         checkFallingBlocks();

@@ -74,8 +74,14 @@ public class AudioManager implements Disposable {
 
     /** Tái sử dụng bảng mẫu và thứ tự bài trong suốt phiên chơi. */
     private final Sound[][] sounds = new Sound[Effect.values().length][];
+    private final MobSoundBank mobSounds;
     private final FileHandle[] trackFiles = new FileHandle[TRACKS.length];
     private final int[] trackOrder = new int[TRACKS.length];
+    /** Tọa độ người nghe dùng chung cho mọi sự kiện mob trong cùng lượt cập nhật. */
+    private float listenerX;
+    private float listenerY;
+    private float listenerZ;
+    private boolean mobListenerReady;
     /** Các luồng nhạc, âm nền dưới nước và tiếng mưa hoạt động độc lập. */
     private Music backgroundMusic;
     private Music underwaterAmbience;
@@ -143,16 +149,17 @@ public class AudioManager implements Disposable {
                 }
             }
         }
+        mobSounds = new MobSoundBank();
     }
 
     /** Chỉ tìm tài nguyên có đường dẫn cố định trong classpath của trò chơi. */
-    private static FileHandle findAsset(String path) {
+    static FileHandle findAsset(String path) {
         FileHandle file = Gdx.files.classpath(path);
         return file.exists() ? file : null;
     }
 
     /** Ghi đường dẫn mẫu lỗi để có thể phát hiện tài nguyên hỏng hoặc thiếu bộ giải mã. */
-    private static void logLoadError(FileHandle file, RuntimeException error) {
+    static void logLoadError(FileHandle file, RuntimeException error) {
         System.err.println("[AudioManager] Không mở được " + file.path() + " - " + error.getMessage());
     }
 
@@ -365,6 +372,50 @@ public class AudioManager implements Disposable {
         playSample(effect, gain, 1f);
     }
 
+    /** Cập nhật tọa độ người nghe trước lượt mô phỏng phát sự kiện mob. */
+    public void setMobListener(float x, float y, float z) {
+        listenerX = x;
+        listenerY = y;
+        listenerZ = z;
+        mobListenerReady = true;
+    }
+
+    /** Phát một biến thể tại tọa độ thế giới, dùng khoảng nghe mặc định khi bán kính không dương. */
+    public void playMobSound(String mobId, MobSoundEvent event, float x, float y, float z,
+                             float maxRange, float pitchMultiplier) {
+        if (disposed || !mobListenerReady || event == null) {
+            return;
+        }
+        float dx = x - listenerX;
+        float dy = y - listenerY;
+        float dz = z - listenerZ;
+        float range = maxRange > 0f ? maxRange : event.defaultRange();
+        float gain = mobGain(dx * dx + dy * dy + dz * dz, range);
+        if (gain <= 0f) {
+            return;
+        }
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        Sound sound = mobSounds.choose(mobId, event, random);
+        if (sound != null) {
+            sound.play(gain, mobPitch(pitchMultiplier, random.nextFloat()), 0f);
+        }
+    }
+
+    /** Suy giảm tuyến tính từ nguồn đến rìa, kiểm tra bình phương trước khi tính căn. */
+    static float mobGain(float distanceSquared, float maxRange) {
+        if (!(distanceSquared >= 0f && distanceSquared < (double) maxRange * maxRange)
+                || !(maxRange > 0f && Float.isFinite(maxRange))) {
+            return 0f;
+        }
+        return 1f - (float) Math.sqrt(distanceSquared) / maxRange;
+    }
+
+    /** Biến thiên cao độ ±6% quanh hệ số yêu cầu, giới hạn trong miền phát của libGDX. */
+    static float mobPitch(float pitchMultiplier, float randomUnit) {
+        float multiplier = pitchMultiplier > 0f && Float.isFinite(pitchMultiplier) ? pitchMultiplier : 1f;
+        return Math.max(0.5f, Math.min(2f, multiplier * (0.94f + 0.12f * randomUnit)));
+    }
+
     /** Tận dụng bộ đệm OpenAL đã nạp và tìm biến thể kế nếu có tệp lỗi. */
     private void playSample(Effect effect, float gain, float pitch) {
         if (disposed || gain <= 0f) {
@@ -404,6 +455,7 @@ public class AudioManager implements Disposable {
         disposed = true;
         running = false;
         waitingForTrack = false;
+        mobSounds.dispose();
         disposeCurrentTrack();
         if (rainAmbience != null) {
             rainAmbience.dispose();

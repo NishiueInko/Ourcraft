@@ -10,6 +10,8 @@ import com.badlogic.gdx.math.Vector3;
 import com.voxelgame.engine.AudioManager;
 import com.voxelgame.engine.BiomeType;
 import com.voxelgame.engine.Camera;
+import com.voxelgame.engine.MobRenderer;
+import com.voxelgame.engine.MobTextureManager;
 import com.voxelgame.engine.Raycast;
 import com.voxelgame.engine.ShaderProgram;
 import com.voxelgame.engine.SkyRenderer;
@@ -60,6 +62,9 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
 
     /** Texture Atlas 64x64 chứa toàn bộ 10 tile (Dirt, Grass, Stone, Bedrock, Log, Leaves, Water, Lava) */
     private Texture textureAtlas;
+    /** Texture và mesh phân khớp của mob dùng chung theo biến thể. */
+    private MobTextureManager mobTextures;
+    private MobRenderer mobRenderer;
 
     /** Quản lý vòng nhạc nền, hiệu ứng vật liệu và điều chỉnh âm lượng nhạc. */
     private AudioManager audioManager;
@@ -198,6 +203,14 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         // Sinh địa hình và chuẩn bị mesh quanh tâm bản đồ.
         world = new World();
         world.setWeather(weather);
+        mobTextures = new MobTextureManager();
+        try {
+            mobRenderer = new MobRenderer(mobTextures, textureAtlas);
+        } catch (RuntimeException | Error error) {
+            dispose();
+            throw error;
+        }
+        world.setMobRenderer(mobRenderer);
 
         // UI Renderer: Chuẩn bị tài nguyên GPU cho Overlay 3D, Crosshair, Hotbar, Pause Menu, font bitmap
         uiRenderer = new UIRenderer();
@@ -713,6 +726,12 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         }
         if (world != null) {
             world.dispose();
+        }
+        if (mobRenderer != null) {
+            mobRenderer.dispose();
+        }
+        if (mobTextures != null) {
+            mobTextures.dispose();
         }
         if (textureAtlas != null) {
             textureAtlas.dispose();

@@ -72,6 +72,7 @@ public class ShaderProgram implements Disposable {
             uniform sampler2D uTexture;
             uniform int uUseTexture;
             uniform vec4 uTintColor;
+            uniform float uMobWhiteFlash;
             uniform vec3 uWorldLight;
             uniform int uEnvironmentMode;
             uniform vec3 uSkyColor;
@@ -125,9 +126,12 @@ public class ShaderProgram implements Disposable {
                 }
 
                 // 2. Nhân với hệ số độ sáng theo hướng mặt khối (Ambient/Directional Face Shading)
-                // Dấu âm của hệ số mặt dành cho khối phát sáng tự thân.
+                // Dấu âm của hệ số mặt dành cho khối và mắt mob phát sáng tự thân.
                 float faceShade = uEnvironmentMode == 4 ? 1.0 : abs(vShade);
                 vec3 litColor = baseColor.rgb * faceShade * (vShade < 0.0 ? vec3(1.0) : uWorldLight);
+                if (uMobWhiteFlash > 0.0) {
+                    litColor = mix(litColor, vec3(1.0), uMobWhiteFlash);
+                }
 
                 if (uEnvironmentMode == 0 && uFogEnabled == 1) {
                     float distanceToEye = length(vEyeOffset);
@@ -160,6 +164,7 @@ public class ShaderProgram implements Disposable {
         setUniform1i("uTexture", 0);
         setUniform1i("uUseTexture", 1);
         setUniformVec4("uTintColor", 1.0f, 1.0f, 1.0f, 1.0f);
+        setUniform1f("uMobWhiteFlash", 0f);
         setUniformVec3("uWorldLight", 1f, 1f, 1f);
         setUniform1i("uEnvironmentMode", 0);
         disableDistanceFog();
