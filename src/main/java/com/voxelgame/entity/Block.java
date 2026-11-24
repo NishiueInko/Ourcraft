@@ -47,6 +47,8 @@ public abstract class Block extends Entity {
     public static final Block ICE = new IceBlock();
     public static final Block SPRUCE_LOG = new SpruceLogBlock();
     public static final Block SPRUCE_LEAVES = new SpruceLeavesBlock();
+    /** Rương gỗ trang trí được sinh trong tầng ngầm của kim tự tháp. */
+    public static final Block CHEST = new DecorativeChestBlock();
 
     /** Lớp kết xuất quyết định cách ghi chiều sâu và hòa trộn alpha. */
     public enum RenderLayer { OPAQUE, CUTOUT, TRANSLUCENT }
@@ -142,11 +144,11 @@ public abstract class Block extends Entity {
     }
 
     /**
-     * Phương thức trừu tượng buộc mỗi loại Block cụ thể tự định nghĩa chỉ số ô ảnh (Tile Index 0..15)
+     * Phương thức trừu tượng buộc mỗi loại Block cụ thể tự định nghĩa chỉ số ô ảnh
      * trên Texture Atlas cho từng mặt (TOP, BOTTOM, NORTH, SOUTH, EAST, WEST).
      *
      * @param face mặt lập phương cần lấy chỉ số tile
-     * @return chỉ số tile (0..15) trên Texture Atlas
+     * @return chỉ số tile trên Texture Atlas
      */
     public abstract int getTileIndex(Face face);
 

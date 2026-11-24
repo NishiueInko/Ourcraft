@@ -36,10 +36,12 @@ public class ShaderProgram implements Disposable {
             out vec2 vTexCoord;
             out float vShade;
             out vec3 vPosition;
+            out vec3 vEyeOffset;
 
             uniform mat4 uModel;
             uniform mat4 uView;
             uniform mat4 uProjection;
+            uniform vec3 uFogEye;
 
             void main() {
                 vec4 worldPos = uModel * vec4(aPos, 1.0);
@@ -50,6 +52,8 @@ public class ShaderProgram implements Disposable {
                 vTexCoord = aTexCoord;
                 vShade = aShade;
                 vPosition = aPos;
+                // Dùng tọa độ sau biến đổi model để cả mesh chunk và thực thể nhận cùng khoảng cách.
+                vEyeOffset = worldPos.xyz - uFogEye;
             }
             """;
 
@@ -61,6 +65,7 @@ public class ShaderProgram implements Disposable {
             in vec2 vTexCoord;
             in float vShade;
             in vec3 vPosition;
+            in vec3 vEyeOffset;
 
             out vec4 FragColor;
 
@@ -74,17 +79,22 @@ public class ShaderProgram implements Disposable {
             uniform vec3 uSunDirection;
             uniform float uHorizonGlow;
             uniform vec3 uCloudCenter;
+            uniform int uFogEnabled;
+            uniform vec2 uFogRange;
+
+            // Dùng chung màu theo hướng nhìn để địa hình xa nối liền với nền trời.
+            vec3 atmosphereColor(vec3 direction) {
+                float band = 1.0 - smoothstep(0.0, 0.33, abs(direction.y));
+                float facing = smoothstep(-0.25, 1.0, dot(direction, uSunDirection));
+                float glow = band * facing * uHorizonGlow;
+                float zenith = smoothstep(0.0, 0.9, direction.y);
+                vec3 sky = mix(uSkyColor, uSkyColor * vec3(0.70, 0.86, 0.98), zenith);
+                return mix(sky, uHorizonColor, glow);
+            }
 
             void main() {
                 if (uEnvironmentMode == 1) {
-                    // Dải đỏ cam bám chân trời và tập trung về phía mặt trời.
-                    vec3 direction = normalize(vPosition);
-                    float band = 1.0 - smoothstep(0.0, 0.33, abs(direction.y));
-                    float facing = smoothstep(-0.25, 1.0, dot(direction, uSunDirection));
-                    float glow = band * facing * uHorizonGlow;
-                    float zenith = smoothstep(0.0, 0.9, direction.y);
-                    vec3 sky = mix(uSkyColor, uSkyColor * vec3(0.70, 0.86, 0.98), zenith);
-                    FragColor = vec4(mix(sky, uHorizonColor, glow), 1.0);
+                    FragColor = vec4(atmosphereColor(normalize(vPosition)), 1.0);
                     return;
                 }
 
@@ -119,6 +129,15 @@ public class ShaderProgram implements Disposable {
                 float faceShade = uEnvironmentMode == 4 ? 1.0 : abs(vShade);
                 vec3 litColor = baseColor.rgb * faceShade * (vShade < 0.0 ? vec3(1.0) : uWorldLight);
 
+                if (uEnvironmentMode == 0 && uFogEnabled == 1) {
+                    float distanceToEye = length(vEyeOffset);
+                    if (distanceToEye > uFogRange.x) {
+                        float fog = clamp((distanceToEye - uFogRange.x) / (uFogRange.y - uFogRange.x), 0.0, 1.0);
+                        // Trộn RGB sau khi tính ánh sáng và giữ nguyên độ trong của mặt khối.
+                        litColor = mix(litColor, atmosphereColor(vEyeOffset / distanceToEye), fog);
+                    }
+                }
+
                 FragColor = vec4(litColor, baseColor.a);
             }
             """;
@@ -143,6 +162,7 @@ public class ShaderProgram implements Disposable {
         setUniformVec4("uTintColor", 1.0f, 1.0f, 1.0f, 1.0f);
         setUniformVec3("uWorldLight", 1f, 1f, 1f);
         setUniform1i("uEnvironmentMode", 0);
+        disableDistanceFog();
         unbind();
     }
 
@@ -176,6 +196,18 @@ public class ShaderProgram implements Disposable {
     public void enable3DWorldMode() {
         setUniform1i("uUseTexture", 1);
         setUniformVec4("uTintColor", 1.0f, 1.0f, 1.0f, 1.0f);
+    }
+
+    /** Cập nhật vị trí mắt và hai mốc sương, tính bằng block thế giới. */
+    public void enableDistanceFog(Vector3 eye, float start, float end) {
+        setUniformVec3("uFogEye", eye);
+        gdxShader.setUniformf("uFogRange", start, end);
+        setUniform1i("uFogEnabled", 1);
+    }
+
+    /** Kết thúc sương thế giới trước khi chuyển sang giáng thủy hoặc giao diện. */
+    public void disableDistanceFog() {
+        setUniform1i("uFogEnabled", 0);
     }
 
     /**

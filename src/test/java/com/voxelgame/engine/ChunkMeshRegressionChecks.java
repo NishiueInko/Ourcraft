@@ -23,6 +23,7 @@ public final class ChunkMeshRegressionChecks {
         checkLeafAndCactusFaces();
         checkCactusTextureRegion();
         checkCrossPlantAndSnowFaces();
+        checkAmbientOcclusionAtChunkCorner();
         checkIndexedQuadPacking();
     }
 
@@ -64,6 +65,42 @@ public final class ChunkMeshRegressionChecks {
         } finally {
             world.dispose();
         }
+    }
+
+    /** Khối chéo qua ba biên chỉ làm tối góc tiếp xúc và ảnh hưởng đường chéo của hai tam giác. */
+    private static void checkAmbientOcclusionAtChunkCorner() {
+        World world = World.empty();
+        try {
+            Chunk chunk = new Chunk(0, 0, 0);
+            FloatArray opaque = new FloatArray();
+            FloatArray translucent = new FloatArray();
+            place(world, chunk, 15, 15, 15, Block.STONE, 0);
+            world.setBlockInternal(16, 16, 16, Block.STONE.getId(), 0);
+            chunk.buildVertices(world, opaque, translucent);
+
+            float shaded = shadeOnQuad(opaque, 0, 16, 16, 16);
+            float clear = shadeOnQuad(opaque, 0, 15, 16, 15);
+            require(shaded < clear && clear == 1.0f, "AO phải đọc ô chắn ở góc chéo của chunk");
+            require(opaque.items[0] == 16.0f && opaque.items[2] == 16.0f,
+                    "Mặt có một góc che phải dùng đường chéo qua góc tối");
+            require(opaque.items[5] == shaded && opaque.items[23] == shaded,
+                    "Hai tam giác dùng chung giá trị AO tại đỉnh trùng");
+            Chunk.compactQuads(opaque, 6);
+            require(opaque.items[5] == shaded && opaque.items[17] == clear,
+                    "Nén mesh phải giữ nguyên độ sáng hai đầu đường chéo");
+        } finally {
+            world.dispose();
+        }
+    }
+
+    /** Đọc giá trị độ sáng của một góc thuộc mặt đang kiểm tra. */
+    private static float shadeOnQuad(FloatArray vertices, int first, float x, float y, float z) {
+        for (int i = first; i < first + 36; i += 6) {
+            if (vertices.items[i] == x && vertices.items[i + 1] == y && vertices.items[i + 2] == z) {
+                return vertices.items[i + 5];
+            }
+        }
+        throw new AssertionError("Không tìm thấy góc cần đo độ sáng");
     }
 
     /** Kiểm tra việc nén tại chỗ giữ đủ vị trí, UV và độ sáng của bốn đỉnh qua nhiều mặt. */

@@ -4,7 +4,9 @@ import com.voxelgame.entity.Block;
 import com.voxelgame.entity.Player;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
+import com.badlogic.gdx.InputEventQueue;
 import com.badlogic.gdx.math.Vector3;
+import com.voxelgame.VoxelGameApp;
 import java.lang.reflect.Proxy;
 
 /** Chạy kiểm tra hồi quy của các hệ thống voxel mà không khởi tạo OpenGL. */
@@ -16,6 +18,7 @@ public final class VoxelRegressionChecks {
         checkFallingBlocks();
         checkRaycast();
         checkPlayerSurfaces();
+        checkTerrainSpeedShortcut();
         ChunkMeshRegressionChecks.run();
         TerrainGenerationChecks.run();
         EnvironmentChecks.run();
@@ -74,6 +77,108 @@ public final class VoxelRegressionChecks {
             before = player.getPosition().x;
             tickPlayer(world, player, 5);
             require(player.getPosition().x < before, "Chạm cạnh cactus phải tạo phản lực");
+        } finally {
+            Gdx.input = previous;
+            world.dispose();
+        }
+    }
+
+    /** Kiểm tra mỗi lần bấm F1 đổi đúng một mức tốc độ cho di chuyển ngang và dọc khi bay. */
+    private static void checkTerrainSpeedShortcut() {
+        Input previous = Gdx.input;
+        boolean[] held = new boolean[256];
+        Gdx.input = (Input) Proxy.newProxyInstance(Input.class.getClassLoader(), new Class<?>[]{Input.class},
+                (proxy, method, args) -> held[(int) args[0]]);
+        World world = World.empty();
+        try {
+            Player player = new Player(100.5f, 30f, 100.5f);
+            player.attachControls(new Camera());
+            VoxelGameApp app = new VoxelGameApp();
+            // Gắn người chơi vào bộ xử lý thật mà không mở cửa sổ hay nạp tài nguyên đồ họa.
+            var playerField = VoxelGameApp.class.getDeclaredField("player");
+            playerField.setAccessible(true);
+            playerField.set(app, player);
+            var pausedField = VoxelGameApp.class.getDeclaredField("isPaused");
+            pausedField.setAccessible(true);
+
+            InputEventQueue queue = new InputEventQueue();
+            int[] multipliers = {3, 5, 10, 25, 50, 1};
+            int[][] directions = {{Input.Keys.W}, {Input.Keys.A}, {Input.Keys.S}, {Input.Keys.D},
+                    {Input.Keys.W, Input.Keys.D}};
+            for (int index = 0; index < multipliers.length; index++) {
+                // Lần bấm đầu diễn ra khi Pause. Các lần lẻ giữ F1 qua nhiều lần cập nhật.
+                pausedField.setBoolean(app, index == 0);
+                held[Input.Keys.F1] = index % 2 != 0;
+                queue.keyDown(Input.Keys.F1, 1);
+                if (!held[Input.Keys.F1]) {
+                    queue.keyUp(Input.Keys.F1, 2);
+                }
+                queue.drain(app);
+                pausedField.setBoolean(app, false);
+
+                for (int[] direction : directions) {
+                    for (int key : direction) {
+                        held[key] = true;
+                    }
+                    tickPlayer(world, player, 2);
+                    Vector3 velocity = player.getVelocity();
+                    require(Math.abs(Math.hypot(velocity.x, velocity.z) - 5.5f * multipliers[index]) < 0.1f,
+                            "F1 phải đặt tốc độ " + multipliers[index] + "x cho hướng " + Input.Keys.toString(direction[0]));
+                    for (int key : direction) {
+                        held[key] = false;
+                    }
+                }
+                if (held[Input.Keys.F1]) {
+                    held[Input.Keys.F1] = false;
+                    queue.keyUp(Input.Keys.F1, 3);
+                    queue.drain(app);
+                }
+            }
+
+            // Ctrl+S chỉ dùng điều khiển chạy lùi thông thường.
+            queue.keyDown(Input.Keys.CONTROL_LEFT, 4);
+            queue.keyDown(Input.Keys.S, 5);
+            held[Input.Keys.S] = held[Input.Keys.CONTROL_LEFT] = true;
+            queue.drain(app);
+            tickPlayer(world, player, 1);
+            Vector3 velocity = player.getVelocity();
+            require(player.isSprinting() && Math.abs(Math.hypot(velocity.x, velocity.z) - 8.25f) < 0.1f,
+                    "Ctrl+S phải chạy lùi ở tốc độ Sprint của mức 1x");
+
+            // Bật chế độ bay bằng hai lần nhấn Space, ở xa mặt đất để kiểm tra vận tốc.
+            held[Input.Keys.S] = held[Input.Keys.CONTROL_LEFT] = false;
+            queue.keyUp(Input.Keys.S, 6);
+            queue.keyUp(Input.Keys.CONTROL_LEFT, 7);
+            queue.drain(app);
+            player.setPosition(100.5f, 100f, 100.5f);
+            held[Input.Keys.SPACE] = true;
+            tickPlayer(world, player, 1);
+            held[Input.Keys.SPACE] = false;
+            tickPlayer(world, player, 1);
+            held[Input.Keys.SPACE] = true;
+            tickPlayer(world, player, 1);
+            require(player.isFlying(), "Nhấn đúp Space phải bật chế độ bay");
+
+            for (int multiplier : multipliers) {
+                queue.keyDown(Input.Keys.F1, 8);
+                queue.keyUp(Input.Keys.F1, 9);
+                queue.drain(app);
+                held[Input.Keys.SPACE] = true;
+                tickPlayer(world, player, 1);
+                require(player.getVelocity().y == 7f * multiplier, "Bay lên phải áp dụng mức " + multiplier + "x");
+
+                held[Input.Keys.SPACE] = false;
+                held[Input.Keys.SHIFT_LEFT] = true;
+                tickPlayer(world, player, 1);
+                require(player.getVelocity().y == -4f * multiplier, "Hạ độ cao phải áp dụng mức " + multiplier + "x");
+
+                // Cách lần thử sau hơn 0,30 giây để Space hoặc Shift không bị tính là nhấn đúp.
+                held[Input.Keys.SHIFT_LEFT] = false;
+                tickPlayer(world, player, 19);
+                require(player.isFlying() && player.getVelocity().y == 0f, "Thả phím phải giữ độ cao");
+            }
+        } catch (ReflectiveOperationException e) {
+            throw new AssertionError("Không gắn được người chơi để kiểm tra phím tắt", e);
         } finally {
             Gdx.input = previous;
             world.dispose();

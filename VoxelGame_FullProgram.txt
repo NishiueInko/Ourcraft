@@ -1,6 +1,7 @@
 ﻿=== CAU TRUC THU MUC DU AN ===
 .gradle
 .idea
+.vscode
 build
 docs
 gradle
@@ -10,7 +11,6 @@ AGENTS.md
 build.gradle
 gradlew
 gradlew.bat
-PROPERTY.md
 README.md
 settings.gradle
 VoxelGame_FullProgram.txt
@@ -19,6 +19,7 @@ VoxelGame_FullProgram.txt
 .idea\misc.xml
 .idea\vcs.xml
 .idea\workspace.xml
+.vscode\settings.json
 docs\superpowers
 docs\superpowers\plans
 docs\superpowers\specs
@@ -42,14 +43,19 @@ src\main\java\com\voxelgame\engine\BiomeType.java
 src\main\java\com\voxelgame\engine\BlockUpdateQueue.java
 src\main\java\com\voxelgame\engine\Camera.java
 src\main\java\com\voxelgame\engine\Chunk.java
+src\main\java\com\voxelgame\engine\EnvironmentMesh.java
 src\main\java\com\voxelgame\engine\Raycast.java
 src\main\java\com\voxelgame\engine\ShaderProgram.java
+src\main\java\com\voxelgame\engine\SkyRenderer.java
 src\main\java\com\voxelgame\engine\TerrainGenerator.java
 src\main\java\com\voxelgame\engine\TerrainNoise.java
 src\main\java\com\voxelgame\engine\Texture.java
 src\main\java\com\voxelgame\engine\TranslucentChunkSort.java
 src\main\java\com\voxelgame\engine\UIRenderer.java
+src\main\java\com\voxelgame\engine\WeatherManager.java
+src\main\java\com\voxelgame\engine\WeatherRenderer.java
 src\main\java\com\voxelgame\engine\World.java
+src\main\java\com\voxelgame\engine\WorldTime.java
 src\main\java\com\voxelgame\entity\AirBlock.java
 src\main\java\com\voxelgame\entity\BedrockBlock.java
 src\main\java\com\voxelgame\entity\Block.java
@@ -82,7 +88,116 @@ src\main\java\com\voxelgame\entity\TallGrassBlock.java
 src\main\java\com\voxelgame\entity\WaterBlock.java
 src\main\resources\audio
 src\main\resources\textures
+src\main\resources\audio\music
+src\main\resources\audio\sfx
+src\main\resources\audio\weather
 src\main\resources\audio\.gitkeep
+src\main\resources\audio\music\calm1.ogg
+src\main\resources\audio\music\calm3.ogg
+src\main\resources\audio\music\hal3.ogg
+src\main\resources\audio\music\piano2.ogg
+src\main\resources\audio\music\piano3.ogg
+src\main\resources\audio\sfx\ambient
+src\main\resources\audio\sfx\damage
+src\main\resources\audio\sfx\dig
+src\main\resources\audio\sfx\liquid
+src\main\resources\audio\sfx\random
+src\main\resources\audio\sfx\step
+src\main\resources\audio\sfx\ambient\underwater
+src\main\resources\audio\sfx\ambient\underwater\enter1.ogg
+src\main\resources\audio\sfx\ambient\underwater\enter2.ogg
+src\main\resources\audio\sfx\ambient\underwater\enter3.ogg
+src\main\resources\audio\sfx\ambient\underwater\exit1.ogg
+src\main\resources\audio\sfx\ambient\underwater\exit2.ogg
+src\main\resources\audio\sfx\ambient\underwater\exit3.ogg
+src\main\resources\audio\sfx\ambient\underwater\underwater_ambience.ogg
+src\main\resources\audio\sfx\damage\hit1.ogg
+src\main\resources\audio\sfx\damage\hit2.ogg
+src\main\resources\audio\sfx\damage\hit3.ogg
+src\main\resources\audio\sfx\dig\grass1.ogg
+src\main\resources\audio\sfx\dig\grass2.ogg
+src\main\resources\audio\sfx\dig\grass3.ogg
+src\main\resources\audio\sfx\dig\grass4.ogg
+src\main\resources\audio\sfx\dig\gravel1.ogg
+src\main\resources\audio\sfx\dig\gravel2.ogg
+src\main\resources\audio\sfx\dig\gravel3.ogg
+src\main\resources\audio\sfx\dig\gravel4.ogg
+src\main\resources\audio\sfx\dig\sand1.ogg
+src\main\resources\audio\sfx\dig\sand2.ogg
+src\main\resources\audio\sfx\dig\sand3.ogg
+src\main\resources\audio\sfx\dig\sand4.ogg
+src\main\resources\audio\sfx\dig\snow1.ogg
+src\main\resources\audio\sfx\dig\snow2.ogg
+src\main\resources\audio\sfx\dig\snow3.ogg
+src\main\resources\audio\sfx\dig\snow4.ogg
+src\main\resources\audio\sfx\dig\stone1.ogg
+src\main\resources\audio\sfx\dig\stone2.ogg
+src\main\resources\audio\sfx\dig\stone3.ogg
+src\main\resources\audio\sfx\dig\stone4.ogg
+src\main\resources\audio\sfx\dig\wood1.ogg
+src\main\resources\audio\sfx\dig\wood2.ogg
+src\main\resources\audio\sfx\dig\wood3.ogg
+src\main\resources\audio\sfx\dig\wood4.ogg
+src\main\resources\audio\sfx\liquid\lava.ogg
+src\main\resources\audio\sfx\liquid\lavapop.ogg
+src\main\resources\audio\sfx\liquid\splash.ogg
+src\main\resources\audio\sfx\liquid\splash2.ogg
+src\main\resources\audio\sfx\liquid\swim1.ogg
+src\main\resources\audio\sfx\liquid\swim10.ogg
+src\main\resources\audio\sfx\liquid\swim11.ogg
+src\main\resources\audio\sfx\liquid\swim12.ogg
+src\main\resources\audio\sfx\liquid\swim13.ogg
+src\main\resources\audio\sfx\liquid\swim14.ogg
+src\main\resources\audio\sfx\liquid\swim15.ogg
+src\main\resources\audio\sfx\liquid\swim16.ogg
+src\main\resources\audio\sfx\liquid\swim17.ogg
+src\main\resources\audio\sfx\liquid\swim18.ogg
+src\main\resources\audio\sfx\liquid\swim2.ogg
+src\main\resources\audio\sfx\liquid\swim3.ogg
+src\main\resources\audio\sfx\liquid\swim4.ogg
+src\main\resources\audio\sfx\liquid\swim5.ogg
+src\main\resources\audio\sfx\liquid\swim6.ogg
+src\main\resources\audio\sfx\liquid\swim7.ogg
+src\main\resources\audio\sfx\liquid\swim8.ogg
+src\main\resources\audio\sfx\liquid\swim9.ogg
+src\main\resources\audio\sfx\liquid\water.ogg
+src\main\resources\audio\sfx\random\click.ogg
+src\main\resources\audio\sfx\random\glass1.ogg
+src\main\resources\audio\sfx\random\glass2.ogg
+src\main\resources\audio\sfx\random\glass3.ogg
+src\main\resources\audio\sfx\random\pop.ogg
+src\main\resources\audio\sfx\step\grass1.ogg
+src\main\resources\audio\sfx\step\grass2.ogg
+src\main\resources\audio\sfx\step\grass3.ogg
+src\main\resources\audio\sfx\step\grass4.ogg
+src\main\resources\audio\sfx\step\grass5.ogg
+src\main\resources\audio\sfx\step\grass6.ogg
+src\main\resources\audio\sfx\step\gravel1.ogg
+src\main\resources\audio\sfx\step\gravel2.ogg
+src\main\resources\audio\sfx\step\gravel3.ogg
+src\main\resources\audio\sfx\step\gravel4.ogg
+src\main\resources\audio\sfx\step\sand1.ogg
+src\main\resources\audio\sfx\step\sand2.ogg
+src\main\resources\audio\sfx\step\sand3.ogg
+src\main\resources\audio\sfx\step\sand4.ogg
+src\main\resources\audio\sfx\step\sand5.ogg
+src\main\resources\audio\sfx\step\snow1.ogg
+src\main\resources\audio\sfx\step\snow2.ogg
+src\main\resources\audio\sfx\step\snow3.ogg
+src\main\resources\audio\sfx\step\snow4.ogg
+src\main\resources\audio\sfx\step\stone1.ogg
+src\main\resources\audio\sfx\step\stone2.ogg
+src\main\resources\audio\sfx\step\stone3.ogg
+src\main\resources\audio\sfx\step\stone4.ogg
+src\main\resources\audio\sfx\step\stone5.ogg
+src\main\resources\audio\sfx\step\stone6.ogg
+src\main\resources\audio\sfx\step\wood1.ogg
+src\main\resources\audio\sfx\step\wood2.ogg
+src\main\resources\audio\sfx\step\wood3.ogg
+src\main\resources\audio\sfx\step\wood4.ogg
+src\main\resources\audio\sfx\step\wood5.ogg
+src\main\resources\audio\sfx\step\wood6.ogg
+src\main\resources\audio\weather\rain.wav
 src\main\resources\textures\environment
 src\main\resources\textures\.gitkeep
 src\main\resources\textures\bedrock.png
@@ -119,13 +234,26 @@ src\main\resources\textures\sugar_cane.png
 src\main\resources\textures\tall_grass_bottom.png
 src\main\resources\textures\tall_grass_top.png
 src\main\resources\textures\water_still.png
+src\main\resources\textures\environment\celestial
+src\main\resources\textures\environment\clouds.png
 src\main\resources\textures\environment\rain.png
 src\main\resources\textures\environment\snow.png
+src\main\resources\textures\environment\celestial\moon
+src\main\resources\textures\environment\celestial\sun.png
+src\main\resources\textures\environment\celestial\moon\first_quarter.png
+src\main\resources\textures\environment\celestial\moon\full_moon.png
+src\main\resources\textures\environment\celestial\moon\new_moon.png
+src\main\resources\textures\environment\celestial\moon\third_quarter.png
+src\main\resources\textures\environment\celestial\moon\waning_crescent.png
+src\main\resources\textures\environment\celestial\moon\waning_gibbous.png
+src\main\resources\textures\environment\celestial\moon\waxing_crescent.png
+src\main\resources\textures\environment\celestial\moon\waxing_gibbous.png
 src\test\java
 src\test\java\com
 src\test\java\com\voxelgame
 src\test\java\com\voxelgame\engine
 src\test\java\com\voxelgame\engine\ChunkMeshRegressionChecks.java
+src\test\java\com\voxelgame\engine\EnvironmentChecks.java
 src\test\java\com\voxelgame\engine\TerrainGenerationChecks.java
 src\test\java\com\voxelgame\engine\VoxelRegressionChecks.java
 
@@ -150,9 +278,9 @@ src\test\java\com\voxelgame\engine\VoxelRegressionChecks.java
 | Tương tác | `src/main/java/com/voxelgame/engine/Raycast.java`, `src/main/java/com/voxelgame/entity/Entity.java`, `Player.java`, `ItemEntity.java`, `FallingBlockEntity.java` mới cùng package và `src/main/java/com/voxelgame/VoxelGameApp.java`. |
 | Đồ họa | `src/main/java/com/voxelgame/engine/Texture.java`, `ShaderProgram.java`, `Chunk.java`, `World.java`, `UIRenderer.java`, `src/main/java/com/voxelgame/entity/ItemEntity.java` và 13 PNG trong `src/main/resources/textures/`. |
 | Sinh thế giới | Tạo `src/main/java/com/voxelgame/engine/BiomeType.java`, `TerrainNoise.java`, `TerrainGenerator.java`; nối vào `World.java`. |
-| Kiểm chứng và tài liệu | `build.gradle`, `src/test/java/com/voxelgame/engine/VoxelRegressionChecks.java` và `PROPERTY.md`. |
+| Kiểm chứng và tài liệu | `build.gradle`, `src/test/java/com/voxelgame/engine/VoxelRegressionChecks.java` và `README.md`. |
 
-- [ ] Đọc `AGENTS.md`, Phần A của `PROPERTY.md` và đặc tả đã duyệt. Dùng `git status --short` và `git diff -- src/main/java/com/voxelgame/engine/Texture.java PROPERTY.md` để nhận diện công việc hiện có. Nếu thực thi trong worktree riêng, mang đúng baseline texture và đặc tả người dùng đang dùng sang đó. Chọn phạm vi commit theo từng đường dẫn và tránh đưa phần xóa đang stage của `VoxelGame_FullProgram.txt` vào commit.
+- [ ] Đọc `AGENTS.md`, Phần A của `README.md` và đặc tả đã duyệt. Dùng `git status --short` và `git diff -- src/main/java/com/voxelgame/engine/Texture.java README.md` để nhận diện công việc hiện có. Nếu thực thi trong worktree riêng, mang đúng baseline texture và đặc tả người dùng đang dùng sang đó. Chọn phạm vi commit theo từng đường dẫn và tránh đưa phần xóa đang stage của `VoxelGame_FullProgram.txt` vào commit.
 - [ ] Tìm JDK 17, đặt `JAVA_HOME` và đưa `$env:JAVA_HOME\bin` lên đầu `PATH`. Kiểm tra `java -version` và `.\gradlew.bat --version` trước khi build. Khi lập kế hoạch, Java mặc định trên PATH là 26.0.2.1. Nếu bản Gradle Wrapper hiện tại cần JVM chạy Gradle khác Java 17, dùng JVM host phù hợp và yêu cầu Gradle Java toolchain 17 cho biên dịch, kiểm thử và chạy game. Xác nhận đường dẫn thực tế của JDK thay vì suy ra từ `sourceCompatibility`.
 - [ ] Chạy `.\gradlew.bat compileJava build` làm baseline. Ghi thời gian từ lúc bắt đầu tạo world tới khung hình đầu tiên và frametime khi đứng yên, đi, bay. Giữ cùng JVM, cấu hình cửa sổ, V-Sync và máy khi đo lại.
 - [ ] Thêm task `regressionChecks` trong `build.gradle` và lớp chạy kiểm thử CPU `VoxelRegressionChecks`. Dùng `World` trống kích thước bình thường qua factory package-private bỏ qua sinh địa hình và tạo mesh; giữ constructor công khai chạy chế độ game. Tách kiểm thử GPU sang chạy desktop. Tích hợp runner với `check` để `build` chạy hồi quy.
@@ -201,7 +329,7 @@ Với mỗi nhóm bên dưới, thêm ca kiểm thử trước, chạy `.\gradle
 - [ ] Dùng DDA hiện có trong `Raycast.java`, kiểm tra AABB trong khoảng `tEnter..tExit` của từng ô và tiếp tục khi hộp không trúng. Lấy mặt từ slab đầu tiên trúng để xác định ô đặt. Giữ đường gọi hiện có và thêm đường ghi kết quả vào đối tượng tái sử dụng cho lần cast mỗi frame nếu cần tránh cấp phát.
 - [ ] Trong `Entity.java`, bổ sung kiểm tra giao cắt hộp cục bộ dịch theo tọa độ block, rồi dùng ở `Player.java` và `ItemEntity.java`. Giữ X → Z → Y. Với vật cản tuyết, thử nhấc đúng độ cao cần thiết tối đa một nửa block khi đang trên mặt đất, có khoảng trống phía trên và bước thử tăng được quãng ngang. Sneak dùng bề mặt va chạm thực để nhận diện mép. Kiểm tra bước lên tuyết và không bước khi có trần thấp.
 - [ ] Với Ice, lưu vận tốc ngang giữa bước cập nhật khi còn trên băng, dùng hệ số 0.98 chuẩn hóa theo `deltaTime` và đặt lại nhánh vận tốc cũ khi bay hoặc rời băng. Kiểm tra quãng trượt dài hơn Stone khi nhả phím và về nhánh cũ sau khi rời băng. Ghi pháp tuyến tiếp xúc Cactus khi giải va chạm cạnh/đỉnh, áp dụng đẩy nhẹ kèm cooldown 0,5 s; xuất cường độ hiệu ứng cho HUD trong 0,25 s. Kiểm tra Bay, Bơi, Sprint, Sneak và nhặt đồ trong game ở cuối mốc.
-- [ ] Chạy `.\gradlew.bat regressionChecks compileJava build` và đồng bộ Phần A `PROPERTY.md` về ID, block, va chạm và đường đào/đặt. Ghi nhận thay đổi trực quan của block mới cần hoàn tất ở mốc 2.
+- [ ] Chạy `.\gradlew.bat regressionChecks compileJava build` và đồng bộ Phần A `README.md` về ID, block, va chạm và đường đào/đặt. Ghi nhận thay đổi trực quan của block mới cần hoàn tất ở mốc 2.
 
 ## Mốc 2 — Nhập PNG và kết xuất
 
@@ -259,7 +387,7 @@ try {
 - [ ] Dùng heapsort tại chỗ trên phần mảng đang dùng, với thứ tự khoảng cách giảm dần và tọa độ tăng dần khi hòa. Hoán đổi tham chiếu và khóa cùng nhau. Kiểm tra đầu vào rỗng, một phần tử, khóa hòa và tập đã sắp xếp; ví dụ khóa khoảng cách `{4, 25, 25, 1}` và ID `{4, 9, 2, 1}` cho thứ tự ID `{2, 9, 4, 1}`. Xóa các ô tham chiếu từng được dùng khi danh sách thu ngắn hoặc world bị dispose. Tránh boxing, clone, comparator, stream và buffer cấp phát theo frame.
 - [ ] Vẽ mesh đục/khoét cho toàn bộ chunk và thực thể đục trước khi blend. Trong pha nước/băng, giữ depth test, tắt depth write, bật blend chuẩn, rồi khôi phục trạng thái trước lớp phủ/HUD. Kiểm tra đường gọi `World.render`, `VoxelGameApp.render` và tài nguyên khi chunk bị dựng lại, bị thu hồi hoặc world đóng. Hai mesh cùng dùng chung vòng đời của chunk. Trật tự theo chunk xấp xỉ đối với mặt nước/băng trong cùng chunk.
 - [ ] Trong `UIRenderer.java`, dùng hộp chọn cho khung mục tiêu, giữ thanh tiến trình đào và vẽ viền đỏ theo trạng thái Player. Trong `ItemEntity.java` và hotbar, dùng mặt cỏ, hình xương rồng và tuyết phù hợp; dùng chung mesh vật phẩm theo block và giữ hình chuẩn cho các item cũ. Xác nhận thực thể rơi được vẽ bằng cùng quy ước hình học chuyển động.
-- [ ] Chạy `.\gradlew.bat regressionChecks compileJava build`. Chạy desktop, đứng ở ranh giới hai chunk có nước/băng và quay camera để quan sát thứ tự và vệt viền alpha. Đồng bộ atlas, đồ họa, tài nguyên và cách thu hồi mesh trong Phần A của `PROPERTY.md`.
+- [ ] Chạy `.\gradlew.bat regressionChecks compileJava build`. Chạy desktop, đứng ở ranh giới hai chunk có nước/băng và quay camera để quan sát thứ tự và vệt viền alpha. Đồng bộ atlas, đồ họa, tài nguyên và cách thu hồi mesh trong Phần A của `README.md`.
 
 ## Mốc 3 — Sinh thế giới và nghiệm thu
 
@@ -280,7 +408,7 @@ try {
 - [ ] Chạy `.\gradlew.bat compileJava build` trên Java 17 và xác minh SHA-256 của 13 PNG đã đóng gói. Dùng cùng máy và cấu hình baseline để chạy desktop, di chuyển và bay qua ba biome. So thời gian khởi động, frametime trung vị và p95 theo cùng lộ trình hoặc các cảnh có mật độ mesh tương đương. Đánh giá theo mục tiêu 60 FPS (ngân sách khoảng 16,67 ms/frame) và ghi cấu hình cùng kết quả đo.
 - [ ] Dùng Java Flight Recorder sau khi làm ấm, ghi các sự kiện heap allocation trong phiên đứng yên rồi quay camera. Dùng stack trace để kiểm tra thu thập, sắp xếp và vẽ translucent. Kết hợp kiểm tra mã nguồn hoặc bộ đếm byte cấp phát trên render thread quanh riêng pha này để xác nhận trường hợp mẫu JFR không quan sát thấy cấp phát. Kiểm tra cả lúc bay để phân biệt chi phí dựng mesh với chi phí sắp xếp. Quan sát số mesh sau khi rời vùng và tài nguyên sau khi đóng world.
 - [ ] Chơi thử đào/đặt, vật phẩm rơi/nhặt, Fly, Sneak, Sprint, Pause Menu và âm thanh. Rà các thử nghiệm cát/sỏi, cactus, ice, tuyết, cỏ cao và mía trong [đặc tả](../specs/2026-11-23-three-biomes-design.md). Ghi kết quả đo thực tế trước khi xác nhận hiệu năng.
-- [ ] Đồng bộ Phần A của `PROPERTY.md` theo phiên bản đã chạy, gồm số file Java, bảng ID, atlas, biome, va chạm, đồ họa, HUD, ngưỡng mesh và quy trình sinh map. Kiểm tra `git diff --check` và commit từng nhóm đã xác minh bằng danh sách tệp cụ thể. Giữ các chỉnh sửa đang có của người dùng trong worktree nguồn.
+- [ ] Đồng bộ Phần A của `README.md` theo phiên bản đã chạy, gồm số file Java, bảng ID, atlas, biome, va chạm, đồ họa, HUD, ngưỡng mesh và quy trình sinh map. Kiểm tra `git diff --check` và commit từng nhóm đã xác minh bằng danh sách tệp cụ thể. Giữ các chỉnh sửa đang có của người dùng trong worktree nguồn.
 
 
 
@@ -364,7 +492,7 @@ Tách bộ sinh địa hình tất định khỏi luồng cập nhật lúc chơ
 - Kiểm tra cát và sỏi rơi, xương rồng tự gãy và phản hồi khi chạm, băng trượt và vỡ thành nước có điều kiện, tuyết xếp đủ 8 lớp và thay thế được ở một lớp, băng và tuyết tan trong bán kính quy định. Kiểm tra cỏ cao hai ô và mía mất nước ở cả trong chunk và qua biên chunk. Kiểm tra Hotbar chỉ trừ item khi đặt thành công.
 - Sinh lại cùng seed để đối chiếu mẫu địa hình, lớp đá và vị trí thực vật. Kiểm tra spawn an toàn, ba biome gần spawn và độ cao hai bên ranh giới chuyển tiếp tự nhiên.
 - Chạy game để kiểm tra hình học, chọn block cạnh lớp tuyết/cây và nước/băng ở ranh giới chunk. Lấy mẫu cấp phát bằng JVM profiler sau khi làm ấm và xác nhận pha thu thập, sắp xếp, vẽ trong suốt không cấp phát trên heap trong các khung hình ổn định. Đo thời gian khởi động và thời gian khung hình khi đi và bay qua cả ba biome trên cùng cấu hình trước và sau thay đổi, với mục tiêu 60 FPS khi bật V-Sync. Kiểm tra mesh, Pixmap, texture và thực thể rơi được giải phóng đúng vòng đời.
-- Đồng bộ Phần A của `PROPERTY.md` sau mỗi mốc triển khai, gồm cấu trúc mã nguồn, danh sách block, atlas, va chạm, kết xuất và thuật toán sinh biome.
+- Đồng bộ Phần A của `README.md` sau mỗi mốc triển khai, gồm cấu trúc mã nguồn, danh sách block, atlas, va chạm, kết xuất và thuật toán sinh biome.
 
 
 
@@ -373,278 +501,429 @@ package com.voxelgame.engine;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.audio.Music;
+import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.Disposable;
+import com.voxelgame.entity.Block;
 
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.stream.Stream;
+import java.util.concurrent.ThreadLocalRandom;
 
-/**
- * Hệ thống Quản lý Âm thanh & Nhạc nền (Background Music Manager) trong libGDX,
- * triển khai giao diện {@link Disposable}.
- *
- * Lớp này sử dụng đối tượng {@link Music} của libGDX (chạy trên OpenAL) để phát luồng (stream)
- * trực tiếp file MP3, hỗ trợ lặp vô hạn và điều chỉnh âm lượng mượt mà theo thời gian thực
- * mà không gây nghẽn luồng xử lý đồ họa (Render Thread).
- *
- * THỂ HIỆN CÁC TÍNH CHẤT OOP:
- * 1. Tính Trừu tượng (Abstraction):
- *    - Che giấu toàn bộ cơ chế giải mã âm thanh OpenAL đa nền tảng, quản lý bộ đệm streaming
- *      và luồng phát ngầm của libGDX đằng sau các phương thức giao tiếp đơn giản:
- *      {@link #startBackgroundMusic()}, {@link #setVolume(float)}, {@link #changeVolume(float)},
- *      và {@link #dispose()}.
- * 2. Tính Đóng gói (Encapsulation):
- *    - Trạng thái âm lượng {@code volume} [0.0f, 1.0f] và đối tượng phần cứng {@code backgroundMusic}
- *      được đóng gói an toàn ở phạm vi {@code private}. Các thao tác thay đổi âm lượng luôn được
- *      kẹp trong đoạn hợp lệ thông qua setter duy nhất {@link #setVolume(float)}.
- * 3. Quản lý Vòng đời Tài nguyên (Resource Lifecycle):
- *    - Triển khai {@link Disposable} để đồng bộ cơ chế giải phóng tài nguyên OpenAL cùng với
- *      toàn bộ hệ sinh thái libGDX của dự án.
- */
+/** Phát danh sách nhạc theo vòng xáo và hiệu ứng âm thanh của các tương tác voxel. */
 public class AudioManager implements Disposable {
+    /** Đường dẫn đóng gói của năm bài nhạc đã chọn. */
+    private static final String[] TRACKS = {
+            "calm1.ogg", "calm3.ogg", "hal3.ogg", "piano2.ogg", "piano3.ogg"
+    };
+    /** Khoảng im lặng ba giây, đo bằng đồng hồ đơn điệu kể từ lúc nhận callback. */
+    private static final long TRACK_GAP_NANOS = 3_000_000_000L;
+    /** Khoảng chờ trước khi thử lại nếu mọi nguồn phát OpenAL đang bận. */
+    private static final long RAIN_RETRY_NANOS = 200_000_000L;
+    /** Gốc tài nguyên âm thanh bên trong classpath. */
+    private static final String MUSIC_ROOT = "audio/music/";
+    private static final String SFX_ROOT = "audio/sfx/";
 
-    /** Mức âm lượng hiện tại trong đoạn [0.0f, 1.0f], mặc định 70% (0.70f) */
-    private float volume = 0.70f;
+    /** Các nhóm mẫu ngắn phát theo sự kiện và theo vật liệu. */
+    public enum Effect {
+        DIG_GRASS("dig/grass", 4), DIG_GRAVEL("dig/gravel", 4), DIG_SAND("dig/sand", 4),
+        DIG_SNOW("dig/snow", 4), DIG_STONE("dig/stone", 4), DIG_WOOD("dig/wood", 4),
+        STEP_GRASS("step/grass", 6), STEP_GRAVEL("step/gravel", 4), STEP_SAND("step/sand", 5),
+        STEP_SNOW("step/snow", 4), STEP_STONE("step/stone", 6), STEP_WOOD("step/wood", 6),
+        GLASS_BREAK("random/glass", 3), PICKUP("random/pop"), CLICK("random/click"),
+        CACTUS_HURT("damage/hit", 3), SWIM("liquid/swim", 18),
+        WATER_ENTER("liquid/splash", "liquid/splash2"), DIVE("ambient/underwater/enter", 3),
+        SURFACE("ambient/underwater/exit", 3), WATER_NEARBY("liquid/water"),
+        LAVA_NEARBY("liquid/lava"), LAVA_POP("liquid/lavapop");
 
-    /** Cờ trạng thái đánh dấu nhạc nền đang được bật */
-    private boolean running = false;
+        /** Đường dẫn tương đối của các biến thể trong nhóm, chưa gồm đuôi OGG. */
+        private final String[] paths;
 
-    /** Đối tượng quản lý stream âm thanh phần cứng OpenAL của libGDX */
-    private Music backgroundMusic;
+        /** Gom mẫu có tên riêng vào cùng một sự kiện. */
+        Effect(String... paths) {
+            this.paths = paths;
+        }
 
-    /** Con trỏ tập tin đại diện cho file nhạc nền MP3 */
-    private FileHandle musicFileHandle;
-
-    /**
-     * Khởi tạo AudioManager:
-     * Tự động tìm kiếm file nhạc MP3 trong Classpath (`src/main/resources`), thư mục dự án
-     * hoặc các thư mục con, sau đó khởi tạo đối tượng {@link Music}.
-     */
-    public AudioManager() {
-        // Tự động tìm kiếm linh hoạt file nhạc "1-08. Minecraft.mp3"
-        this.musicFileHandle = findMp3FileHandleFlexible(
-                "1-08. Minecraft.mp3",
-                "audio/1-08. Minecraft.mp3",
-                "music/1-08. Minecraft.mp3",
-                "minecraft.mp3",
-                "bgm.mp3"
-        );
-
-        if (this.musicFileHandle != null) {
-            try {
-                this.backgroundMusic = Gdx.audio.newMusic(this.musicFileHandle);
-                this.backgroundMusic.setLooping(true);
-                this.backgroundMusic.setVolume(this.volume);
-            } catch (Exception e) {
-                System.err.println("[AudioManager] Không thể khởi tạo luồng âm thanh từ file: "
-                        + this.musicFileHandle.path() + " - Lỗi: " + e.getMessage());
-                this.backgroundMusic = null;
+        /** Gom dãy mẫu được đánh số từ 1 trong gói nguồn. */
+        Effect(String prefix, int count) {
+            paths = new String[count];
+            for (int i = 0; i < count; i++) {
+                paths[i] = prefix + (i + 1);
             }
         }
     }
 
-    /**
-     * Bắt đầu phát lặp lại (Loop) nhạc nền vô hạn trên luồng âm thanh OpenAL.
-     * Nếu chưa nạp được nhạc, phương thức sẽ thử tìm kiếm lại một lần nữa trước khi báo lỗi.
-     */
-    public void startBackgroundMusic() {
-        if (backgroundMusic == null) {
-            // Thử quét lại tập tin phòng trường hợp file nhạc vừa được người dùng copy vào
-            if (musicFileHandle == null) {
-                musicFileHandle = findMp3FileHandleFlexible(
-                        "1-08. Minecraft.mp3",
-                        "audio/1-08. Minecraft.mp3",
-                        "music/1-08. Minecraft.mp3",
-                        "minecraft.mp3",
-                        "bgm.mp3"
-                );
-            }
-            if (musicFileHandle != null) {
-                try {
-                    backgroundMusic = Gdx.audio.newMusic(musicFileHandle);
-                    backgroundMusic.setLooping(true);
-                    backgroundMusic.setVolume(this.volume);
-                } catch (Exception e) {
-                    System.err.println("[AudioManager] Khởi tạo Music thất bại: " + e.getMessage());
-                    backgroundMusic = null;
+    /** Mẫu đào và bước chân; băng dùng riêng tiếng kính ở thời điểm vỡ. */
+    private enum Material {
+        GRASS(Effect.DIG_GRASS, Effect.STEP_GRASS),
+        GRAVEL(Effect.DIG_GRAVEL, Effect.STEP_GRAVEL),
+        SAND(Effect.DIG_SAND, Effect.STEP_SAND),
+        SNOW(Effect.DIG_SNOW, Effect.STEP_SNOW),
+        STONE(Effect.DIG_STONE, Effect.STEP_STONE),
+        WOOD(Effect.DIG_WOOD, Effect.STEP_WOOD),
+        ICE(Effect.DIG_STONE, Effect.STEP_STONE);
+
+        private final Effect dig;
+        private final Effect step;
+
+        /** Ghép hai nhóm mẫu mô tả cùng một vật liệu. */
+        Material(Effect dig, Effect step) {
+            this.dig = dig;
+            this.step = step;
+        }
+    }
+
+    /** Tái sử dụng bảng mẫu và thứ tự bài trong suốt phiên chơi. */
+    private final Sound[][] sounds = new Sound[Effect.values().length][];
+    private final FileHandle[] trackFiles = new FileHandle[TRACKS.length];
+    private final int[] trackOrder = new int[TRACKS.length];
+    /** Các luồng nhạc, âm nền dưới nước và tiếng mưa hoạt động độc lập. */
+    private Music backgroundMusic;
+    private Music underwaterAmbience;
+    private Music rainAmbience;
+    private float rainGain;
+    private boolean rainPlaying;
+    private boolean rainPaused;
+    private long rainRetryAt;
+    /** Con trỏ vòng xáo, bài vừa mở thành công và mốc hết khoảng nghỉ. */
+    private int nextTrack = TRACKS.length;
+    private int lastTrack = -1;
+    private long trackDeadline;
+    /** Các cờ vòng đời giúp chia sẻ đường cập nhật với game đang Pause. */
+    private boolean running;
+    private boolean waitingForTrack;
+    private boolean underwaterPlaying;
+    private boolean disposed;
+    /** Âm lượng chung của nhạc nền và mưa, điều khiển bằng Pause Menu. */
+    private float volume = 0.70f;
+
+    /** Nạp trước mẫu ngắn và xác định các tài nguyên nhạc đã đóng gói. */
+    public AudioManager() {
+        for (int i = 0; i < TRACKS.length; i++) {
+            trackFiles[i] = findAsset(MUSIC_ROOT + TRACKS[i]);
+        }
+        for (Effect effect : Effect.values()) {
+            Sound[] variants = new Sound[effect.paths.length];
+            sounds[effect.ordinal()] = variants;
+            for (int i = 0; i < variants.length; i++) {
+                FileHandle file = findAsset(SFX_ROOT + effect.paths[i] + ".ogg");
+                if (file != null) {
+                    try {
+                        variants[i] = Gdx.audio.newSound(file);
+                    } catch (RuntimeException error) {
+                        logLoadError(file, error);
+                    }
                 }
             }
         }
-
-        if (backgroundMusic == null) {
-            System.err.println("[AudioManager] Không tìm thấy file nhạc '.mp3'. "
-                    + "Hãy đặt file '1-08. Minecraft.mp3' vào thư mục 'src/main/resources/audio/' hoặc thư mục gốc của project.");
-            return;
-        }
-
-        if (running && backgroundMusic.isPlaying()) {
-            return;
-        }
-
-        try {
-            backgroundMusic.setLooping(true);
-            backgroundMusic.setVolume(this.volume);
-            backgroundMusic.play();
-            running = true;
-            System.out.println("[AudioManager] Bắt đầu phát lặp nhạc nền thành công (Âm lượng: " + getVolumePercent() + "%).");
-        } catch (Exception e) {
-            System.err.println("[AudioManager] Lỗi khi phát nhạc nền: " + e.getMessage());
-        }
-    }
-
-    /**
-     * Thiết lập mức âm lượng nhạc nền theo thời gian thực (từ 0.0f = Tắt tiếng đến 1.0f = 100%).
-     * Được gọi trực tiếp khi người chơi bấm nút [-]/[+] hoặc kéo thanh trượt Volume trong Pause Menu.
-     *
-     * @param newVolume giá trị âm lượng mới
-     */
-    public void setVolume(float newVolume) {
-        this.volume = Math.max(0.0f, Math.min(1.0f, newVolume));
-        if (backgroundMusic != null) {
+        FileHandle rainFile = findAsset("audio/weather/rain.wav");
+        if (rainFile != null) {
             try {
-                backgroundMusic.setVolume(this.volume);
-            } catch (Exception ignored) {
+                rainAmbience = Gdx.audio.newMusic(rainFile);
+                rainAmbience.setLooping(true);
+                rainAmbience.setVolume(0f);
+            } catch (RuntimeException error) {
+                logLoadError(rainFile, error);
+                if (rainAmbience != null) {
+                    rainAmbience.dispose();
+                    rainAmbience = null;
+                }
+            }
+        }
+        FileHandle underwater = findAsset(SFX_ROOT + "ambient/underwater/underwater_ambience.ogg");
+        if (underwater != null) {
+            try {
+                underwaterAmbience = Gdx.audio.newMusic(underwater);
+                underwaterAmbience.setLooping(true);
+                underwaterAmbience.setVolume(0.18f);
+            } catch (RuntimeException error) {
+                logLoadError(underwater, error);
+                if (underwaterAmbience != null) {
+                    underwaterAmbience.dispose();
+                    underwaterAmbience = null;
+                }
             }
         }
     }
 
-    /**
-     * Tăng hoặc giảm âm lượng một khoảng {@code delta} (ví dụ: +0.10f hoặc -0.10f).
-     *
-     * @param delta mức thay đổi âm lượng
-     */
-    public void changeVolume(float delta) {
-        setVolume(this.volume + delta);
+    /** Chỉ tìm tài nguyên có đường dẫn cố định trong classpath của trò chơi. */
+    private static FileHandle findAsset(String path) {
+        FileHandle file = Gdx.files.classpath(path);
+        return file.exists() ? file : null;
     }
 
-    /**
-     * Lấy mức âm lượng hiện tại trong khoảng [0.0f, 1.0f].
-     *
-     * @return giá trị âm lượng dạng số thực
-     */
+    /** Ghi đường dẫn mẫu lỗi để có thể phát hiện tài nguyên hỏng hoặc thiếu bộ giải mã. */
+    private static void logLoadError(FileHandle file, RuntimeException error) {
+        System.err.println("[AudioManager] Không mở được " + file.path() + " - " + error.getMessage());
+    }
+
+    /** Bắt đầu vòng nhạc đầu tiên, giữ nguyên bài hiện tại nếu được gọi thêm. */
+    public void startBackgroundMusic() {
+        if (!running && !disposed) {
+            running = true;
+            playNextTrack();
+        }
+    }
+
+    /** Kiểm tra hết khoảng nghỉ và đổi bài ngoài callback cập nhật OpenAL của libGDX. */
+    public void update() {
+        if (waitingForTrack && System.nanoTime() - trackDeadline >= 0L) {
+            waitingForTrack = false;
+            playNextTrack();
+        }
+        if (!rainPlaying && !rainPaused && rainGain > 0f) {
+            syncRainPlayback();
+        }
+    }
+
+    /** Tạo hoán vị mới bằng Fisher–Yates và tránh trùng ngay với bài vừa phát. */
+    private void shuffleTracks() {
+        for (int i = 0; i < trackOrder.length; i++) {
+            trackOrder[i] = i;
+        }
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        for (int i = trackOrder.length - 1; i > 0; i--) {
+            swapTracks(i, random.nextInt(i + 1));
+        }
+        if (trackOrder[0] == lastTrack) {
+            swapTracks(0, random.nextInt(1, trackOrder.length));
+        }
+        nextTrack = 0;
+    }
+
+    /** Đổi chỗ hai vị trí trong vòng nhạc. */
+    private void swapTracks(int first, int second) {
+        int previous = trackOrder[first];
+        trackOrder[first] = trackOrder[second];
+        trackOrder[second] = previous;
+    }
+
+    /** Nếu cuối vòng chỉ có tệp lỗi, vẫn thử đủ cả vòng mới để tìm bài còn dùng được. */
+    private void playNextTrack() {
+        disposeCurrentTrack();
+        int maxAttempts = trackOrder.length - nextTrack + trackOrder.length;
+        for (int attempts = 0; attempts < maxAttempts; attempts++) {
+            if (nextTrack == trackOrder.length) {
+                shuffleTracks();
+            }
+            int track = trackOrder[nextTrack++];
+            FileHandle file = trackFiles[track];
+            if (file == null) {
+                continue;
+            }
+            try {
+                backgroundMusic = Gdx.audio.newMusic(file);
+                backgroundMusic.setLooping(false);
+                backgroundMusic.setVolume(volume);
+                backgroundMusic.setOnCompletionListener(this::onTrackComplete);
+                backgroundMusic.play();
+                lastTrack = track;
+                return;
+            } catch (RuntimeException error) {
+                logLoadError(file, error);
+                disposeCurrentTrack();
+                trackFiles[track] = null;
+            }
+        }
+        running = false;
+    }
+
+    /** Lập khoảng nghỉ khi luồng âm thanh báo đã phát hết bài. */
+    private void onTrackComplete(Music track) {
+        if (running && track == backgroundMusic) {
+            trackDeadline = System.nanoTime() + TRACK_GAP_NANOS;
+            waitingForTrack = true;
+        }
+    }
+
+    /** Tháo callback trước khi giải phóng luồng nhạc cũ. */
+    private void disposeCurrentTrack() {
+        if (backgroundMusic != null) {
+            backgroundMusic.setOnCompletionListener(null);
+            backgroundMusic.dispose();
+            backgroundMusic = null;
+        }
+    }
+
+    /** Áp dụng ngay âm lượng và dùng lại giá trị này cho những bài tiếp theo. */
+    public void setVolume(float newVolume) {
+        volume = Math.max(0f, Math.min(1f, newVolume));
+        if (backgroundMusic != null) {
+            backgroundMusic.setVolume(volume);
+        }
+        if (rainAmbience != null) {
+            rainAmbience.setVolume(volume * rainGain);
+        }
+    }
+
+    /** Áp dụng cường độ mưa cục bộ sau khi đã xét biome và mái che. */
+    public void setRainGain(float gain) {
+        if (rainGain != gain) {
+            rainGain = gain;
+            if (rainAmbience != null) {
+                rainAmbience.setVolume(volume * rainGain);
+            }
+            syncRainPlayback();
+        }
+    }
+
+    /** Tạm dừng luồng mưa khi mở menu và giữ vị trí phát để tiếp tục. */
+    public void setRainPaused(boolean paused) {
+        rainPaused = paused;
+        syncRainPlayback();
+    }
+
+    /** Chỉ đổi trạng thái OpenAL khi bắt đầu, tạnh mưa hoặc bật/tắt Pause. */
+    private void syncRainPlayback() {
+        boolean shouldPlay = !rainPaused && rainGain > 0f;
+        if (rainAmbience != null && shouldPlay != rainPlaying) {
+            if (shouldPlay) {
+                long now = System.nanoTime();
+                if (rainRetryAt != 0L && now - rainRetryAt < 0L) {
+                    return;
+                }
+                rainAmbience.play();
+                rainPlaying = rainAmbience.isPlaying();
+                rainRetryAt = rainPlaying ? 0L : now + RAIN_RETRY_NANOS;
+            } else {
+                rainAmbience.pause();
+                rainPlaying = false;
+            }
+        }
+    }
+
+    /** Tăng hoặc giảm âm lượng theo bước của giao diện. */
+    public void changeVolume(float delta) {
+        setVolume(volume + delta);
+    }
+
+    /** Đọc âm lượng hiện tại trong khoảng từ 0 đến 1. */
     public float getVolume() {
         return volume;
     }
 
-    /**
-     * Lấy mức âm lượng hiện tại tính theo phần trăm nguyên (0 đến 100) để hiển thị trên Pause Menu.
-     *
-     * @return phần trăm âm lượng (0 - 100)
-     */
+    /** Quy đổi âm lượng sang phần trăm nguyên cho Pause Menu. */
     public int getVolumePercent() {
-        return Math.round(volume * 100.0f);
+        return Math.round(volume * 100f);
     }
 
-    /**
-     * Kiểm tra trạng thái phát nhạc hiện tại.
-     *
-     * @return true nếu nhạc nền đang phát
-     */
+    /** Kiểm tra xem bài nhạc hiện tại đang phát hay đang ở khoảng nghỉ. */
     public boolean isPlaying() {
         return backgroundMusic != null && backgroundMusic.isPlaying();
     }
 
-    /**
-     * Giải phóng toàn bộ tài nguyên âm thanh OpenAL khi đóng game,
-     * triển khai phương thức của giao diện {@link Disposable}.
-     */
+    /** Chọn vật liệu theo nhóm âm thanh, độc lập với biome của cột. */
+    private static Material materialOf(Block block) {
+        if (block == Block.DIRT || block == Block.GRAVEL) {
+            return Material.GRAVEL;
+        }
+        if (block == Block.SAND) {
+            return Material.SAND;
+        }
+        if (block == Block.SNOW_LAYER || block == Block.SNOW_BLOCK) {
+            return Material.SNOW;
+        }
+        if (block == Block.OAK_LOG || block == Block.SPRUCE_LOG) {
+            return Material.WOOD;
+        }
+        if (block == Block.ICE) {
+            return Material.ICE;
+        }
+        if (block == Block.STONE || block == Block.BEDROCK || block == Block.SANDSTONE) {
+            return Material.STONE;
+        }
+        return Material.GRASS;
+    }
+
+    /** Phát tiếng chạm nhẹ theo nhịp giữ chuột đào. */
+    public void playMining(Block block) {
+        playEffect(materialOf(block).step, 0.19f);
+    }
+
+    /** Phát tiếng khối vỡ sau khi thay đổi trong thế giới đã được ghi. */
+    public void playBreak(Block block, float gain) {
+        Material material = materialOf(block);
+        playEffect(material == Material.ICE ? Effect.GLASS_BREAK : material.dig, 0.65f * gain);
+    }
+
+    /** Phát tiếng đặt khối với cao độ thấp hơn tiếng phá. */
+    public void playPlace(Block block) {
+        playSample(materialOf(block).dig, 0.58f, 0.8f);
+    }
+
+    /** Phát tiếng bước chân, giảm âm lượng khi rón rén. */
+    public void playStep(Block block, boolean sneaking) {
+        playEffect(materialOf(block).step, sneaking ? 0.10f : 0.28f);
+    }
+
+    /** Phát tiếng tiếp đất của người chơi hoặc cát/sỏi rơi. */
+    public void playLanding(Block block, float gain) {
+        playEffect(materialOf(block).step, 0.51f * gain);
+    }
+
+    /** Phát một biến thể của sự kiện ở cao độ gần với mẫu nguồn. */
+    public void playEffect(Effect effect, float gain) {
+        playSample(effect, gain, 1f);
+    }
+
+    /** Tận dụng bộ đệm OpenAL đã nạp và tìm biến thể kế nếu có tệp lỗi. */
+    private void playSample(Effect effect, float gain, float pitch) {
+        if (disposed || gain <= 0f) {
+            return;
+        }
+        Sound[] variants = sounds[effect.ordinal()];
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        int index = random.nextInt(variants.length);
+        for (int i = 0; i < variants.length; i++) {
+            Sound sample = variants[index];
+            if (sample != null) {
+                sample.play(gain, pitch * (0.94f + 0.12f * random.nextFloat()), 0f);
+                return;
+            }
+            index = (index + 1) % variants.length;
+        }
+    }
+
+    /** Điều khiển vòng âm nền dưới nước riêng với luồng nhạc nền chính. */
+    public void setUnderwater(boolean underwater) {
+        if (underwaterAmbience != null && underwater != underwaterPlaying) {
+            underwaterPlaying = underwater;
+            if (underwater) {
+                underwaterAmbience.play();
+            } else {
+                underwaterAmbience.stop();
+            }
+        }
+    }
+
+    /** Hủy bộ hẹn giờ và giải phóng mỗi luồng, mỗi bộ đệm đúng một lần. */
     @Override
     public void dispose() {
+        if (disposed) {
+            return;
+        }
+        disposed = true;
         running = false;
-        if (backgroundMusic != null) {
-            try {
-                if (backgroundMusic.isPlaying()) {
-                    backgroundMusic.stop();
+        waitingForTrack = false;
+        disposeCurrentTrack();
+        if (rainAmbience != null) {
+            rainAmbience.dispose();
+            rainAmbience = null;
+        }
+        if (underwaterAmbience != null) {
+            underwaterAmbience.dispose();
+            underwaterAmbience = null;
+        }
+        for (Sound[] variants : sounds) {
+            for (Sound sound : variants) {
+                if (sound != null) {
+                    sound.dispose();
                 }
-                backgroundMusic.dispose();
-            } catch (Exception ignored) {
-            } finally {
-                backgroundMusic = null;
             }
         }
     }
 
-    /**
-     * Phương thức tương thích ngược với giao diện Cleanable cũ, ủy quyền trực tiếp cho {@link #dispose()}.
-     */
+    /** Điểm gọi tương thích của hệ thống âm thanh cũ. */
     public void cleanup() {
         dispose();
-    }
-
-    /**
-     * Cơ chế tìm kiếm linh hoạt con trỏ file `.mp3` qua API {@link FileHandle} của libGDX:
-     * 1. Tìm trong Internal/Classpath assets (`src/main/resources/`)
-     * 2. Tìm trong thư mục cục bộ (Local working directory)
-     * 3. Tìm theo các đường dẫn cơ sở thông dụng (`audio/`, `music/`, `src/main/resources/audio/`)
-     * 4. Quét tự động cây thư mục tối đa 4 tầng để nhận diện bất kỳ file `.mp3` nào.
-     *
-     * @param candidateNames danh sách tên file hoặc đường dẫn ứng viên
-     * @return {@link FileHandle} nếu tìm thấy, hoặc {@code null} nếu không tìm thấy
-     */
-    private FileHandle findMp3FileHandleFlexible(String... candidateNames) {
-        String[] baseDirs = {
-                "",
-                "src/main/resources/",
-                "src/main/resources/audio/",
-                "audio/",
-                "music/"
-        };
-
-        // 1. Kiểm tra qua cơ chế FileHandle của libGDX (Internal & Classpath)
-        for (String name : candidateNames) {
-            try {
-                FileHandle fh = Gdx.files.internal(name);
-                if (fh.exists() && !fh.isDirectory()) {
-                    System.out.println("[AudioManager] Đã tìm thấy nhạc nền qua Gdx.files.internal: " + fh.path());
-                    return fh;
-                }
-            } catch (Exception ignored) {
-            }
-
-            try {
-                String cleanClasspathPath = name.startsWith("/") ? name.substring(1) : name;
-                FileHandle fh = Gdx.files.classpath(cleanClasspathPath);
-                if (fh.exists() && !fh.isDirectory()) {
-                    System.out.println("[AudioManager] Đã tìm thấy nhạc nền qua Gdx.files.classpath: " + fh.path());
-                    return fh;
-                }
-            } catch (Exception ignored) {
-            }
-
-            // 2. Kiểm tra theo các thư mục trên ổ cứng (File hệ thống)
-            for (String dir : baseDirs) {
-                File f = new File(dir + name);
-                if (f.exists() && f.isFile()) {
-                    System.out.println("[AudioManager] Đã nạp nhạc nền từ ổ cứng: " + f.getPath());
-                    return Gdx.files.absolute(f.getAbsolutePath());
-                }
-            }
-        }
-
-        // 3. Nếu người dùng đặt file .mp3 ở một thư mục con bất kỳ trong project, tự động quét tìm file .mp3 đầu tiên
-        try {
-            Path rootDir = Path.of(".");
-            if (Files.exists(rootDir)) {
-                try (Stream<Path> stream = Files.walk(rootDir, 4)) {
-                    Path foundMp3 = stream
-                            .filter(Files::isRegularFile)
-                            .filter(p -> p.getFileName().toString().toLowerCase().endsWith(".mp3"))
-                            .findFirst()
-                            .orElse(null);
-
-                    if (foundMp3 != null) {
-                        System.out.println("[AudioManager] Tự động phát hiện và nạp nhạc nền: " + foundMp3);
-                        return Gdx.files.absolute(foundMp3.toAbsolutePath().toString());
-                    }
-                }
-            }
-        } catch (IOException ignored) {
-        }
-
-        return null;
     }
 }
 
@@ -1137,7 +1416,15 @@ public class Chunk implements Disposable {
                         float[] uv = tileUv(block.getTileIndex(Face.SOUTH, state, above));
                         addCross(vertices, wx, wy, wz, block.getSelectionBounds(state), uv);
                     } else {
+                        int firstVertex = vertices.size;
                         addBox(world, vertices, block, state, above, wx, wy, wz);
+                        // Dùng dấu của hệ số mặt để đánh dấu phát sáng mà không tăng kích thước đỉnh.
+                        if (block == Block.LAVA) {
+                            for (int shade = firstVertex + FLOATS_PER_VERTEX - 1;
+                                 shade < vertices.size; shade += FLOATS_PER_VERTEX) {
+                                vertices.items[shade] = -vertices.items[shade];
+                            }
+                        }
                     }
                 }
             }
@@ -1424,6 +1711,93 @@ public class Chunk implements Disposable {
 
 
 
+==================== FILE: D:\VoxelGame\src\main\java\com\voxelgame\engine\EnvironmentMesh.java ====================
+package com.voxelgame.engine;
+
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.Mesh;
+import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.VertexAttribute;
+import com.badlogic.gdx.graphics.VertexAttributes;
+import com.badlogic.gdx.utils.Disposable;
+
+/** Bộ đệm tam giác dùng lại cho vòm trời, thiên thể, mây và các dải giáng thủy. */
+final class EnvironmentMesh implements Disposable {
+    /** Cùng định dạng sáu số thực với shader của thế giới. */
+    private static final int STRIDE = 6;
+    private final Mesh mesh;
+    private final float[] data;
+    private int size;
+
+    /** Cấp phát một lần theo số tứ giác tối đa của một lượt vẽ. */
+    EnvironmentMesh(int maxQuads) {
+        int maxVertices = maxQuads * 6;
+        mesh = new Mesh(Mesh.VertexDataType.VertexBufferObjectWithVAO, false, maxVertices, 0,
+                new VertexAttribute(VertexAttributes.Usage.Position, 3, "aPos"),
+                new VertexAttribute(VertexAttributes.Usage.TextureCoordinates, 2, "aTexCoord"),
+                new VertexAttribute(VertexAttributes.Usage.Generic, 1, "aShade"));
+        data = new float[maxVertices * STRIDE];
+    }
+
+    /** Đưa con trỏ về đầu mảng để dựng hình cho lượt kế tiếp. */
+    void clear() {
+        size = 0;
+    }
+
+    /** Thêm hai tam giác theo thứ tự góc trên trái, dưới trái, dưới phải, trên phải. */
+    void quad(float ax, float ay, float az, float bx, float by, float bz,
+              float cx, float cy, float cz, float dx, float dy, float dz,
+              float u0, float v0, float u1, float v1, float shade) {
+        vertex(ax, ay, az, u0, v0, shade);
+        vertex(bx, by, bz, u0, v1, shade);
+        vertex(cx, cy, cz, u1, v1, shade);
+        vertex(ax, ay, az, u0, v0, shade);
+        vertex(cx, cy, cz, u1, v1, shade);
+        vertex(dx, dy, dz, u1, v0, shade);
+    }
+
+    /** Ghi tọa độ, UV và hệ số sáng vào vị trí đỉnh kế tiếp. */
+    private void vertex(float x, float y, float z, float u, float v, float shade) {
+        data[size++] = x;
+        data[size++] = y;
+        data[size++] = z;
+        data[size++] = u;
+        data[size++] = v;
+        data[size++] = shade;
+    }
+
+    /** Gửi phần mảng đang dùng tới VBO. */
+    void upload() {
+        if (size > 0) {
+            mesh.setVertices(data, 0, size);
+        }
+    }
+
+    /** Vẽ số đỉnh vừa dựng, ngay cả khi VBO còn chứa dữ liệu từ lượt trước. */
+    void draw(ShaderProgram shader) {
+        if (size > 0) {
+            mesh.render(shader.getGdxShader(), GL20.GL_TRIANGLES, 0, size / STRIDE);
+        }
+    }
+
+    /** Đọc ảnh từ classpath; cạnh lặp dùng cho mây và giáng thủy. */
+    static Texture loadTexture(String name, Texture.TextureWrap wrapU, Texture.TextureWrap wrapV) {
+        Texture texture = new Texture(Gdx.files.classpath("textures/environment/" + name));
+        texture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+        texture.setWrap(wrapU, wrapV);
+        return texture;
+    }
+
+    /** Hủy VAO và VBO của lượt vẽ. */
+    @Override
+    public void dispose() {
+        mesh.dispose();
+    }
+}
+
+
+
 ==================== FILE: D:\VoxelGame\src\main\java\com\voxelgame\engine\Raycast.java ====================
 package com.voxelgame.engine;
 
@@ -1638,6 +2012,7 @@ public class ShaderProgram implements Disposable {
 
             out vec2 vTexCoord;
             out float vShade;
+            out vec3 vPosition;
 
             uniform mat4 uModel;
             uniform mat4 uView;
@@ -1651,6 +2026,7 @@ public class ShaderProgram implements Disposable {
 
                 vTexCoord = aTexCoord;
                 vShade = aShade;
+                vPosition = aPos;
             }
             """;
 
@@ -1661,14 +2037,34 @@ public class ShaderProgram implements Disposable {
             #version 330 core
             in vec2 vTexCoord;
             in float vShade;
+            in vec3 vPosition;
 
             out vec4 FragColor;
 
             uniform sampler2D uTexture;
             uniform int uUseTexture;
             uniform vec4 uTintColor;
+            uniform vec3 uWorldLight;
+            uniform int uEnvironmentMode;
+            uniform vec3 uSkyColor;
+            uniform vec3 uHorizonColor;
+            uniform vec3 uSunDirection;
+            uniform float uHorizonGlow;
+            uniform vec3 uCloudCenter;
 
             void main() {
+                if (uEnvironmentMode == 1) {
+                    // Dải đỏ cam bám chân trời và tập trung về phía mặt trời.
+                    vec3 direction = normalize(vPosition);
+                    float band = 1.0 - smoothstep(0.0, 0.33, abs(direction.y));
+                    float facing = smoothstep(-0.25, 1.0, dot(direction, uSunDirection));
+                    float glow = band * facing * uHorizonGlow;
+                    float zenith = smoothstep(0.0, 0.9, direction.y);
+                    vec3 sky = mix(uSkyColor, uSkyColor * vec3(0.70, 0.86, 0.98), zenith);
+                    FragColor = vec4(mix(sky, uHorizonColor, glow), 1.0);
+                    return;
+                }
+
                 // 1. Xác định màu cơ sở (lấy từ Texture Atlas hoặc dùng màu thuần túy cho 2D UI)
                 vec4 baseColor;
                 if (uUseTexture == 1) {
@@ -1678,12 +2074,27 @@ public class ShaderProgram implements Disposable {
                 }
 
                 // Loại bỏ các điểm ảnh hoàn toàn trong suốt (Alpha Testing cơ bản)
-                if (baseColor.a < 0.05) {
+                if (uEnvironmentMode == 2) {
+                    // Làm mờ mép mặt phẳng mây ngoài vùng nhìn lân cận.
+                    float distanceToEye = length(vPosition.xz - uCloudCenter.xz);
+                    baseColor.a *= 1.0 - smoothstep(300.0, 500.0, distanceToEye);
+                }
+                if (uEnvironmentMode == 3) {
+                    // Che phần thiên thể nằm dưới đường chân trời.
+                    baseColor.a *= smoothstep(-1.0, 1.0, vPosition.y);
+                }
+                if (uEnvironmentMode == 4) {
+                    // Với giáng thủy, hệ số đỉnh điều chỉnh alpha thay cho độ sáng theo mặt.
+                    baseColor.a *= vShade;
+                }
+                if (baseColor.a < (uEnvironmentMode == 0 ? 0.05 : 0.015)) {
                     discard;
                 }
 
                 // 2. Nhân với hệ số độ sáng theo hướng mặt khối (Ambient/Directional Face Shading)
-                vec3 litColor = baseColor.rgb * vShade;
+                // Dấu âm của hệ số mặt dành cho khối phát sáng tự thân.
+                float faceShade = uEnvironmentMode == 4 ? 1.0 : abs(vShade);
+                vec3 litColor = baseColor.rgb * faceShade * (vShade < 0.0 ? vec3(1.0) : uWorldLight);
 
                 FragColor = vec4(litColor, baseColor.a);
             }
@@ -1707,6 +2118,8 @@ public class ShaderProgram implements Disposable {
         setUniform1i("uTexture", 0);
         setUniform1i("uUseTexture", 1);
         setUniformVec4("uTintColor", 1.0f, 1.0f, 1.0f, 1.0f);
+        setUniformVec3("uWorldLight", 1f, 1f, 1f);
+        setUniform1i("uEnvironmentMode", 0);
         unbind();
     }
 
@@ -1746,6 +2159,7 @@ public class ShaderProgram implements Disposable {
      * Chuyển Shader sang phép chiếu 2D và đặt View, Model về ma trận đơn vị.
      */
     public void enable2DUIMode(Matrix4 orthoProjectionMatrix) {
+        setUniformVec3("uWorldLight", 1f, 1f, 1f);
         setUniformMatrix4f("uProjection", orthoProjectionMatrix);
         setUniformMatrix4f("uView", identityMatrix);
         setUniformMatrix4f("uModel", identityMatrix);
@@ -1767,6 +2181,216 @@ public class ShaderProgram implements Disposable {
     public void dispose() {
         if (gdxShader != null) {
             gdxShader.dispose();
+        }
+    }
+}
+
+
+
+==================== FILE: D:\VoxelGame\src\main\java\com\voxelgame\engine\SkyRenderer.java ====================
+package com.voxelgame.engine;
+
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.math.MathUtils;
+import com.badlogic.gdx.math.Matrix4;
+import com.badlogic.gdx.math.Vector3;
+import com.badlogic.gdx.utils.Disposable;
+
+import static com.badlogic.gdx.graphics.Texture.TextureWrap.ClampToEdge;
+import static com.badlogic.gdx.graphics.Texture.TextureWrap.Repeat;
+
+/** Vẽ vòm trời, quỹ đạo thiên thể và tầng mây, đồng thời tính ánh sáng môi trường. */
+public final class SkyRenderer implements Disposable {
+    /** Vòm và thiên thể đủ xa để dùng chung phép chiếu của camera. */
+    private static final float SKY_RADIUS = 400f;
+    private static final float ORBIT_RADIUS = 320f;
+    /** Mây cố định ở cao độ này, mỗi chu kỳ UV chiếm 768 block thế giới. */
+    private static final float CLOUD_HEIGHT = 140f;
+    private static final float CLOUD_PERIOD = 768f;
+    private static final float CLOUD_RADIUS = 500f;
+    /** Thứ tự tám pha từ trăng tròn đến lưỡi liềm cuối tháng. */
+    private static final String[] MOON_PHASES = {
+            "full_moon", "waning_gibbous", "third_quarter", "waning_crescent",
+            "new_moon", "waxing_crescent", "first_quarter", "waxing_gibbous"
+    };
+
+    private final EnvironmentMesh dome = new EnvironmentMesh(6);
+    private final EnvironmentMesh quad = new EnvironmentMesh(1);
+    private final Matrix4 rotationView = new Matrix4();
+    private final Matrix4 identity = new Matrix4();
+    private final Vector3 worldLight = new Vector3();
+    private Texture sunTexture;
+    private Texture cloudTexture;
+    private final Texture[] moonTextures = new Texture[MOON_PHASES.length];
+    private float daylight;
+    private float twilight;
+
+    /** Nạp ảnh và tải vòm tĩnh; giải phóng phần đã nạp nếu khởi tạo thất bại. */
+    public SkyRenderer() {
+        try {
+            sunTexture = EnvironmentMesh.loadTexture("celestial/sun.png", ClampToEdge, ClampToEdge);
+            cloudTexture = EnvironmentMesh.loadTexture("clouds.png", Repeat, Repeat);
+            for (int i = 0; i < MOON_PHASES.length; i++) {
+                moonTextures[i] = EnvironmentMesh.loadTexture(
+                        "celestial/moon/" + MOON_PHASES[i] + ".png", ClampToEdge, ClampToEdge);
+            }
+            buildDome();
+        } catch (RuntimeException error) {
+            dispose();
+            throw error;
+        }
+    }
+
+    /** Dựng hộp sáu mặt; shader chuẩn hóa vectơ nhìn để tạo màu trời theo hướng. */
+    private void buildDome() {
+        float a = -SKY_RADIUS;
+        float b = SKY_RADIUS;
+        dome.quad(a,b,a, a,a,a, b,a,a, b,b,a, 0,0,1,1, -1);
+        dome.quad(a,b,b, a,a,b, b,a,b, b,b,b, 0,0,1,1, -1);
+        dome.quad(a,b,a, a,a,a, a,a,b, a,b,b, 0,0,1,1, -1);
+        dome.quad(b,b,a, b,a,a, b,a,b, b,b,b, 0,0,1,1, -1);
+        dome.quad(a,b,a, a,b,b, b,b,b, b,b,a, 0,0,1,1, -1);
+        dome.quad(a,a,a, a,a,b, b,a,b, b,a,a, 0,0,1,1, -1);
+        dome.upload();
+    }
+
+    /** Tính màu đêm, ngày và ánh ấm chuyển tiếp rồi vẽ nền trời không ghi chiều sâu. */
+    public void renderSky(ShaderProgram shader, Matrix4 view, WorldTime time, float storm) {
+        float sunX = time.sunX();
+        float sunY = time.sunY();
+        daylight = smoothStep(-0.20f, 0.33f, sunY);
+        twilight = 1f - smoothStep(0f, 0.32f, Math.abs(sunY));
+        float skyR = MathUtils.lerp(0.02f, 0.53f, daylight);
+        float skyG = MathUtils.lerp(0.03f, 0.81f, daylight);
+        float skyB = MathUtils.lerp(0.08f, 0.92f, daylight);
+        shader.setUniformVec3("uSkyColor", MathUtils.lerp(skyR, 0.055f + daylight * 0.30f, storm),
+                MathUtils.lerp(skyG, 0.066f + daylight * 0.34f, storm),
+                MathUtils.lerp(skyB, 0.09f + daylight * 0.38f, storm));
+        shader.setUniformVec3("uHorizonColor", 1f, 0.40f, 0.24f);
+        shader.setUniformVec3("uSunDirection", sunX, 0, 0);
+        shader.setUniform1f("uHorizonGlow", twilight * (1f - 0.82f * storm) * 0.85f);
+
+        // Bỏ tịnh tiến để vòm và thiên thể chỉ chuyển khi góc nhìn thay đổi.
+        rotationView.set(view);
+        rotationView.val[Matrix4.M03] = 0;
+        rotationView.val[Matrix4.M13] = 0;
+        rotationView.val[Matrix4.M23] = 0;
+        shader.setUniformMatrix4f("uView", rotationView);
+        shader.setUniformMatrix4f("uModel", identity);
+        Gdx.gl.glDisable(GL20.GL_DEPTH_TEST);
+        Gdx.gl.glDisable(GL20.GL_CULL_FACE);
+        Gdx.gl.glDepthMask(false);
+        try {
+            shader.setUniform1i("uEnvironmentMode", 1);
+            dome.draw(shader);
+            shader.setUniform1i("uEnvironmentMode", 3);
+            Gdx.gl.glEnable(GL20.GL_BLEND);
+            Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE);
+            float visibility = 1f - storm;
+            renderCelestial(shader, sunTexture, sunX, sunY, 26f, visibility);
+            renderCelestial(shader, moonTextures[(int) (time.dayCount() % MOON_PHASES.length)],
+                    -sunX, -sunY, 19f, visibility);
+        } finally {
+            shader.setUniform1i("uEnvironmentMode", 0);
+            shader.setUniformMatrix4f("uView", view);
+            shader.enable3DWorldMode();
+            Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+            Gdx.gl.glDisable(GL20.GL_BLEND);
+            Gdx.gl.glDepthMask(true);
+            Gdx.gl.glEnable(GL20.GL_CULL_FACE);
+            Gdx.gl.glEnable(GL20.GL_DEPTH_TEST);
+        }
+
+        // Hệ số mặt khối được nhân với ánh sáng nền; ánh đêm vẫn giữ chi tiết.
+        float dim = 1f - 0.24f * storm;
+        worldLight.set(MathUtils.lerp(0.22f, 1f, daylight) * dim,
+                MathUtils.lerp(0.25f, 1f, daylight) * dim * (1f - 0.10f * twilight),
+                MathUtils.lerp(0.34f, 1f, daylight) * dim * (1f - 0.20f * twilight));
+        shader.setUniformVec3("uWorldLight", worldLight);
+    }
+
+    /** Dựng ảnh trên mặt phẳng tiếp xúc quỹ đạo; trục Z giữ cạnh ngang của ảnh. */
+    private void renderCelestial(ShaderProgram shader, Texture image, float x, float y,
+                                 float size, float visibility) {
+        if (visibility <= 0f || y * ORBIT_RADIUS < -size) {
+            return;
+        }
+        float centerX = x * ORBIT_RADIUS;
+        float centerY = y * ORBIT_RADIUS;
+        float tangentX = -y * size;
+        float tangentY = x * size;
+        quad.clear();
+        quad.quad(centerX + tangentX, centerY + tangentY, -size,
+                centerX - tangentX, centerY - tangentY, -size,
+                centerX - tangentX, centerY - tangentY, size,
+                centerX + tangentX, centerY + tangentY, size, 0, 0, 1, 1, -1);
+        quad.upload();
+        image.bind(0);
+        shader.setUniformVec4("uTintColor", 1f, 1f, 1f, visibility);
+        quad.draw(shader);
+    }
+
+    /** Vẽ mây trong không gian thế giới, có kiểm tra độ sâu với địa hình. */
+    public void renderClouds(ShaderProgram shader, Vector3 eye, double seconds, float storm) {
+        float left = eye.x - CLOUD_RADIUS;
+        float right = eye.x + CLOUD_RADIUS;
+        float near = eye.z - CLOUD_RADIUS;
+        float far = eye.z + CLOUD_RADIUS;
+        // Cộng UV theo thời gian để họa tiết di chuyển về phía -X.
+        float drift = (float) ((seconds * 0.65 / CLOUD_PERIOD) % 1.0);
+        quad.clear();
+        quad.quad(left, CLOUD_HEIGHT, near, left, CLOUD_HEIGHT, far,
+                right, CLOUD_HEIGHT, far, right, CLOUD_HEIGHT, near,
+                left / CLOUD_PERIOD + drift, near / CLOUD_PERIOD,
+                right / CLOUD_PERIOD + drift, far / CLOUD_PERIOD, -1);
+        quad.upload();
+
+        float red = MathUtils.lerp(0.22f, 1f, daylight);
+        float green = MathUtils.lerp(0.27f, 0.98f, daylight) * (1f - 0.13f * twilight);
+        float blue = MathUtils.lerp(0.38f, 0.97f, daylight) * (1f - 0.22f * twilight);
+        shader.setUniformVec4("uTintColor", MathUtils.lerp(red, red * 0.55f, storm),
+                MathUtils.lerp(green, green * 0.60f, storm),
+                MathUtils.lerp(blue, blue * 0.66f, storm), 0.85f + 0.13f * storm);
+        shader.setUniformVec3("uCloudCenter", eye);
+        shader.setUniform1i("uEnvironmentMode", 2);
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glDisable(GL20.GL_CULL_FACE);
+        Gdx.gl.glDepthMask(false);
+        try {
+            cloudTexture.bind(0);
+            quad.draw(shader);
+        } finally {
+            shader.setUniform1i("uEnvironmentMode", 0);
+            shader.enable3DWorldMode();
+            Gdx.gl.glDepthMask(true);
+            Gdx.gl.glEnable(GL20.GL_CULL_FACE);
+            Gdx.gl.glDisable(GL20.GL_BLEND);
+        }
+    }
+
+    /** Đường cong bậc ba có đạo hàm bằng 0 ở hai đầu vùng chuyển. */
+    private static float smoothStep(float start, float end, float value) {
+        float ratio = MathUtils.clamp((value - start) / (end - start), 0f, 1f);
+        return ratio * ratio * (3f - 2f * ratio);
+    }
+
+    /** Giải phóng cả các ảnh pha trăng và hai mesh. */
+    @Override
+    public void dispose() {
+        dome.dispose();
+        quad.dispose();
+        if (sunTexture != null) {
+            sunTexture.dispose();
+        }
+        if (cloudTexture != null) {
+            cloudTexture.dispose();
+        }
+        for (Texture moon : moonTextures) {
+            if (moon != null) {
+                moon.dispose();
+            }
         }
     }
 }
@@ -3001,10 +3625,14 @@ public class UIRenderer implements Disposable {
     private static final int[][] GLYPHS = createGlyphs();
     private static final String[] NUMBER_LABELS = new String[101];
     private static final String[] VOLUME_LABELS = new String[101];
+    /** Đồng hồ và trạng thái thời tiết dùng bộ đệm ký tự, tránh tạo chuỗi theo frame. */
+    private final StringBuilder environmentLabel = new StringBuilder(48);
+    private WorldTime worldTime;
+    private WeatherManager weather;
     static {
         for (int i = 0; i < NUMBER_LABELS.length; i++) {
             NUMBER_LABELS[i] = Integer.toString(i);
-            VOLUME_LABELS[i] = "MUSIC VOLUME: " + i + "%";
+            VOLUME_LABELS[i] = "VOLUME: " + i + "%";
         }
     }
     /** Bốn hộp màn tạm dùng chung cho vẽ và kiểm tra click trên luồng chính. */
@@ -3017,6 +3645,12 @@ public class UIRenderer implements Disposable {
     public UIRenderer() {
         // Khởi tạo Mesh động cho UI với dung lượng ban đầu 4096 đỉnh
         uiMesh = new Mesh(false, 4096, 0, VERTEX_ATTRIBUTES);
+    }
+
+    /** Gắn đồng hồ và thời tiết để hiển thị trong lượt vẽ HUD hiện có. */
+    public void setEnvironment(WorldTime time, WeatherManager weatherManager) {
+        worldTime = time;
+        weather = weatherManager;
     }
 
     // =========================================================================
@@ -3206,6 +3840,9 @@ public class UIRenderer implements Disposable {
         }
 
         if (!isPaused) {
+            if (worldTime != null && weather != null) {
+                renderEnvironment();
+            }
             // 2. Khi đang chơi: Vẽ tâm ngắm Crosshair ở chính giữa màn hình
             renderCrosshair(shader, windowWidth, windowHeight);
 
@@ -3222,6 +3859,36 @@ public class UIRenderer implements Disposable {
         Gdx.gl.glDisable(GL20.GL_BLEND);
         Gdx.gl.glEnable(GL20.GL_CULL_FACE);
         Gdx.gl.glEnable(GL20.GL_DEPTH_TEST);
+    }
+
+    /** Vẽ hai dòng góc trên trái bằng font 5 × 7 có sẵn. */
+    private void renderEnvironment() {
+        String biomeName = switch (weather.biome()) {
+            case PLAINS -> "PLAINS";
+            case DESERT -> "DESERT";
+            case SNOWY_PLAINS -> "SNOWY PLAINS";
+        };
+        environmentLabel.setLength(0);
+        environmentLabel.append(biomeName).append(" - ").append(weather.label());
+        drawEnvironmentLine(environmentLabel, 10f);
+
+        int minuteOfDay = worldTime.minuteOfDay();
+        int hour = minuteOfDay / 60;
+        int minute = minuteOfDay % 60;
+        environmentLabel.setLength(0);
+        environmentLabel.append("DAY ").append(worldTime.dayCount() + 1).append(" - ");
+        environmentLabel.append((char) ('0' + hour / 10)).append((char) ('0' + hour % 10));
+        environmentLabel.append(':').append((char) ('0' + minute / 10)).append((char) ('0' + minute % 10));
+        drawEnvironmentLine(environmentLabel, 25f);
+    }
+
+    /** Bóng chữ giữ nhãn dễ đọc trên mây sáng và nền tuyết. */
+    private void drawEnvironmentLine(CharSequence label, float y) {
+        currentShader.setUniform1i("uUseTexture", 0);
+        currentShader.setUniformVec4("uTintColor", 0f, 0f, 0f, 0.8f);
+        drawPixelText(label, 11.5f, y + 1.5f, 1.5f);
+        currentShader.setUniformVec4("uTintColor", 1f, 1f, 1f, 0.95f);
+        drawPixelText(label, 10f, y, 1.5f);
     }
 
     private void renderCrosshair(ShaderProgram shader, int windowWidth, int windowHeight) {
@@ -3594,7 +4261,7 @@ public class UIRenderer implements Disposable {
         data[offset + 5] = 1.0f;
     }
 
-    private void drawPixelText(String text, float startX, float startY, float pixelScale) {
+    private void drawPixelText(CharSequence text, float startX, float startY, float pixelScale) {
         if (text == null || text.isEmpty()) {
             return;
         }
@@ -3720,6 +4387,284 @@ public class UIRenderer implements Disposable {
 
 
 
+==================== FILE: D:\VoxelGame\src\main\java\com\voxelgame\engine\WeatherManager.java ====================
+package com.voxelgame.engine;
+
+import com.badlogic.gdx.math.MathUtils;
+import com.badlogic.gdx.math.Vector3;
+import com.voxelgame.entity.Player;
+
+import java.util.Random;
+
+/** Quản lý chu kỳ giáng thủy, khí hậu cục bộ, âm lượng và công việc tích tuyết. */
+public final class WeatherManager {
+    /** Mỗi lần chuyển cường độ mất năm giây từ đầu đến cuối. */
+    private static final float FADE_SECONDS = 5f;
+    /** Thử tối đa một cột mỗi lần, trong vùng 25 × 25 quanh mắt. */
+    private static final int ACCUMULATION_RADIUS = 12;
+    private final Random cycleRandom;
+    private final Random snowRandom;
+    private boolean precipitation;
+    private float remaining;
+    private float strength;
+    private float accumulationTime;
+    private float skyStrength;
+    private float rainGain;
+    private float shelter = 1f;
+    private BiomeType biome = BiomeType.PLAINS;
+    private double animationSeconds;
+
+    /** Tách nguồn ngẫu nhiên của chu kỳ và tuyết để số cột thử không đổi lịch thời tiết. */
+    public WeatherManager(long seed) {
+        cycleRandom = new Random(seed);
+        snowRandom = new Random(seed ^ 0x5F24E6A9L);
+        scheduleNext();
+    }
+
+    /** Tự chuyển sau 3–7 phút quang hoặc 1–3 phút giáng thủy. */
+    private void scheduleNext() {
+        remaining = precipitation ? 60 + cycleRandom.nextInt(121) : 180 + cycleRandom.nextInt(241);
+    }
+
+    /** Đảo thời tiết và bắt đầu một khoảng tự động mới. */
+    public void toggle() {
+        precipitation = !precipitation;
+        scheduleNext();
+    }
+
+    /** Tính cường độ liên tục, kể cả khi vượt qua mốc chuyển tự động giữa hai frame. */
+    void update(float seconds) {
+        animationSeconds += seconds;
+        while (seconds >= remaining) {
+            fade(remaining);
+            seconds -= remaining;
+            toggle();
+        }
+        remaining -= seconds;
+        fade(seconds);
+    }
+
+    /** Tiến cường độ về mục tiêu mà không vượt qua hai đầu. */
+    private void fade(float seconds) {
+        strength = approach(strength, precipitation ? 1f : 0f, seconds / FADE_SECONDS);
+    }
+
+    /** Cập nhật khí hậu quanh người chơi và thử tích tuyết ở mật độ thấp. */
+    public void update(float seconds, World world, Vector3 eye, Player player) {
+        update(seconds);
+        int x = MathUtils.floor(eye.x);
+        int z = MathUtils.floor(eye.z);
+        biome = world.getBiome(x, z);
+        skyStrength = approach(skyStrength, biome == BiomeType.DESERT ? 0f : strength, seconds * 0.6f);
+        rainGain = approach(rainGain, biome == BiomeType.PLAINS ? strength : 0f, seconds * 0.65f);
+        shelter = approach(shelter, world.hasWeatherRoof(x, eye.y, z) ? 0.4f : 1f, seconds * 1.5f);
+
+        accumulationTime += seconds;
+        if (accumulationTime >= 0.35f) {
+            accumulationTime = 0f;
+            if (strength > 0.5f) {
+                int span = ACCUMULATION_RADIUS * 2 + 1;
+                int sampleX = x + snowRandom.nextInt(span) - ACCUMULATION_RADIUS;
+                int sampleZ = z + snowRandom.nextInt(span) - ACCUMULATION_RADIUS;
+                world.accumulateSnow(sampleX, sampleZ, player, snowRandom.nextInt(12) == 0);
+            }
+        }
+    }
+
+    /** Bước tuyến tính có chặn để các giá trị nhỏ về đúng 0. */
+    private static float approach(float current, float target, float step) {
+        return current < target ? Math.min(target, current + step) : Math.max(target, current - step);
+    }
+
+    /** Cường độ toàn cục áp dụng khi dựng các cột mưa và tuyết. */
+    public float strength() {
+        return strength;
+    }
+
+    /** Tỷ lệ âm u tại vùng đang đứng, chuyển êm ở ranh giới sa mạc. */
+    public float skyStrength() {
+        return skyStrength;
+    }
+
+    /** Hệ số luồng mưa trước khi áp dụng âm lượng từ Pause Menu. */
+    public float rainVolume() {
+        return rainGain * shelter;
+    }
+
+    /** Biome hiện tại dùng cho HUD. */
+    public BiomeType biome() {
+        return biome;
+    }
+
+    /** Nhãn HUD phản ánh cường độ thực tế và khí hậu ở cột hiện tại. */
+    public String label() {
+        if (strength <= 0f || biome == BiomeType.DESERT) {
+            return "CLEAR";
+        }
+        return biome == BiomeType.PLAINS ? "RAIN" : "SNOW";
+    }
+
+    /** Thời gian hoạt ảnh không bị nhân tốc độ bởi F8 và dừng khi Pause. */
+    public double animationSeconds() {
+        return animationSeconds;
+    }
+}
+
+
+
+==================== FILE: D:\VoxelGame\src\main\java\com\voxelgame\engine\WeatherRenderer.java ====================
+package com.voxelgame.engine;
+
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.math.MathUtils;
+import com.badlogic.gdx.math.Vector3;
+import com.badlogic.gdx.utils.Disposable;
+
+import static com.badlogic.gdx.graphics.Texture.TextureWrap.ClampToEdge;
+import static com.badlogic.gdx.graphics.Texture.TextureWrap.Repeat;
+
+/** Kết xuất hai lô giáng thủy theo cột, dùng chung bộ đệm qua mọi khung hình. */
+public final class WeatherRenderer implements Disposable {
+    /** Bán kính ngang và số dải tối đa của một lượt vẽ. */
+    private static final int RADIUS = 14;
+    private static final int MAX_COLUMNS = (RADIUS * 2 + 1) * (RADIUS * 2 + 1);
+    /** Giới hạn số dải chồng trên mỗi pixel, nhất là khi nhìn ngang qua cả vùng mưa. */
+    private static final float RAIN_DENSITY = 0.35f;
+    private static final float SNOW_DENSITY = 0.29f;
+    private final EnvironmentMesh rain = new EnvironmentMesh(MAX_COLUMNS);
+    private final EnvironmentMesh snow = new EnvironmentMesh(MAX_COLUMNS);
+    private Texture rainTexture;
+    private Texture snowTexture;
+
+    /** Nạp nguyên ảnh mưa và tuyết đã có sẵn trong dự án. */
+    public WeatherRenderer() {
+        try {
+            rainTexture = EnvironmentMesh.loadTexture("rain.png", ClampToEdge, Repeat);
+            snowTexture = EnvironmentMesh.loadTexture("snow.png", Repeat, Repeat);
+        } catch (RuntimeException error) {
+            dispose();
+            throw error;
+        }
+    }
+
+    /** Dựng dải tại các cột nhìn quanh camera, cắt chân dải theo bề mặt cao nhất. */
+    public void render(ShaderProgram shader, World world, Vector3 eye, WeatherManager weather) {
+        float strength = weather.strength();
+        if (strength <= 0f) {
+            return;
+        }
+        rain.clear();
+        snow.clear();
+        int centerX = MathUtils.floor(eye.x);
+        int centerZ = MathUtils.floor(eye.z);
+        double seconds = weather.animationSeconds();
+        float rainScroll = (float) ((seconds * 2.25) % 1.0);
+        float snowScroll = (float) ((seconds * 0.26) % 1.0);
+        float snowSway = (float) ((seconds * 1.55) % (Math.PI * 2));
+        float top = eye.y + 18f;
+        for (int dz = -RADIUS; dz <= RADIUS; dz++) {
+            for (int dx = -RADIUS; dx <= RADIUS; dx++) {
+                if (dx * dx + dz * dz > RADIUS * RADIUS) {
+                    continue;
+                }
+                int x = centerX + dx;
+                int z = centerZ + dz;
+                if (!world.isInsideWorld(x, 0, z)) {
+                    continue;
+                }
+                BiomeType biome = world.getBiome(x, z);
+                if (biome == BiomeType.DESERT) {
+                    continue;
+                }
+                int hash = x * 374761393 + z * 668265263;
+                hash = (hash ^ (hash >>> 13)) * 1274126177;
+                boolean flakes = biome == BiomeType.SNOWY_PLAINS;
+                float density = flakes ? SNOW_DENSITY : RAIN_DENSITY;
+                // Các cột xuất hiện theo thứ tự cố định khi cường độ tăng.
+                if (((hash >>> 12) & 255) / 256f >= density * strength) {
+                    continue;
+                }
+                float columnX = x + 0.5f;
+                float columnZ = z + 0.5f;
+                float deltaX = columnX - eye.x;
+                float deltaZ = columnZ - eye.z;
+                float distance2 = deltaX * deltaX + deltaZ * deltaZ;
+                // Bỏ dải quá sát mắt, nơi một tứ giác có thể phủ gần như cả màn hình.
+                if (distance2 < 1f) {
+                    continue;
+                }
+                float bottom = Math.max(eye.y - 16f, world.getPrecipitationSurface(x, z));
+                if (bottom >= top) {
+                    continue;
+                }
+                float phase = (hash & 255) / 256f;
+                float uOffset = flakes ? MathUtils.sin(snowSway + phase * MathUtils.PI2) * 0.17f : 0f;
+                float vOffset = phase - (flakes ? snowScroll : rainScroll);
+                float distance = (float) Math.sqrt(distance2);
+                // Mờ dần ở sát mắt và rìa vùng vẽ để tránh dải bật/tắt khi di chuyển.
+                float opacity = Math.min(Math.min(distance - 1f, 1f), (RADIUS + 0.5f - distance) * 0.25f);
+                if (opacity > 0f) {
+                    addColumn(flakes ? snow : rain, columnX, columnZ,
+                            bottom, top, deltaX, deltaZ, distance, uOffset, vOffset, opacity);
+                }
+            }
+        }
+        rain.upload();
+        snow.upload();
+
+        shader.setUniform1i("uEnvironmentMode", 4);
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        Gdx.gl.glDisable(GL20.GL_CULL_FACE);
+        Gdx.gl.glDepthMask(false);
+        // Kiểm tra chiều sâu vẫn bật theo hợp đồng khung hình của thế giới.
+        try {
+            rainTexture.bind(0);
+            shader.setUniformVec4("uTintColor", 0.88f, 0.93f, 1f, 0.80f * strength);
+            rain.draw(shader);
+            snowTexture.bind(0);
+            shader.setUniformVec4("uTintColor", 1f, 1f, 1f, 0.90f * strength);
+            snow.draw(shader);
+        } finally {
+            Gdx.gl.glDepthMask(true);
+            Gdx.gl.glEnable(GL20.GL_CULL_FACE);
+            Gdx.gl.glDisable(GL20.GL_BLEND);
+            shader.setUniform1i("uEnvironmentMode", 0);
+            shader.enable3DWorldMode();
+        }
+    }
+
+    /** Quay dải về phía mắt; giữ toàn bộ chiều ngang bên trong cột để mái che không bị lọt hạt. */
+    private static void addColumn(EnvironmentMesh mesh, float x, float z, float bottom, float top,
+                                  float dx, float dz, float distance,
+                                  float uOffset, float vOffset, float opacity) {
+        float scale = 0.49f / distance;
+        float sideX = dz * scale;
+        float sideZ = -dx * scale;
+        // Dùng tọa độ Y tuyệt đối để UV không đổi khi điểm cắt thay đổi.
+        mesh.quad(x - sideX, top, z - sideZ, x - sideX, bottom, z - sideZ,
+                x + sideX, bottom, z + sideZ, x + sideX, top, z + sideZ,
+                uOffset, vOffset - top * 0.25f, 1f + uOffset, vOffset - bottom * 0.25f, opacity);
+    }
+
+    /** Hủy hai texture và hai bộ đệm lô. */
+    @Override
+    public void dispose() {
+        rain.dispose();
+        snow.dispose();
+        if (rainTexture != null) {
+            rainTexture.dispose();
+        }
+        if (snowTexture != null) {
+            snowTexture.dispose();
+        }
+    }
+}
+
+
+
 ==================== FILE: D:\VoxelGame\src\main\java\com\voxelgame\engine\World.java ====================
 package com.voxelgame.engine;
 
@@ -3790,6 +4735,9 @@ public class World implements Disposable {
     // Tham chiếu tới thực thể người chơi và danh sách đa hình chứa mọi Entity hoạt động trong thế giới
     private Player player;
     private final List<Entity> entities = new ArrayList<>();
+    /** Hệ thống âm thanh do ứng dụng sở hữu và vị trí nghe dùng lại khi tính độ xa. */
+    private AudioManager audio;
+    private final Vector3 audioListener = new Vector3();
     // Các luật có thể ghi thêm ô trong lúc hàng đợi đang được xử lý.
     private final BlockUpdateQueue blockUpdates = new BlockUpdateQueue();
     private boolean drainingBlockUpdates;
@@ -3915,6 +4863,25 @@ public class World implements Disposable {
         }
     }
 
+    /** Nhận hệ thống âm thanh sau khi thế giới và các tài nguyên đã sẵn sàng. */
+    public void setAudio(AudioManager audio) {
+        this.audio = audio;
+    }
+
+    /** Cho thực thể phát âm thanh tại điểm xảy ra tương tác gameplay. */
+    public AudioManager getAudio() {
+        return audio;
+    }
+
+    /** Hạ âm lượng theo khoảng cách đến người chơi, tắt ngoài bán kính 16 block. */
+    public float getAudioGain(float x, float y, float z) {
+        if (player == null) {
+            return 0f;
+        }
+        float distance = player.copyCenterPosition(audioListener).dst(x, y, z);
+        return Math.max(0f, 1f - distance / 16f);
+    }
+
     /**
      * Phương thức tương thích hỗ trợ cập nhật riêng các vật phẩm rơi nếu cần gọi tường minh.
      */
@@ -4013,6 +4980,74 @@ public class World implements Disposable {
 
     public boolean isSolidBlock(int worldX, int worldY, int worldZ) {
         return getCollisionBounds(worldX, worldY, worldZ) != null;
+    }
+
+    /** Trả độ cao bề mặt chặn giáng thủy, kể cả mặt chất lỏng và lớp tuyết thấp. */
+    public float getPrecipitationSurface(int x, int z) {
+        int y = findWeatherSurface(x, z, true);
+        if (y < 0) {
+            return 0f;
+        }
+        Block block = Block.fromId(getBlock(x, y, z));
+        if (block.isLiquid()) {
+            return y + block.getTopHeight(this, x, y, z);
+        }
+        return y + block.getSelectionBounds(getBlockState(x, y, z)).maxY();
+    }
+
+    /** Tán lá và các khối rắn che tai người chơi, kể cả khi mắt đang dưới nước. */
+    boolean hasWeatherRoof(int x, float eyeY, int z) {
+        int y = findWeatherSurface(x, z, false);
+        return y >= 0 && y + Block.fromId(getBlock(x, y, z))
+                .getSelectionBounds(getBlockState(x, y, z)).maxY() > eyeY;
+    }
+
+    /** Duyệt từ trên xuống, bỏ qua cả chunk rỗng trước khi xem các ô trong cột. */
+    private int findWeatherSurface(int x, int z, boolean includeLiquids) {
+        if (!isInsideWorld(x, 0, z)) {
+            return -1;
+        }
+        Chunk[][] column = chunks[x / Chunk.SIZE];
+        int localX = x % Chunk.SIZE;
+        int localZ = z % Chunk.SIZE;
+        int chunkZ = z / Chunk.SIZE;
+        for (int chunkY = WORLD_CHUNKS_Y - 1; chunkY >= 0; chunkY--) {
+            Chunk chunk = column[chunkY][chunkZ];
+            if (chunk == null) {
+                continue;
+            }
+            for (int localY = Chunk.SIZE - 1; localY >= 0; localY--) {
+                Block block = Block.fromId(chunk.getBlockLocal(localX, localY, localZ));
+                if (block.isSolid() || (includeLiquids && block.isLiquid())) {
+                    return chunkY * Chunk.SIZE + localY;
+                }
+            }
+        }
+        return -1;
+    }
+
+    /** Thử đóng băng hoặc tích tuyết trên bề mặt lộ thiên, qua đường cập nhật block thông thường. */
+    void accumulateSnow(int x, int z, Player player, boolean thicken) {
+        if (!isInsideWorld(x, 0, z) || getBiome(x, z) != BiomeType.SNOWY_PLAINS) {
+            return;
+        }
+        int y = findWeatherSurface(x, z, true);
+        if (y < 0) {
+            return;
+        }
+        Block top = Block.fromId(getBlock(x, y, z));
+        if (top == Block.WATER) {
+            if (getBlock(x, y + 1, z) == Block.AIR.getId() && !hasLavaNear(x, y, z)
+                    && !intersectsPlayer(player, Block.ICE, 0, x, y, z)) {
+                setBlock(x, y, z, Block.ICE.getId());
+            }
+        } else if (top == Block.SNOW_LAYER) {
+            if (thicken && !hasLavaNear(x, y, z)) {
+                tryStackSnow(x, y, z, player);
+            }
+        } else if (top != Block.SNOW_BLOCK && !hasLavaNear(x, y + 1, z)) {
+            tryPlaceBlock(x, y + 1, z, Block.SNOW_LAYER, player);
+        }
     }
 
     /** Đọc metadata dạng không dấu. Ô mặc định và chunk rỗng trả về 0. */
@@ -4237,6 +5272,9 @@ public class World implements Disposable {
 
         Block replacement = target.getBreakReplacement(this, worldX, worldY, worldZ);
         writeGameplayBlock(worldX, worldY, worldZ, replacement.getId(), 0);
+        if (audio != null) {
+            audio.playBreak(target, getAudioGain(worldX + 0.5f, worldY + 0.5f, worldZ + 0.5f));
+        }
         target.onBreak(this, worldX, worldY, worldZ);
         drainBlockUpdates();
     }
@@ -4254,6 +5292,12 @@ public class World implements Disposable {
 
     /** Dựng các chunk gần camera rồi vẽ pha đục và pha trong suốt theo thứ tự. */
     public void render(ShaderProgram shader, Matrix4 projection, Matrix4 view, Vector3 cameraPosition) {
+        render(shader, projection, view, cameraPosition, null);
+    }
+
+    /** Cho phép vẽ tầng mây sau pha ghi chiều sâu và trước khi hòa màu nước/băng. */
+    public void render(ShaderProgram shader, Matrix4 projection, Matrix4 view, Vector3 cameraPosition,
+                       Runnable beforeTranslucent) {
         // libGDX dùng nghịch đảo của Projection × View để dựng sáu mặt phẳng khung nhìn.
         inverseViewProjection.set(projection).mul(view).inv();
         frustum.update(inverseViewProjection);
@@ -4290,6 +5334,9 @@ public class World implements Disposable {
             entities.get(i).render(shader);
         }
         shader.setUniformMatrix4f("uModel", identityMatrix);
+        if (beforeTranslucent != null) {
+            beforeTranslucent.run();
+        }
         renderTranslucent(shader, translucentCount);
     }
 
@@ -4399,6 +5446,81 @@ public class World implements Disposable {
         }
         residentMeshes.clear();
         ItemEntity.cleanupSharedMeshes();
+    }
+}
+
+
+
+==================== FILE: D:\VoxelGame\src\main\java\com\voxelgame\engine\WorldTime.java ====================
+package com.voxelgame.engine;
+
+/** Đồng hồ thế giới chạy liên tục, với 24.000 tick mỗi ngày và 20 tick mỗi giây. */
+public final class WorldTime {
+    /** Bốn mốc quỹ đạo cách nhau đúng một phần tư ngày. */
+    private static final int TICKS_PER_DAY = 24_000;
+    private static final int TICKS_PER_QUARTER = TICKS_PER_DAY / 4;
+    private static final double FULL_TURN = Math.PI * 2.0;
+
+    /** Dùng tick lẻ cho chuyển động mượt giữa hai khung hình. */
+    private double tick = 1_000;
+    private long dayCount;
+    private boolean fastForward;
+    private boolean visitedMilestone;
+    private float sunX;
+    private float sunY;
+
+    /** Cập nhật ngay quỹ đạo theo giờ sáng khi khởi tạo. */
+    public WorldTime() {
+        updateOrbit();
+    }
+
+    /** Tiến đồng hồ khi đang chơi và đếm số lần qua bình minh. */
+    public void update(double seconds) {
+        tick += seconds * (fastForward ? 400 : 20);
+        long elapsedDays = (long) (tick / TICKS_PER_DAY);
+        dayCount += elapsedDays;
+        tick -= elapsedDays * TICKS_PER_DAY;
+        updateOrbit();
+    }
+
+    /** Lần đầu đưa về bình minh; các lần tiếp theo nhảy tới mốc chuẩn kế tiếp. */
+    public void nextMilestone() {
+        tick = visitedMilestone ? ((int) tick / TICKS_PER_QUARTER + 1) * TICKS_PER_QUARTER : 0;
+        visitedMilestone = true;
+        update(0);
+    }
+
+    /** Chuyển tốc độ đồng hồ giữa 1× và 20×. */
+    public void toggleFastForward() {
+        fastForward = !fastForward;
+    }
+
+    /** Làm chậm quỹ đạo gần chân trời, giữ nguyên bốn hướng tại các mốc chuẩn. */
+    private void updateOrbit() {
+        double angle = tick / TICKS_PER_DAY * FULL_TURN;
+        double curved = angle - 0.08 * Math.sin(2 * angle);
+        sunX = (float) Math.cos(curved);
+        sunY = (float) Math.sin(curved);
+    }
+
+    /** Thành phần Đông–Tây của hướng mặt trời, dương về Đông. */
+    public float sunX() {
+        return sunX;
+    }
+
+    /** Thành phần độ cao của mặt trời, dương phía trên chân trời. */
+    public float sunY() {
+        return sunY;
+    }
+
+    /** Số ngày đã trôi qua kể từ lần vào thế giới đầu tiên. */
+    public long dayCount() {
+        return dayCount;
+    }
+
+    /** Giờ dân dụng bắt đầu ở 06:00 khi tick trong ngày bằng 0. */
+    public int minuteOfDay() {
+        return ((int) (tick * 1_440 / TICKS_PER_DAY) + 360) % 1_440;
     }
 }
 
@@ -5183,6 +6305,7 @@ public abstract class Entity {
 package com.voxelgame.entity;
 
 import com.badlogic.gdx.math.Matrix4;
+import com.voxelgame.engine.AudioManager;
 import com.voxelgame.engine.ShaderProgram;
 import com.voxelgame.engine.World;
 
@@ -5225,6 +6348,11 @@ public final class FallingBlockEntity extends Entity {
                 // Chỉ đặt lại khi đỉnh nền khớp lưới; mặt thấp làm rơi vật phẩm.
                 if (support.maxY() < 1.0f || !world.tryPlaceBlock(blockX, y + 1, blockZ, block, world.getPlayer())) {
                     world.spawnDroppedItem(new ItemEntity(position.x, top, position.z, block));
+                }
+                // Dùng vật liệu đang rơi và vị trí tiếp xúc, kể cả khi phải rơi thành vật phẩm.
+                AudioManager audio = world.getAudio();
+                if (audio != null) {
+                    audio.playLanding(block, world.getAudioGain(position.x, top, position.z));
                 }
                 finished = true;
                 return;
@@ -5605,6 +6733,7 @@ import com.badlogic.gdx.graphics.VertexAttributes;
 import com.badlogic.gdx.graphics.VertexAttributes.Usage;
 import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Vector3;
+import com.voxelgame.engine.AudioManager;
 import com.voxelgame.engine.ShaderProgram;
 import com.voxelgame.engine.World;
 
@@ -5736,6 +6865,11 @@ public class ItemEntity extends Entity {
                 if (distSq <= PICKUP_DISTANCE * PICKUP_DISTANCE) {
                     if (hotbar.addItem(block, 1)) {
                         collected = true;
+                        // Chỉ phát tiếng nhặt khi Hotbar đã nhận vật phẩm.
+                        AudioManager audio = world == null ? null : world.getAudio();
+                        if (audio != null) {
+                            audio.playEffect(AudioManager.Effect.PICKUP, 0.3f);
+                        }
                         return;
                     }
                 }
@@ -6120,9 +7254,12 @@ package com.voxelgame.entity;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.math.Vector3;
+import com.voxelgame.engine.AudioManager;
 import com.voxelgame.engine.Camera;
 import com.voxelgame.engine.ShaderProgram;
 import com.voxelgame.engine.World;
+
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Thực thể Người chơi kế thừa từ {@link Entity} và sở hữu {@link Hotbar} theo quan hệ Hợp thành (Composition).
@@ -6174,6 +7311,15 @@ public class Player extends Entity {
     private float cactusFlash;
     private float pushX;
     private float pushZ;
+
+    /** Tích lũy quãng đường và thời gian trên không để phát âm theo chuyển động thực. */
+    private float stepDistance;
+    private float swimDistance;
+    private float airborneTime;
+    /** Trạng thái âm thanh của chất lỏng tại thân, tại mắt và quanh người chơi. */
+    private Block previousLiquid = Block.AIR;
+    private boolean wasUnderwater;
+    private float nearbyLiquidDelay;
 
     // Quan hệ Hợp thành (Composition - Player "has-a" Hotbar)
     private final Hotbar hotbar = new Hotbar();
@@ -6241,11 +7387,15 @@ public class Player extends Entity {
 
         cactusCooldown = Math.max(0, cactusCooldown - deltaTime);
         cactusFlash = Math.max(0, cactusFlash - deltaTime);
+        float startX = position.x;
+        float startY = position.y;
+        float startZ = position.z;
         handleInput(world, camera, deltaTime);
-        applyPhysicsAndCollision(world, deltaTime);
+        Block support = applyPhysicsAndCollision(world, deltaTime);
 
         // Nếu rơi xuống dưới đáy bản đồ, đưa người chơi trở lại vị trí an toàn trên mặt đất
-        if (position.y < -25.0f) {
+        boolean respawned = position.y < -25.0f;
+        if (respawned) {
             position.set(World.CENTER_X, 22.0f, World.CENTER_Z);
             velocity.set(0.0f, 0.0f, 0.0f);
             isFlying = false;
@@ -6260,6 +7410,18 @@ public class Player extends Entity {
         // Đồng bộ tọa độ mắt Camera và hiệu ứng góc ống kính (Dynamic FOV)
         camera.setPosition(position.x, position.y + currentEyeHeight, position.z);
         camera.updateDynamicFov(isSprinting, isFlying, deltaTime);
+
+        AudioManager audio = world.getAudio();
+        if (audio != null) {
+            if (respawned) {
+                airborneTime = 0f;
+                stepDistance = 0f;
+                swimDistance = 0f;
+            } else {
+                updateMovementSounds(world, audio, support, deltaTime,
+                        position.x - startX, position.y - startY, position.z - startZ);
+            }
+        }
     }
 
     /**
@@ -6387,7 +7549,8 @@ public class Player extends Entity {
         }
     }
 
-    private void applyPhysicsAndCollision(World world, float deltaTime) {
+    /** Cập nhật vật lý và trả về khối đỡ ở lần quét đứng nếu đang tiếp đất. */
+    private Block applyPhysicsAndCollision(World world, float deltaTime) {
         if (!isFlying) {
             if (isInLiquid(world)) {
                 velocity.y += (GRAVITY * 0.25f) * deltaTime;
@@ -6427,13 +7590,109 @@ public class Player extends Entity {
             onGround = velocity.y < 0;
             velocity.y = 0;
             if (verticalHit == Block.CACTUS) {
-                touchCactus(0, 0, onGround);
+                touchCactus(world, 0, 0, onGround);
             }
         }
 
         if (onGround && isFlying) {
             isFlying = false;
             lastShiftTapTime = Float.NEGATIVE_INFINITY;
+        }
+        return onGround ? verticalHit : null;
+    }
+
+    /** Chọn âm thanh từ bề mặt va chạm, quãng đường đã đi và thay đổi khi vào nước. */
+    private void updateMovementSounds(World world, AudioManager audio, Block support, float deltaTime,
+                                      float dx, float dy, float dz) {
+        int x = (int) Math.floor(position.x);
+        int z = (int) Math.floor(position.z);
+        int footY = (int) Math.floor(position.y + 0.1f);
+        Block liquid = liquidAtBody(world, x, footY, z);
+        if (liquid != previousLiquid) {
+            if (liquid == Block.WATER) {
+                audio.playEffect(AudioManager.Effect.WATER_ENTER, 0.46f);
+            } else if (liquid == Block.LAVA) {
+                audio.playEffect(AudioManager.Effect.LAVA_POP, 0.44f);
+            }
+            previousLiquid = liquid;
+            swimDistance = 0f;
+        }
+
+        float eyeY = position.y + currentEyeHeight;
+        int eyeBlockY = (int) Math.floor(eyeY);
+        boolean underwater = world.getBlock(x, eyeBlockY, z) == Block.WATER.getId()
+                && eyeY - eyeBlockY < Block.WATER.getTopHeight(world, x, eyeBlockY, z);
+        if (underwater != wasUnderwater) {
+            audio.playEffect(underwater ? AudioManager.Effect.DIVE : AudioManager.Effect.SURFACE, 0.33f);
+            wasUnderwater = underwater;
+        }
+        audio.setUnderwater(underwater);
+
+        if (liquid == Block.WATER && !isFlying) {
+            swimDistance += (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
+            if (swimDistance >= 1.2f) {
+                audio.playEffect(AudioManager.Effect.SWIM, 0.30f);
+                swimDistance -= 1.2f;
+            }
+        }
+        if (isFlying || liquid.isLiquid()) {
+            airborneTime = 0f;
+            stepDistance = 0f;
+        } else if (support == null) {
+            airborneTime += deltaTime;
+            stepDistance = 0f;
+        } else {
+            // Tuyết một lớp đi xuyên được nhưng vẫn phát tiếng tuyết khi phủ trên nền đỡ.
+            Block surface = world.getBlock(x, footY, z) == Block.SNOW_LAYER.getId()
+                    ? Block.SNOW_LAYER : support;
+            if (airborneTime >= 0.15f) {
+                audio.playLanding(surface, 0.82f);
+                stepDistance = 0f;
+            } else {
+                stepDistance += (float) Math.sqrt(dx * dx + dz * dz);
+                if (stepDistance >= 1.6f) {
+                    audio.playStep(surface, isSneaking);
+                    stepDistance -= 1.6f;
+                }
+            }
+            airborneTime = 0f;
+        }
+        if (!underwater) {
+            updateNearbyLiquidSound(world, audio, x, footY, z, deltaTime);
+        }
+    }
+
+    /** Tìm mặt chất lỏng gần nhất theo chu kỳ thưa, giới hạn trong bốn block. */
+    private void updateNearbyLiquidSound(World world, AudioManager audio, int x, int y, int z, float deltaTime) {
+        nearbyLiquidDelay -= deltaTime;
+        if (nearbyLiquidDelay > 0f) {
+            return;
+        }
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        nearbyLiquidDelay = 2.5f + random.nextFloat() * 2.5f;
+        int nearest = 17;
+        Block closest = Block.AIR;
+        for (int dy = -2; dy <= 2; dy++) {
+            for (int dz = -4; dz <= 4; dz++) {
+                for (int dx = -4; dx <= 4; dx++) {
+                    int distance = dx * dx + dy * dy + dz * dz;
+                    if (distance >= nearest) {
+                        continue;
+                    }
+                    Block block = Block.fromId(world.getBlock(x + dx, y + dy, z + dz));
+                    if (block.isLiquid() && world.getBlock(x + dx, y + dy + 1, z + dz) == Block.AIR.getId()) {
+                        closest = block;
+                        nearest = distance;
+                    }
+                }
+            }
+        }
+        if (closest.isLiquid()) {
+            AudioManager.Effect effect = closest == Block.WATER ? AudioManager.Effect.WATER_NEARBY
+                    : random.nextBoolean() ? AudioManager.Effect.LAVA_NEARBY : AudioManager.Effect.LAVA_POP;
+            audio.playEffect(effect, 0.24f / (1f + 0.2f * nearest));
+        } else {
+            nearbyLiquidDelay = 0.6f;
         }
     }
 
@@ -6459,7 +7718,7 @@ public class Player extends Entity {
         }
         if (hit == Block.CACTUS) {
             float push = distance > 0 ? -CACTUS_PUSH : CACTUS_PUSH;
-            touchCactus(axis == 0 ? push : 0, axis == 2 ? push : 0, false);
+            touchCactus(world, axis == 0 ? push : 0, axis == 2 ? push : 0, false);
         }
         return hit != null;
     }
@@ -6474,12 +7733,16 @@ public class Player extends Entity {
     }
 
     /** Đẩy nhẹ theo mặt tiếp xúc và giới hạn tần suất phản hồi. */
-    private void touchCactus(float x, float z, boolean above) {
+    private void touchCactus(World world, float x, float z, boolean above) {
         if (cactusCooldown > 0) {
             return;
         }
         cactusCooldown = CACTUS_COOLDOWN;
         cactusFlash = CACTUS_FLASH_DURATION;
+        AudioManager audio = world.getAudio();
+        if (audio != null) {
+            audio.playEffect(AudioManager.Effect.CACTUS_HURT, 0.45f);
+        }
         pushX = x;
         pushZ = z;
         if (above && !isFlying) {
@@ -6557,12 +7820,16 @@ public class Player extends Entity {
     public boolean isInLiquid(World world) {
         int bx = (int) Math.floor(position.x);
         int byFeet = (int) Math.floor(position.y + 0.1f);
-        int byWaist = (int) Math.floor(position.y + 0.9f);
         int bz = (int) Math.floor(position.z);
 
-        Block feetBlock = Block.fromId(world.getBlock(bx, byFeet, bz));
-        Block waistBlock = Block.fromId(world.getBlock(bx, byWaist, bz));
-        return feetBlock.isLiquid() || waistBlock.isLiquid();
+        return liquidAtBody(world, bx, byFeet, bz).isLiquid();
+    }
+
+    /** Chia sẻ cách nhận diện chất lỏng tại chân và thắt lưng với vật lý. */
+    private Block liquidAtBody(World world, int x, int footY, int z) {
+        Block feet = Block.fromId(world.getBlock(x, footY, z));
+        int waistY = (int) Math.floor(position.y + 0.9f);
+        return feet.isLiquid() ? feet : Block.fromId(world.getBlock(x, waistY, z));
     }
 
     public Hotbar getHotbar() {
@@ -7051,9 +8318,13 @@ import com.voxelgame.engine.AudioManager;
 import com.voxelgame.engine.Camera;
 import com.voxelgame.engine.Raycast;
 import com.voxelgame.engine.ShaderProgram;
+import com.voxelgame.engine.SkyRenderer;
 import com.voxelgame.engine.Texture;
 import com.voxelgame.engine.UIRenderer;
+import com.voxelgame.engine.WeatherManager;
+import com.voxelgame.engine.WeatherRenderer;
 import com.voxelgame.engine.World;
+import com.voxelgame.engine.WorldTime;
 import com.voxelgame.entity.Block;
 import com.voxelgame.entity.Hotbar;
 import com.voxelgame.entity.ItemEntity;
@@ -7088,7 +8359,7 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
     /** Texture Atlas 64x64 chứa toàn bộ 10 tile (Dirt, Grass, Stone, Bedrock, Log, Leaves, Water, Lava) */
     private Texture textureAtlas;
 
-    /** Quản lý phát lặp nhạc nền MP3 và điều chỉnh âm lượng thời gian thực */
+    /** Quản lý vòng nhạc nền, hiệu ứng vật liệu và điều chỉnh âm lượng nhạc. */
     private AudioManager audioManager;
 
     /** Camera góc nhìn thứ nhất (First-Person), Euler Yaw/Pitch, Dynamic FOV */
@@ -7102,6 +8373,13 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
 
     /** Kết xuất Overlay 3D quanh block mục tiêu và toàn bộ giao diện 2D HUD + Pause Menu */
     private UIRenderer uiRenderer;
+
+    /** Đồng hồ, thời tiết và hai lượt vẽ môi trường của thế giới hiện tại. */
+    private final WorldTime worldTime = new WorldTime();
+    private final WeatherManager weather = new WeatherManager(World.WORLD_SEED);
+    private SkyRenderer skyRenderer;
+    private WeatherRenderer weatherRenderer;
+    private final Runnable renderCloudLayer = this::renderCloudLayer;
 
     // =====================================================================
     // Trạng thái chuột để xoay Camera 3D hoặc tương tác trên Pause Menu 2D
@@ -7150,6 +8428,8 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
 
     /** Thời gian đã đào tích lũy trên block hiện tại (giây) */
     private float miningElapsedTime = 0.0f;
+    /** Mốc tiếp theo để phát tiếng gõ khi giữ chuột đào cùng một khối. */
+    private float nextMiningSoundTime;
 
     // =====================================================================
     // Hằng số đồ họa và gameplay
@@ -7193,6 +8473,7 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
 
         // Quy ước mặt trước theo thứ tự quấn đỉnh ngược chiều kim đồng hồ (Counter-Clockwise)
         Gdx.gl.glFrontFace(GL20.GL_CCW);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
 
         // -----------------------------------------------------------------
         // 2. Khởi tạo toàn bộ các hệ thống con của Engine
@@ -7212,6 +8493,9 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
 
         // UI Renderer: Chuẩn bị tài nguyên GPU cho Overlay 3D, Crosshair, Hotbar, Pause Menu, font bitmap
         uiRenderer = new UIRenderer();
+        uiRenderer.setEnvironment(worldTime, weather);
+        skyRenderer = new SkyRenderer();
+        weatherRenderer = new WeatherRenderer();
 
         // -----------------------------------------------------------------
         // 3. Khởi tạo Player, gắn điều khiển và đăng ký vào World
@@ -7231,8 +8515,9 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         // 4. Khởi tạo và phát lặp nhạc nền
         // -----------------------------------------------------------------
 
-        // Tạo AudioManager và bắt đầu phát lặp vô hạn file "1-08. Minecraft.mp3" (mặc định 70%)
+        // Khởi tạo âm thanh cho tương tác trong World và bắt đầu vòng nhạc đã xáo.
         audioManager = new AudioManager();
+        world.setAudio(audioManager);
         audioManager.startBackgroundMusic();
 
         // -----------------------------------------------------------------
@@ -7260,9 +8545,11 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         // =================================================================
         // BƯỚC 1: Tính delta thời gian và giới hạn tối đa 0.05 giây
         // =================================================================
-        float deltaTime = Gdx.graphics.getDeltaTime();
-        if (deltaTime > 0.05f) {
-            deltaTime = 0.05f;
+        float realDelta = Gdx.graphics.getDeltaTime();
+        float deltaTime = Math.min(realDelta, 0.05f);
+        // Nhạc và khoảng nghỉ giữa hai bài tiếp tục chạy khi mở Pause Menu.
+        if (audioManager != null) {
+            audioManager.update();
         }
 
         // =================================================================
@@ -7288,6 +8575,11 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
 
             // Cập nhật tiến trình đào block nếu đang giữ chuột trái
             miningProgressRatio = updateMiningProgress(currentHit, deltaTime);
+
+            // Thời gian môi trường dùng giây thực; vật lý vẫn giữ delta đã giới hạn.
+            worldTime.update(realDelta);
+            weather.update(realDelta, world, eyePosition, player);
+            audioManager.setRainGain(weather.rainVolume());
         }
 
         // =================================================================
@@ -7310,11 +8602,17 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         Matrix4 view = camera.getViewMatrix();
         shaderProgram.setUniformMatrix4f("uProjection", projection);
         shaderProgram.setUniformMatrix4f("uView", view);
+        camera.copyPosition(eyePosition);
+
+        // Vòm trời và thiên thể nằm sau mọi hình học; mây và giáng thủy xét độ sâu.
+        skyRenderer.renderSky(shaderProgram, view, worldTime, weather.skyStrength());
 
         // Kết xuất các chunk giao khung nhìn và toàn bộ thực thể trong thế giới.
         textureAtlas.bind();
-        world.render(shaderProgram, projection, view, camera.copyPosition(eyePosition));
+        world.render(shaderProgram, projection, view, eyePosition, renderCloudLayer);
+        weatherRenderer.render(shaderProgram, world, eyePosition, weather);
         textureAtlas.unbind();
+        shaderProgram.setUniformVec3("uWorldLight", 1f, 1f, 1f);
 
         // =================================================================
         // BƯỚC 6: Vẽ hiệu ứng Overlay 3D quanh block đang ngắm/đào
@@ -7349,6 +8647,12 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         );
 
         shaderProgram.unbind();
+    }
+
+    /** Vẽ mây trước pha trong suốt rồi gắn lại atlas cho nước và băng. */
+    private void renderCloudLayer() {
+        skyRenderer.renderClouds(shaderProgram, eyePosition, weather.animationSeconds(), weather.skyStrength());
+        textureAtlas.bind();
     }
 
     /**
@@ -7396,6 +8700,10 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         isLeftMouseDown = false;
         isDraggingVolumeSlider = false;
         resetMiningProgress();
+        if (audioManager != null) {
+            audioManager.setUnderwater(false);
+            audioManager.setRainPaused(true);
+        }
 
         // Mở khóa con trỏ chuột để người dùng click vào nút Resume, chỉnh Volume
         Gdx.input.setCursorCatched(false);
@@ -7410,6 +8718,9 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
     private void resumeGame() {
         isPaused = false;
         isDraggingVolumeSlider = false;
+        if (audioManager != null) {
+            audioManager.setRainPaused(false);
+        }
 
         // Khóa lại con trỏ chuột để tiếp tục xoay Camera
         Gdx.input.setCursorCatched(true);
@@ -7449,6 +8760,9 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
 
         // Kiểm tra nút "RESUME GAME"
         if (uiRenderer.isInsideResumeButton(screenX, screenY, screenWidth, screenHeight)) {
+            if (audioManager != null) {
+                audioManager.playEffect(AudioManager.Effect.CLICK, 0.36f);
+            }
             resumeGame();
             return;
         }
@@ -7456,6 +8770,7 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         // Kiểm tra nút "[-]" giảm âm lượng 10%
         if (uiRenderer.isInsideVolumeMinus(screenX, screenY, screenWidth, screenHeight)) {
             if (audioManager != null) {
+                audioManager.playEffect(AudioManager.Effect.CLICK, 0.36f);
                 audioManager.changeVolume(-0.10f);
             }
             return;
@@ -7464,6 +8779,7 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         // Kiểm tra nút "[+]" tăng âm lượng 10%
         if (uiRenderer.isInsideVolumePlus(screenX, screenY, screenWidth, screenHeight)) {
             if (audioManager != null) {
+                audioManager.playEffect(AudioManager.Effect.CLICK, 0.36f);
                 audioManager.changeVolume(0.10f);
             }
             return;
@@ -7518,6 +8834,7 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
             miningTargetY = hitY;
             miningTargetZ = hitZ;
             miningElapsedTime = 0.0f;
+            nextMiningSoundTime = 0.0f;
         }
 
         // Tích lũy thời gian đào
@@ -7529,6 +8846,12 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
             world.breakBlockAndSpawnDrop(miningTargetX, miningTargetY, miningTargetZ);
             resetMiningProgress();
             return 0.0f;
+        }
+
+        // Khối phá nhanh chỉ phát tiếng vỡ, khối cứng phát tiếng gõ cách nhau 0,25 giây.
+        if (audioManager != null && requiredTime > 0.25f && miningElapsedTime >= nextMiningSoundTime) {
+            audioManager.playMining(targetBlock);
+            nextMiningSoundTime += 0.25f;
         }
 
         // Trả về tỷ lệ tiến trình đào (giới hạn trong [0.0, 1.0])
@@ -7545,6 +8868,7 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         miningTargetY = Integer.MIN_VALUE;
         miningTargetZ = Integer.MIN_VALUE;
         miningElapsedTime = 0.0f;
+        nextMiningSoundTime = 0.0f;
     }
 
     /**
@@ -7581,7 +8905,7 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         if (selectedBlock == Block.SNOW_LAYER && hit.getBlock() == Block.SNOW_LAYER
                 && world.getBlockState(x, y, z) < 7) {
             if (world.tryStackSnow(x, y, z, player)) {
-                hotbar.consumeSelectedItem();
+                finishBlockPlacement(hotbar, selectedBlock);
             }
             return;
         }
@@ -7589,7 +8913,15 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         // Ưu tiên thay thế ô đang ngắm, sau đó thử ô sát mặt mà tia chạm.
         if (world.tryPlaceBlock(x, y, z, selectedBlock, player)
                 || world.tryPlaceBlock(hit.getPrevBlockX(), hit.getPrevBlockY(), hit.getPrevBlockZ(), selectedBlock, player)) {
-            hotbar.consumeSelectedItem();
+            finishBlockPlacement(hotbar, selectedBlock);
+        }
+    }
+
+    /** Trừ vật phẩm và phát mẫu của vật liệu sau khi World chấp nhận thao tác đặt. */
+    private void finishBlockPlacement(Hotbar hotbar, Block placedBlock) {
+        hotbar.consumeSelectedItem();
+        if (audioManager != null) {
+            audioManager.playPlace(placedBlock);
         }
     }
 
@@ -7634,6 +8966,12 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         if (uiRenderer != null) {
             uiRenderer.dispose();
         }
+        if (weatherRenderer != null) {
+            weatherRenderer.dispose();
+        }
+        if (skyRenderer != null) {
+            skyRenderer.dispose();
+        }
         if (world != null) {
             world.dispose();
         }
@@ -7673,6 +9011,24 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
 
         // Phím số 1..9: Chọn ô trên thanh 9 ô Hotbar (chỉ khi đang chơi, không Pause)
         if (!isPaused && player != null) {
+            // Phím thử môi trường chỉ hoạt động khi đang chơi.
+            switch (keycode) {
+                case Input.Keys.F6 -> {
+                    weather.toggle();
+                    return true;
+                }
+                case Input.Keys.F7 -> {
+                    worldTime.nextMilestone();
+                    return true;
+                }
+                case Input.Keys.F8 -> {
+                    worldTime.toggleFastForward();
+                    return true;
+                }
+                default -> {
+                    // Các phím còn lại tiếp tục được xử lý bởi Hotbar và Player.
+                }
+            }
             int slotIndex = getHotbarSlotFromKeycode(keycode);
             if (slotIndex >= 0) {
                 player.getHotbar().selectSlot(slotIndex);
@@ -8078,6 +9434,87 @@ public final class ChunkMeshRegressionChecks {
 
 
 
+==================== FILE: D:\VoxelGame\src\test\java\com\voxelgame\engine\EnvironmentChecks.java ====================
+package com.voxelgame.engine;
+
+import com.voxelgame.entity.Block;
+
+/** Kiểm tra đồng hồ, chuyển thời tiết và mái che trên CPU. */
+final class EnvironmentChecks {
+    /** Chạy cùng các ca kiểm thử hồi quy của thế giới. */
+    static void run() {
+        WorldTime time = new WorldTime();
+        check(time.minuteOfDay() == 420 && time.dayCount() == 0, "Giờ khởi đầu");
+        time.nextMilestone();
+        check(time.minuteOfDay() == 360 && time.sunX() > 0.999f, "Mặt trời mọc phía đông");
+        time.nextMilestone();
+        check(time.sunY() > 0.999f, "Mặt trời lên thiên đỉnh lúc trưa");
+        time.nextMilestone();
+        check(time.sunX() < -0.999f, "Mặt trời lặn phía tây");
+        time.nextMilestone();
+        check(time.sunY() < -0.999f, "Mặt trăng lên thiên đỉnh lúc nửa đêm");
+        time.nextMilestone();
+        check(time.dayCount() == 1 && time.sunX() > 0.999f, "Bình minh ngày tiếp theo");
+        time.toggleFastForward();
+        time.update(60);
+        check(time.dayCount() == 2 && time.minuteOfDay() == 360, "Một ngày ở tốc độ 20x");
+
+        WeatherManager weather = new WeatherManager(42L);
+        weather.toggle();
+        weather.update(2.5f);
+        check(Math.abs(weather.strength() - 0.5f) < 0.001f, "Mưa tăng dần");
+        weather.update(2.5f);
+        check(weather.strength() == 1f, "Mưa đạt cường độ tối đa");
+        weather.toggle();
+        weather.update(5f);
+        check(weather.strength() == 0f, "Mưa tạnh dần");
+
+        checkWeatherSurface();
+    }
+
+    /** Kiểm tra mái cao, tán lá, nước lộ thiên và ảnh hưởng của dung nham. */
+    private static void checkWeatherSurface() {
+        World world = World.empty();
+        int x = 500;
+        int z = 120;
+        try {
+            world.setBlock(x, 4, z, Block.WATER.getId());
+            check(Math.abs(world.getPrecipitationSurface(x, z) - 4.88f) < 0.001f, "Mặt nước");
+            check(!world.hasWeatherRoof(x, 4.5f, z), "Mặt nước không phải mái che");
+            world.setBlock(x, 90, z, Block.SPRUCE_LEAVES.getId());
+            check(world.getPrecipitationSurface(x, z) == 91f, "Mái lá ở chunk cao");
+            check(world.hasWeatherRoof(x, 89.5f, z), "Đứng dưới tán lá");
+            check(!world.hasWeatherRoof(x, 91.5f, z), "Đứng trên tán lá");
+            world.accumulateSnow(x, z, null, false);
+            check(world.getBlock(x, 91, z) == Block.SNOW_LAYER.getId(), "Tuyết tích trên lá");
+            check(world.getBlock(x, 4, z) == Block.WATER.getId(), "Nước dưới mái không đóng băng");
+            check(world.getPrecipitationSurface(x, z) == 91.125f, "Mái tính cả lớp tuyết thấp");
+            world.setBlock(x, 90, z, Block.AIR.getId());
+            world.setBlock(x + 1, 4, z, Block.LAVA.getId());
+            world.accumulateSnow(x, z, null, false);
+            check(world.getBlock(x, 4, z) == Block.WATER.getId(), "Nước gần dung nham");
+            world.setBlock(x + 1, 4, z, Block.AIR.getId());
+            world.accumulateSnow(x, z, null, false);
+            check(world.getBlock(x, 4, z) == Block.ICE.getId(), "Nước lộ thiên đóng băng");
+
+            world.setBlock(2_500, 10, z, Block.STONE.getId());
+            world.accumulateSnow(2_500, z, null, true);
+            check(world.getBlock(2_500, 11, z) == Block.AIR.getId(), "Sa mạc luôn khô");
+        } finally {
+            world.dispose();
+        }
+    }
+
+    /** Báo chính xác điều kiện nào sai trong bộ kiểm thử JavaExec. */
+    private static void check(boolean condition, String message) {
+        if (!condition) {
+            throw new AssertionError(message);
+        }
+    }
+}
+
+
+
 ==================== FILE: D:\VoxelGame\src\test\java\com\voxelgame\engine\TerrainGenerationChecks.java ====================
 package com.voxelgame.engine;
 
@@ -8405,6 +9842,7 @@ public final class VoxelRegressionChecks {
         checkPlayerSurfaces();
         ChunkMeshRegressionChecks.run();
         TerrainGenerationChecks.run();
+        EnvironmentChecks.run();
         System.out.println("Các kiểm tra hồi quy voxel đã qua.");
     }
 
@@ -8595,20 +10033,20 @@ public final class VoxelRegressionChecks {
 ==================== FILE: D:\VoxelGame\AGENTS.md ====================
 # AGENTS.md — Bộ Quy Tắc & Cơ Chế Vận Hành Agent Cho Dự Án VoxelGame
 
-File này là **bộ quy tắc tối thượng** điều khiển hành vi của AI Agent khi đọc, phát triển, mở rộng hoặc tái cấu trúc dự án **VoxelGame** (`com.voxelgame`)[cite: 1]. Trước mọi tác vụ, Agent **BẮT BUỘC** đọc đồng thời `AGENTS.md` và **`PROPERTY.md`** (tài liệu nguồn chân lý mô tả 100% tính chất hiện tại của dự án).
+File này là **bộ quy tắc tối thượng** điều khiển hành vi của AI Agent khi đọc, phát triển, mở rộng hoặc tái cấu trúc dự án **VoxelGame** (`com.voxelgame`)[cite: 1]. Trước mọi tác vụ, Agent **BẮT BUỘC** đọc đồng thời `AGENTS.md` và **`README.md`** (tài liệu nguồn chân lý mô tả 100% tính chất hiện tại của dự án).
 
 ---
 
 ## 1. CÁC QUY TẮC BẮT BUỘC (TUÂN THỦ 100%)
 
 ### 1.1. Bảo toàn 100% tính năng hiện có & hiệu năng 60 FPS
-- Khi người dùng yêu cầu **thêm tính năng mới** hoặc **tái cấu trúc dự án**, Agent **BẮT BUỘC bảo toàn 100%** toàn bộ tính năng **gameplay, đồ họa, vật lý, giao diện (UI/HUD) và âm thanh** đang được ghi nhận trong `PROPERTY.md`.
+- Khi người dùng yêu cầu **thêm tính năng mới** hoặc **tái cấu trúc dự án**, Agent **BẮT BUỘC bảo toàn 100%** toàn bộ tính năng **gameplay, đồ họa, vật lý, giao diện (UI/HUD) và âm thanh** đang được ghi nhận trong `README.md`.
 - **Không tự ý thay đổi hành vi cũ:** Chỉ khi người dùng **chỉ định trực tiếp** việc sửa hoặc thay thế một tính năng/thông số cũ thì Agent mới được phép thay đổi phần đó; mọi phần khác phải hoạt động y nguyên.
 - **Bảo toàn hiệu năng 60 FPS:** Giữ ổn định 60 FPS (V-Sync `glfwSwapInterval(1)`)[cite: 1], không cấp phát rác (GC churn) trong vòng lặp cập nhật/vẽ, không rò rỉ bộ nhớ Off-heap (`MemoryUtil`), tài nguyên GPU (VAO/VBO/Texture/Shader) hay luồng nền[cite: 1].
 
 ### 1.2. Tự do tái cấu trúc kiến trúc dự án
 - Agent **KHÔNG bị trói buộc** vào cấu trúc thư mục, cách chia package hay kiến trúc class cũ của dự án.
-- Khi người dùng yêu cầu tái cấu trúc (refactor, tách module, đổi design pattern, tổ chức lại package/class), Agent được quyền thiết kế lại kiến trúc mới sạch hơn, dễ mở rộng hơn — miễn là **hành vi đầu ra bảo toàn 100% đặc tả trong `PROPERTY.md` và giữ vững 60 FPS** (trừ những điểm người dùng yêu cầu đổi).
+- Khi người dùng yêu cầu tái cấu trúc (refactor, tách module, đổi design pattern, tổ chức lại package/class), Agent được quyền thiết kế lại kiến trúc mới sạch hơn, dễ mở rộng hơn — miễn là **hành vi đầu ra bảo toàn 100% đặc tả trong `README.md` và giữ vững 60 FPS** (trừ những điểm người dùng yêu cầu đổi).
 
 ### 1.3. Chú thích tiếng Việt đầy đủ & Cấm tuyệt đối code rút gọn
 - **Chú thích tiếng Việt rõ ràng (UTF-8):** Mọi class, phương thức, hằng số, thuật toán và bước xử lý quan trọng đều phải có chú thích tiếng Việt mạch lạc, chính xác.
@@ -8621,19 +10059,19 @@ File này là **bộ quy tắc tối thượng** điều khiển hành vi của 
 
 ---
 
-## 2. QUY TẮC BẮT BUỘC ĐỒNG BỘ ĐẶC TẢ TRONG `PROPERTY.md`
+## 2. QUY TẮC BẮT BUỘC ĐỒNG BỘ ĐẶC TẢ TRONG `README.md`
 
-Sau **MỌI** lần chỉnh sửa, thêm mới, xóa bỏ hoặc tái cấu trúc dự án, Agent **BẮT BUỘC** rà soát **Phần A của `PROPERTY.md`** và cập nhật các mục bị ảnh hưởng (cấu trúc dự án, cấu hình build, block, điều khiển, gameplay, vật lý, thế giới, đồ họa, UI, âm thanh, hiệu năng). Trước khi hoàn tất, Agent phải bảo đảm Phần A phản ánh **đúng và đủ 100%** tính chất của phiên bản dự án sau khi sửa.
+Sau **MỌI** lần chỉnh sửa, thêm mới, xóa bỏ hoặc tái cấu trúc dự án, Agent **BẮT BUỘC** rà soát **Phần A của `README.md`** và cập nhật các mục bị ảnh hưởng (cấu trúc dự án, cấu hình build, block, điều khiển, gameplay, vật lý, thế giới, đồ họa, UI, âm thanh, hiệu năng). Trước khi hoàn tất, Agent phải bảo đảm Phần A phản ánh **đúng và đủ 100%** tính chất của phiên bản dự án sau khi sửa.
 
 ---
 
 ## 3. QUY TRÌNH THỰC HIỆN CỦA AGENT CHO MỌI TÁC VỤ
 
-1. **Đọc `PROPERTY.md`** để nắm toàn bộ tính chất hiện có của dự án.
+1. **Đọc `README.md`** để nắm toàn bộ tính chất hiện có của dự án.
 2. **Lập phạm vi thay đổi:** Bảo toàn 100% các phần không nằm trong yêu cầu sửa đổi; linh hoạt tái cấu trúc nếu người dùng yêu cầu.
 3. **Triển khai mã nguồn đầy đủ 100%:** Viết trọn vẹn từng file, chú thích tiếng Việt chi tiết ở mọi bước quan trọng, không có `// TODO` hay code rút gọn.
 4. **Kiểm tra an toàn & 60 FPS:** Rà soát không rò rỉ VRAM/Off-heap/Thread, không tạo rác GC trong Game Loop, đảm bảo biên dịch sạch trên Java 17 (UTF-8)[cite: 1].
-5. **Đồng bộ Phần A của `PROPERTY.md`** theo mục 2.
+5. **Đồng bộ Phần A của `README.md`** theo mục 2.
 
 
 
@@ -8721,7 +10159,7 @@ tasks.named('test') {
 
 
 
-==================== FILE: D:\VoxelGame\PROPERTY.md ====================
+==================== FILE: D:\VoxelGame\README.md ====================
 # PROPERTY.md — Đặc Tả Tính Chất Dự Án VoxelGame
 
 Phần A mô tả **100% tính chất hiện có** của dự án **VoxelGame**. Sau mỗi thay đổi, rà soát và cập nhật các mục bị ảnh hưởng để đặc tả phản ánh đúng và đủ trạng thái mới nhất của dự án.
@@ -8738,26 +10176,27 @@ Phần A mô tả **100% tính chất hiện có** của dự án **VoxelGame**.
   - **libGDX `1.13.1`** (`com.badlogicgames.gdx`): `gdx` (Core API), `gdx-backend-lwjgl3` (Backend Desktop LWJGL 3), `gdx-platform:natives-desktop` (Native tự động cho Windows/Linux/macOS, x64/arm64).
   - Đã loại bỏ hoàn toàn: LWJGL BOM 3.3.3, JOML 1.10.5, JLayer 1.0.1 (libGDX đã tích hợp sẵn LWJGL 3, GLFW, OpenGL, STB, OpenAL và thư viện toán học).
 - **Tài nguyên (`src/main/resources/`):**
-  - **Âm thanh:** `audio/1-08. Minecraft.mp3` (hỗ trợ tìm linh hoạt trong classpath, `src/main/resources/`, `src/main/resources/audio/`, `audio/`, `music/`, thư mục gốc hoặc tự quét sâu tối đa 4 cấp tìm file `.mp3` đầu tiên).
+  - **Âm thanh:** `audio/music/` chứa 5 bản Ogg Vorbis từ `import.zip`. `audio/sfx/` chứa 93 mẫu OGG được chọn từ gói hiệu ứng đi kèm, gồm biến thể vật liệu và mẫu dùng cho các tương tác hiện có. Tài nguyên được tìm theo đường dẫn cố định trong classpath.
   - **Texture khối:** `textures/` đóng gói bộ ảnh gốc của dự án và 13 PNG nhập nguyên byte từ `assets/minecraft/textures/block/` trong `1.21.11.zip`. Các tệp mới gồm `sandstone.png`, `sandstone_top.png`, `sandstone_bottom.png`, `spruce_log_top.png`, `short_grass.png`, `tall_grass_bottom.png`, `tall_grass_top.png`, `dandelion.png`, `poppy.png`, `cornflower.png`, `oxeye_daisy.png`, `sugar_cane.png` và `gravel.png`. Game nạp ảnh đã đóng gói và dùng bộ nạp dự phòng khi thiếu tài nguyên.
-  - **Tài nguyên thời tiết:** `textures/environment/rain.png` và `textures/environment/snow.png` giữ kích thước gốc 64 × 256.
-- **Kiểm thử:** Gradle `regressionChecks` chạy bộ kiểm tra CPU về ID block, vòng đời thực thể rơi, cập nhật lân cận, va chạm, raycast, hình học chunk, sắp xếp mesh và sinh địa hình tất định. `check` gọi task này. Trình biên dịch dùng `options.release = 17`.
+  - **Tài nguyên môi trường:** `textures/environment/rain.png` và `snow.png` giữ nguyên ảnh 64 × 256 có sẵn. `celestial/sun.png` lấy từ `1.21.11.zip`, tám ảnh `celestial/moon/` lấy từ `Blue-Moon.zip` và `clouds.png` lấy từ `Cloudier Clouds.zip`. `audio/weather/rain.wav` là đoạn lặp nối chồng 0,65 giây từ bản thu `Kao - Minecraft Vanilla Rain Sounds Sample.mp3` đi kèm.
+- **Kiểm thử:** Gradle `regressionChecks` chạy bộ kiểm tra CPU về ID block, vòng đời thực thể rơi, cập nhật lân cận, va chạm, raycast, hình học chunk, sắp xếp mesh, sinh địa hình tất định, các mốc ngày–đêm, chuyển thời tiết và mái che. `check` gọi task này. Trình biên dịch dùng `options.release = 17`.
 
 ---
 
-### 2. Kiến Trúc Mã Nguồn Hiện Tại (45 File Java)
+### 2. Kiến Trúc Mã Nguồn Hiện Tại (50 File Java)
 - **`com.voxelgame` (2 file):** `Main.java` khởi chạy desktop. `VoxelGameApp.java` quản lý Game Loop, sự kiện đầu vào, Pause Menu, đào/đặt block và vòng đời tài nguyên.
-- **`com.voxelgame.engine` (13 file):**
+- **`com.voxelgame.engine` (18 file):**
   - `Camera.java` quản lý góc nhìn, Dynamic FOV và ma trận. `Raycast.java` duyệt DDA và kiểm tra hộp chọn có thể tái sử dụng kết quả.
   - `Texture.java` dựng atlas 128 × 80 bằng Pixmap. `ShaderProgram.java` quản lý GLSL 330 cho 3D và UI. `Chunk.java` lưu ID và metadata cấp phát theo nhu cầu, dựng mesh đục/khoét alpha và mesh trong suốt.
   - `World.java` quản lý chunk, thực thể, gọi bộ sinh và điều phối kết xuất. `BlockUpdateQueue.java` quản lý FIFO tọa độ lân cận. `TranslucentChunkSort.java` sắp xếp mesh nước/băng theo khoảng cách.
   - `BiomeType.java`, `TerrainNoise.java`, `TerrainGenerator.java` định nghĩa biome, noise tất định và các lượt sinh thế giới.
-  - `UIRenderer.java` vẽ khung ngắm, HUD, hiệu ứng xương rồng và Pause Menu. `AudioManager.java` phát MP3, chỉnh âm lượng và giải phóng tài nguyên âm thanh.
+  - `UIRenderer.java` vẽ khung ngắm, HUD, hiệu ứng xương rồng và Pause Menu. `AudioManager.java` phát nhạc nền theo vòng xáo, chọn hiệu ứng âm thanh và giải phóng tài nguyên OpenAL.
+  - `WorldTime.java` theo dõi đồng hồ và quỹ đạo thiên thể. `WeatherManager.java` điều khiển chu kỳ, cường độ cục bộ, âm lượng mưa và các lượt tích tuyết. `SkyRenderer.java` vẽ vòm trời, thiên thể và mây. `WeatherRenderer.java` vẽ hai lô mưa và tuyết. `EnvironmentMesh.java` chia sẻ định dạng đỉnh và bộ đệm VAO/VBO cho các lượt vẽ này.
 - **`com.voxelgame.entity` (30 file):**
   - `Entity.java` chứa tọa độ, vận tốc và quét AABB theo trục. `Player.java` xử lý điều khiển, bảo vệ mép, bước tuyết, quán tính trên băng và phản hồi xương rồng.
   - `Hotbar.java` quản lý 9 ô. `ItemEntity.java` quản lý vật phẩm rơi và mesh dùng chung. `FallingBlockEntity.java` quản lý trạng thái cát/sỏi đang rơi.
   - `Block.java` đăng ký 26 singleton vào bảng 256 ID tra theo byte không dấu. `PlantBlock.java` chia sẻ hình học và luật nền thực vật. Các lớp block còn lại được liệt kê trong bảng bên dưới. Bốn hoa dùng chung `FlowerBlock.java`.
-- **Kiểm thử CPU (3 file):** `VoxelRegressionChecks.java`, `ChunkMeshRegressionChecks.java`, `TerrainGenerationChecks.java` thuộc `src/test/java/com/voxelgame/engine/`.
+- **Kiểm thử CPU (4 file):** `VoxelRegressionChecks.java`, `ChunkMeshRegressionChecks.java`, `TerrainGenerationChecks.java` và `EnvironmentChecks.java` thuộc `src/test/java/com/voxelgame/engine/`.
 
 ---
 
@@ -8817,6 +10256,7 @@ Phần A mô tả **100% tính chất hiện có** của dự án **VoxelGame**.
 - **Tạm dừng & Thoát (`ESC`):**
   - Nhấn `ESC` lần 1: bật `isPaused`, reset tiến trình đào, mở con trỏ chuột (`GLFW_CURSOR_NORMAL`), đóng băng cập nhật thực thể[cite: 1].
   - Nhấn `ESC` lần 2 khi đang Pause: đặt cờ đóng cửa sổ và thoát hoàn toàn khỏi game[cite: 1].
+- **Kiểm thử môi trường khi đang chơi:** `F6` đảo quang đãng và giáng thủy, `F7` tới bình minh ở lần bấm đầu rồi lần lượt tới trưa, hoàng hôn, nửa đêm và bình minh hôm sau. `F8` bật/tắt tua đồng hồ 20×.
 
 ---
 
@@ -8852,11 +10292,11 @@ Phần A mô tả **100% tính chất hiện có** của dự án **VoxelGame**.
 ### 6. Đồ Họa, Shader, Texture & Hiệu Năng 60 FPS
 - **OpenGL & Vòng lặp:** OpenGL 3.3 Core Profile trong backend LWJGL 3 của libGDX, bật `GL_DEPTH_TEST`, `GL_CULL_FACE` (`GL_BACK`, `GL_CCW`), bật V-Sync `config.useVsync(true)` với mục tiêu 60 FPS, giới hạn `deltaTime <= 0.05f`.
 - **Màu trời & Ống kính:**
-  - `SKY_COLOR = (0.53f, 0.81f, 0.92f)` dùng cho màu xóa nền.
+  - Vòm trời xoay theo camera, dùng xanh sáng vào ban ngày, xanh đen vào ban đêm và ánh cam theo hướng mọc/lặn. Mưa và tuyết chuyển bầu trời sang xám xanh.
   - Camera: `BASE_FOV_DEG = 70.0f` (`+8.0f` khi Sprint, `+5.0f` khi Fly, nội suy `deltaTime * 10.0f`), `NEAR_PLANE = 0.08f`, `FAR_PLANE = 1024.0f`, ma trận tính qua `Matrix4.setToProjection` và `setToLookAt`.
 - **Định dạng Đỉnh & Shader (`ShaderProgram`):**
   - 6 floats/đỉnh: `[x, y, z, u, v, shade]` (`location 0: vec3 aPos`, `location 1: vec2 aTexCoord`, `location 2: float aShade`) quản lý qua `VertexAttributes` của libGDX.
-  - Fragment Shader chọn màu từ `uTexture * uTintColor` hoặc `uTintColor`, loại bỏ pixel có `alpha < 0.05`, rồi nhân màu RGB với `vShade`.
+  - Fragment Shader chọn màu từ `uTexture * uTintColor` hoặc `uTintColor`. Hình học thế giới và UI loại pixel có `alpha < 0.05`. Màu khối và thực thể nhân với độ lớn `vShade` và `uWorldLight`. Dấu âm của `vShade` đánh dấu dung nham tự phát sáng. `enable2DUIMode` đặt `uWorldLight = (1, 1, 1)`. `uEnvironmentMode` chọn xử lý vòm trời, mây, thiên thể hoặc giáng thủy.
   - Xóa tiền tố `prependVertexCode`/`prependFragmentCode` để giữ `#version 330 core` ở dòng đầu tiên.
 - **Ánh sáng & Face Culling (`Chunk`):**
   - Directional Face Shading: `SHADE_TOP = 1.00f`, `SHADE_BOTTOM = 0.55f`, `SHADE_NORTH_SOUTH = 0.85f`, `SHADE_EAST_WEST = 0.72f`.
@@ -8864,6 +10304,7 @@ Phần A mô tả **100% tính chất hiện có** của dự án **VoxelGame**.
   - Sửa ở biên đánh dấu mesh kề bị ảnh hưởng. Đổi độ cao bề mặt chất lỏng tại giao biên ngang và đứng còn làm mới chunk bên cạnh mặt chất lỏng.
   - Khối xương rồng, vật phẩm rơi và biểu tượng Hotbar dùng chung vùng UV đã bỏ viền trong suốt. Mặt bên lấy vùng 14 × 16 pixel, mặt trên và dưới lấy vùng 14 × 14 pixel từ PNG gốc.
 - **Hai pha vẽ:** Chunk đục/khoét alpha và thực thể ghi depth trước. Nước/băng giữ depth test, tắt depth write, dùng blend `GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA` rồi khôi phục trạng thái. Heapsort tại chỗ sắp xa đến gần theo bình phương khoảng cách mắt–tâm chunk và phá hòa theo tọa độ. Mảng chunk, khoảng cách và khóa được cấp phát trước. Thứ tự giữa các mặt trong một chunk là xấp xỉ.
+  - Vòm trời và thiên thể vẽ trước các chunk. Mây ở Y=140 vẽ sau địa hình đục và trước nước/băng. Mưa và tuyết vẽ sau thế giới với depth test và alpha blend. Các lượt môi trường tắt ghi độ sâu, khôi phục trạng thái sau khi vẽ và dùng lại mảng đỉnh.
 - **Frustum culling và bộ nhớ đệm:** Dựng trước 5 × 5 cột quanh spawn, mỗi frame cập nhật tối đa 16 chunk giao khung nhìn, ưu tiên gần camera. Thu hồi cả hai mesh sau 120 frame ngoài khung nhìn và giữ dữ liệu voxel. Hai bộ đệm đỉnh và bảng UV dùng lại.
 - **Texture Atlas:** Lưới 8 × 5 ô 16 × 16, kích thước 128 × 80 RGBA. Dùng Nearest, ClampToEdge và biên UV 0,0008. Các tile 0–19 giữ chỉ số cũ; tile 20–32 tương ứng thứ tự PNG mới ở mục 1. Xử lý một lần khi dựng atlas: nhuộm tông Plains cho cỏ/lá sồi/mía, tông xanh thông cho lá vân sam, giữ alpha nguồn của texture khoét và độ trong của Ice/Water. Nước và dung nham lấy khung đầu. Dùng pixel art dự phòng khi nguồn thiếu hoặc lỗi đọc và giải phóng các Pixmap sau dựng atlas.
 
@@ -8886,77 +10327,33 @@ Phần A mô tả **100% tính chất hiện có** của dự án **VoxelGame**.
   - **Crosshair (khi không Pause):** Chữ thập trung tâm có viền bóng đen (`20x4`, `4x20`, `alpha = 0.65`) và lõi trắng (`16x2`, `2x16`, `alpha = 0.92`)[cite: 1].
   - **Thanh tiến trình đập Block (khi đang đập):** Kích thước `110 x 10` nằm dưới tâm ngắm `20px`, viền tối `2px`, thanh màu chuyển từ vàng cam sang xanh theo phần trăm tiến trình[cite: 1].
   - **Thanh 9 ô Hotbar (luôn hiển thị):** Căn giữa cạnh dưới (cách đáy `16px`), mỗi ô `50 x 50` px, đệm `4px`; ô đang chọn có viền vàng `3px` và nền sáng hơn; góc trên-trái hiển thị số phím `1..9`; chính giữa vẽ icon texture `28 x 28` lấy từ `Block.Face.SOUTH`; góc dưới-phải hiển thị số lượng có bóng đổ; phía trên thanh Hotbar hiển thị tên Block in hoa màu vàng nhạt[cite: 1].
+  - **Thông tin môi trường:** Khi đang chơi, góc trên trái hiện tên biome, `CLEAR`/`RAIN`/`SNOW` và hai chỉ số ngày, giờ theo dạng `DAY 1 - 07:00`. Chữ dùng font 5 × 7 và bộ đệm ký tự dùng lại.
   - **Pause Menu (khi `isPaused == true`):**
     - Phủ màn tối bán trong suốt toàn màn hình (`alpha = 0.68`)[cite: 1].
     - Hộp thoại trung tâm `420 x 270`, tiêu đề `GAME PAUSED` (màu vàng, có bóng)[cite: 1].
     - Nút `RESUME GAME` (`280 x 46`, màu xanh lá có hiệu ứng hover, bấm để tiếp tục chơi và khóa lại chuột)[cite: 1].
-    - Cụm chỉnh âm lượng `MUSIC VOLUME: XX%`: nút `[-]` (`42 x 42`, giảm `10%`), thanh trượt (`176 x 24`, thanh xanh + con trượt vàng `12px`, hỗ trợ click và kéo mượt theo thời gian thực), nút `[+]` (`42 x 42`, tăng `10%`)[cite: 1].
+    - Cụm chỉnh âm lượng `VOLUME: XX%` cho nhạc và mưa gồm nút `[-]` (`42 x 42`, giảm `10%`), thanh trượt (`176 x 24`, thanh xanh và con trượt vàng `12px`, hỗ trợ click và kéo), nút `[+]` (`42 x 42`, tăng `10%`)[cite: 1].
     - Dòng hướng dẫn chân hộp thoại: `PRESS ESC AGAIN TO QUIT`[cite: 1].
   - **Font Bitmap 5x7 tích hợp:** Tự vẽ bằng hình học tam giác OpenGL cho `A–Z`, `0–9`, `:`, `%`, `-`, `+`, không phụ thuộc font hệ điều hành[cite: 1].
 
 ---
 
 ### 8. Hệ Thống Âm Thanh (`AudioManager`)
-- **libGDX Audio Stream trên OpenAL:** Sử dụng `com.badlogic.gdx.audio.Music` để stream trực tiếp file `.mp3`, không cần giải mã PCM thủ công, không tốn CPU và không cấp phát mảng đệm rác[cite: 1].
-- **Cơ chế tìm kiếm linh hoạt (`findMp3FileHandleFlexible`):** Tự động phát hiện file nhạc thông qua `Gdx.files.internal`, `Gdx.files.classpath`, đường dẫn cục bộ hoặc quét sâu 4 cấp thư mục dự án tìm file `.mp3` đầu tiên.
-- **Phát lặp & Điều chỉnh âm lượng:** Hỗ trợ lặp vô hạn `music.setLooping(true)`, âm lượng mặc định `0.70f` (`70%`), thay đổi âm lượng mượt mà theo thời gian thực `setVolume([0.0f, 1.0f])` khi người chơi bấm nút `[-]`/`[+]` hoặc kéo thanh trượt trên Pause Menu.
-- **Giải phóng tài nguyên (`Disposable`):** Triển khai `com.badlogic.gdx.utils.Disposable`, dừng phát và giải phóng triệt để tài nguyên OpenAL qua `dispose()`, đồng thời cung cấp phương thức `cleanup()` tương thích ngược.
+- **Vòng nhạc nền:** libGDX `Music` phát luồng Ogg Vorbis trên OpenAL. Mỗi vòng xáo Fisher–Yates và phát mỗi bài `calm1`, `calm3`, `hal3`, `piano2`, `piano3` đúng một lần. Bài đầu vòng mới khác bài cuối vòng trước. Sau mỗi bài nghỉ 3 giây, kể cả giữa hai vòng. Game bỏ qua tài nguyên thiếu hoặc không mở được.
+- **Pause Menu và âm lượng:** Nhạc và khoảng nghỉ tiếp tục khi mở Pause Menu. Nút `[-]`, `[+]` và thanh trượt điều khiển ngay âm lượng nhạc và mưa từ 0% đến 100%, mặc định 70%. Các nút phát mẫu click khi được bấm.
+- **Tiếng mưa:** `Music` phát lặp luồng WAV độc lập với nhạc nền. Âm lượng bằng mức trong Pause Menu nhân cường độ mưa cục bộ nhân hệ số mái che. Cường độ âm thanh trở về 0 khi rời Plains hoặc mưa tạnh. Mái che bằng khối rắn hay lá giảm âm lượng về 40%. Luồng mưa dừng tại vị trí đang phát khi mở Pause Menu và tiếp tục từ vị trí đó khi bấm Resume.
+- **Hiệu ứng vật liệu:** Các khối dùng nhóm mẫu cỏ/thực vật, sỏi/đất, cát, tuyết, đá, gỗ hoặc tiếng kính khi băng vỡ. Đào lâu phát tiếng gõ theo nhịp 0,25 giây. Phá và đặt thành công, bước chân, tiếp đất và cát/sỏi đáp đều chọn mẫu theo vật liệu. Bước chân dùng quãng đường đã đi và giảm âm lượng khi rón rén. Tiếng phá và cát/sỏi đáp giảm theo khoảng cách trong bán kính 16 block.
+- **Hiệu ứng tương tác:** Nhặt đồ phát tiếng khi Hotbar nhận vật phẩm. Va xương rồng phát theo hồi chiêu của phản hồi va chạm. Có tiếng chạm nước, bơi, chìm/nổi qua mặt nước và âm nền khi mắt ở dưới nước. Âm nền dưới nước dừng trong Pause Menu. Nước và dung nham gần người chơi có một mẫu âm định kỳ, giảm theo khoảng cách.
+- **Vòng đời tài nguyên:** Mẫu ngắn được nạp một lần vào `Sound` và dùng lại khi phát. Âm nền dưới nước, tiếng mưa và bài nhạc hiện tại dùng `Music`. Bộ đếm, thứ tự bài và mẫu đã nạp được tái sử dụng trong vòng lặp. `dispose()` giải phóng các luồng và bộ đệm âm thanh. `cleanup()` ủy quyền cho `dispose()`.
 
+---
 
+### 9. Chu Kỳ Ngày–Đêm & Thời Tiết
 
-==================== FILE: D:\VoxelGame\README.md ====================
-# Hướng Dẫn Chi Tiết Cài Đặt, Tổ Chức Tài Nguyên & Chạy Thử (Phần 4)
-
-## 1. Đóng Gói Sẵn Toàn Bộ Trong `VoxelGame.zip`
-
-Trong file nén **`VoxelGame.zip`** đính kèm, mình đã **tích hợp sẵn 100% toàn bộ 14 class Java, file cấu hình `build.gradle`, bộ công cụ Gradle Wrapper, toàn bộ các file ảnh từ `texture.zip` và bản nhạc nền `1-08. Minecraft.mp3`** vào đúng thư mục chuẩn `src/main/resources/`. Bạn chỉ cần giải nén là có thể bấm **Run** chạy ngay mà không cần copy thủ công!
-
-Nếu bạn muốn tự tay thêm hoặc thay đổi file nhạc/ảnh trong project hiện tại của mình, hãy đặt chúng theo đúng đường dẫn dưới đây:
-
-```text
-VoxelGame/
-└── src/
-    └── main/
-        ├── java/com/voxelgame/                  <-- Chứa đầy đủ 14 file .java (Từ Phần 1 đến Phần 4)
-        └── resources/
-            ├── audio/
-            │   └── 1-08. Minecraft.mp3          <-- Nhạc nền MP3 phát lặp lại (Loop)
-            └── textures/
-                ├── bedrock.png                  <-- Khối Bedrock (y = 0)
-                ├── stone.png                    <-- Khối Đá (Stone)
-                ├── grass-block.png              <-- Tấm sheet 32x32 tách tự động thành Mặt Cỏ Trên & Mặt Cỏ Bên
-                ├── Minecraft Dirt Small by terridee, click to purchase fabric.jpg   <-- Khối Đất (Dirt)
-                ├── Minecraft Oak Log Block Texture Pixel Art.jpg                    <-- Thân Gỗ Sồi (Oak Log)
-                ├── water_still.png              <-- Mặt Nước (Water)
-                └── download.jpg                 <-- Dung Nham (Lava)
-```
-
-## 2. Cách Mở & Chạy Project Trong IntelliJ IDEA
-
-1. **Giải nén:** Tải file `VoxelGame.zip` về máy và giải nén ra một thư mục bất kỳ.
-2. **Mở Project:** Mở **IntelliJ IDEA** -> Chọn **Open** -> Trỏ vào thư mục `VoxelGame` (nơi chứa file `build.gradle`) -> Nhấn **OK**.
-3. **Đồng bộ Gradle (Load Gradle Changes):**
-   - Đợi vài giây để IntelliJ tự động tải thêm 2 thư viện mới trong `build.gradle` là **`org.lwjgl:lwjgl-stb`** (đọc ảnh) và **`javazoom:jlayer:1.0.1`** (phát nhạc MP3).
-   - Nếu thanh công cụ bên phải có biểu tượng con voi **Gradle**, bạn có thể nhấn nút **Reload All Gradle Projects** (biểu tượng 2 mũi tên xoay vòng) để đồng bộ ngay lập tức.
-4. **Khởi chạy Game:**
-   - Mở file `src/main/java/com/voxelgame/Main.java` và nhấn biểu tượng **Run (nút Play màu xanh lá)** ở dòng `public static void main`, hoặc mở tab **Gradle -> Tasks -> application -> run**.
-
-## 3. Bảng Điều Khiển Toàn Bộ 6 Tính Năng Mới Trong Game
-
-| Thao tác / Phím bấm | Chức năng trong Game |
-| :--- | :--- |
-| **`W, A, S, D` + Di chuột** | Di chuyển 4 hướng và xoay góc nhìn 360 độ. |
-| **Nhấn `Space` 1 lần** | Nhảy lên khi đang đứng trên mặt đất (hoặc bơi nổi lên khi đang ở dưới Hồ Nước / Lava). |
-| **Nhấn đúp `Space` 2 lần (`< 0.3s`)** | **Bật / Tắt Chế độ Bay (Fly Mode)**: Vô hiệu hóa trọng lực, giữ `Space` để bay lên cao. |
-| **Giữ `Left Shift` (khi đang bay)** | Hạ độ cao với tốc độ 4 block/giây. |
-| **Nhấn đúp `Left Shift` trong tối đa 0,3 giây (khi đang bay)** | Thoát chế độ bay và bật lại trọng lực. |
-| **Giữ `Left Shift` (trên mặt đất)** | **Đi rón rén (Sneak)**: Giảm 50% tốc độ, hạ thấp tầm mắt Camera và **giữ mép block không bị rơi xuống vực**. |
-| **Giữ `Left Ctrl` khi di chuyển** | **Chạy nhanh (Sprint)**: Tăng 1.5 lần tốc độ di chuyển kèm hiệu ứng mở rộng nhẹ góc nhìn (Dynamic FOV). |
-| **Phím số `1` – `9` hoặc Cuộn chuột** | Chọn ô trên **9 Thanh Công Cụ Nhanh (Hotbar HUD)** ở cạnh dưới màn hình. |
-| **Nhấn giữ Chuột Trái** | **Đập Block bằng tay không theo độ cứng**: Lá cây (`0.3s`), Đất/Cỏ (`0.75s`), Gỗ (`3.0s`), Đá (`5.0s`). Khi vỡ sẽ văng ra **Item 3D xoay tròn**, đi lại gần sẽ tự động hút vào Hotbar. (Tia nhìn xuyên qua Nước/Lava; Bedrock không thể phá hủy). |
-| **Click Chuột Phải** | Đặt loại Block đang cầm ở ô Hotbar được chọn vào mặt phẳng đang nhìn (tự động trừ số lượng). |
-| **Nhấn `ESC` lần 1** | **Tạm dừng Game (Pause Menu)**: Hiện con trỏ chuột để bấm ô **"RESUME GAME"** hoặc chỉnh **Volume (`[-]` / Thanh trượt / `[+]`)** từ `0%` đến `100%`. |
-| **Nhấn `ESC` lần 2 (lúc đang Pause)** | Đóng cửa sổ và thoát hoàn toàn khỏi trò chơi. |
+- **Đồng hồ:** Một ngày có 24.000 tick, chạy 20 tick/giây và bắt đầu ở tick 1.000 (07:00). Bình minh, trưa, hoàng hôn và nửa đêm lần lượt ở tick 0, 6.000, 12.000 và 18.000. Trời tối hẳn quanh tick 13.000, sáng lại từ vùng tick 23.000–24.000. Pause đóng băng đồng hồ, mây và thời tiết.
+- **Thiên thể và ánh sáng:** Mặt trời mọc ở Đông (`+X`), qua đỉnh `+Y` rồi lặn ở Tây (`-X`). Mặt trăng đối diện 180° và chọn một trong tám pha theo bộ đếm ngày. Hai ảnh hòa trộn cộng sáng và mờ dần khi giáng thủy tăng. Ánh sáng môi trường chuyển từ trắng ban ngày qua ấm nhẹ lúc mặt trời gần chân trời đến xanh đêm. Mưa/tuyết làm giảm tối đa 24% cường độ ánh sáng ban ngày. Mây trôi từ Đông sang Tây và hiện cả ban ngày lẫn ban đêm, với màu thay đổi theo giờ và cường độ giáng thủy.
+- **Chu kỳ giáng thủy:** Quang đãng tự động kéo dài 3–7 phút, đợt mưa/tuyết kéo dài 1–3 phút. Cường độ chuyển dần trong 5 giây. Mỗi cột trong bán kính 14 block dùng biome khí hậu để quyết định mưa ở Plains, tuyết ở Snowy Plains hoặc không giáng thủy ở Desert. Khi đạt cường độ tối đa, lấy mẫu khoảng 35% cột mưa và 29% cột tuyết để giảm số dải bán trong suốt chồng lên nhau. Hạt mờ dần khi sát mắt hoặc gần rìa vùng vẽ. Đáy mỗi dải dừng trên bề mặt cao nhất của khối rắn, lá, tuyết hoặc chất lỏng. Mưa cuộn nhanh theo chiều dọc, tuyết rơi chậm và lắc ngang.
+- **Tích tuyết:** Khi cường độ vượt 50%, mỗi 0,35 giây thử một cột quanh người chơi. Cột Snowy Plains lộ thiên có thể nhận một lớp tuyết trên nền hợp lệ, đôi khi tăng lớp hoặc đóng băng Water mặt trên. Mái che, hộp người chơi và Lava gần đó được kiểm tra trước khi thay block.
 
 
 

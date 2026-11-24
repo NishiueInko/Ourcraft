@@ -322,7 +322,7 @@ public class AudioManager implements Disposable {
         if (block == Block.SNOW_LAYER || block == Block.SNOW_BLOCK) {
             return Material.SNOW;
         }
-        if (block == Block.OAK_LOG || block == Block.SPRUCE_LOG) {
+        if (block == Block.OAK_LOG || block == Block.SPRUCE_LOG || block == Block.CHEST) {
             return Material.WOOD;
         }
         if (block == Block.ICE) {

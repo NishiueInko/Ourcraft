@@ -30,7 +30,7 @@ import java.util.List;
  *    - Trong `breakBlockAndSpawnDrop(int, int, int)`, `World` gọi đa hình `target.onBreak(this, worldX, worldY, worldZ)`
  *      để mỗi loại `Block` tự quyết định vật phẩm rơi ra (ví dụ: `GrassBlock` rơi ra `Block.DIRT`).
  * 2. Tính Đóng gói (Encapsulation):
- *    - Đóng gói mảng `chunks`, `surfaceHeights` và danh sách `entities` ở phạm vi `private final`,
+ *    - Đóng gói mảng `chunks` và danh sách `entities` ở phạm vi `private final`,
  *      chỉ cung cấp các phương thức giao tiếp an toàn (`registerPlayer`, `spawnDroppedItem`, `getBlock`, `setBlock`).
  */
 public class World implements Disposable {
@@ -45,18 +45,22 @@ public class World implements Disposable {
     public static final int WORLD_SIZE_Y = WORLD_CHUNKS_Y * Chunk.SIZE;
     public static final int WORLD_SIZE_Z = WORLD_CHUNKS_Z * Chunk.SIZE;
 
-    // Tâm hình học của bản đồ theo phương ngang, dùng chung cho spawn và hồi vị trí.
+    // Tâm hình học dùng cho lần xuất phát đầu tiên và tọa độ hồi sinh ưu tiên.
     public static final int CENTER_X = WORLD_SIZE_X / 2;
     public static final int CENTER_Z = WORLD_SIZE_Z / 2;
+    static final int RESPAWN_X = 1500;
+    static final int RESPAWN_Z = 1500;
+    /** Số block tối đa tìm quanh tâm biome để tránh cột ngập nước hoặc bị che kín. */
+    private static final int BIOME_LANDING_RADIUS = 32;
     // Dựng sẵn khu vực 5 × 5 cột chunk quanh spawn.
     private static final int SPAWN_MESH_RADIUS = 2;
     // Giới hạn công việc dựng mesh mỗi khung hình và thời gian giữ mesh ngoài khung nhìn.
     private static final int MESH_BUILDS_PER_FRAME = 16;
     private static final int MESH_RETENTION_FRAMES = 120;
 
-    // Giới hạn nghiêm ngặt: Tổng số lớp địa hình từ đáy (y = 0) đến đỉnh cao nhất <= 20 lớp (tức y <= 19)
-    public static final int MAX_TERRAIN_LAYERS = 20;
-    public static final int MAX_TERRAIN_Y = MAX_TERRAIN_LAYERS - 1; // y = 19
+    // Chừa phần không gian trên đỉnh tự nhiên cho tuyết, cây và xây dựng.
+    public static final int MAX_TERRAIN_LAYERS = 155;
+    public static final int MAX_TERRAIN_Y = MAX_TERRAIN_LAYERS - 1;
     /** Seed ổn định dùng cho toàn bộ vùng khí hậu và đặc trưng địa hình. */
     public static final long WORLD_SEED = 20261114L;
 
@@ -140,6 +144,126 @@ public class World implements Disposable {
     /** Trả về vị trí chân người chơi ở tâm bản đồ, ngay trên mặt đất khi tạo thế giới. */
     public Vector3 getSpawnPosition() {
         return new Vector3(CENTER_X, spawnY, CENTER_Z);
+    }
+
+    /** Tìm điểm đứng khô theo từng vành vuông quanh tâm biome. Chỉ ghi vị trí khi có nền hợp lệ. */
+    public boolean setBiomeCenterPosition(Vector3 position, BiomeType biome) {
+        int centerX = switch (biome) {
+            case SNOWY_PLAINS -> CENTER_X - BIOME_WIDTH;
+            case PLAINS -> CENTER_X;
+            case DESERT -> CENTER_X + BIOME_WIDTH;
+        };
+        for (int radius = 0; radius <= BIOME_LANDING_RADIUS; radius++) {
+            for (int dx = -radius; dx <= radius; dx++) {
+                for (int dz = -radius; dz <= radius; dz++) {
+                    if (Math.max(Math.abs(dx), Math.abs(dz)) != radius) {
+                        continue;
+                    }
+                    int x = centerX + dx;
+                    int z = CENTER_Z + dz;
+                    float feet = biomeLandingFeetY(x, z);
+                    if (feet > 0 && getBiome(x, z) == biome) {
+                        // Dấu chân rộng 0,6 block nằm trọn trong cột khi đặt ở chính giữa ô.
+                        position.set(x + 0.5f, feet, z + 0.5f);
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /** Tìm mặt đỡ ngoài trời trong dữ liệu voxel hiện tại, kể cả tuyết và các block đã sửa. */
+    private float biomeLandingFeetY(int x, int z) {
+        for (int y = findHighestBlockY(x, z); y >= 0; y--) {
+            Block block = Block.fromId(getBlock(x, y, z));
+            if (block.isLiquid()) {
+                return 0f;
+            }
+            Block.Bounds bounds = block.getCollisionBounds(getBlockState(x, y, z));
+            if (bounds == null) {
+                continue;
+            }
+            // Bỏ cột có mặt đỡ là băng, xương rồng hoặc cây, kể cả tuyết phủ trên tán lá.
+            Block base = block == Block.SNOW_LAYER ? Block.fromId(getBlock(x, y - 1, z)) : block;
+            if (base == Block.ICE || base == Block.CACTUS || base == Block.OAK_LOG || base == Block.SPRUCE_LOG
+                    || base == Block.OAK_LEAVES || base == Block.SPRUCE_LEAVES || y + 2 >= WORLD_SIZE_Y) {
+                return 0f;
+            }
+            return y + bounds.maxY();
+        }
+        return 0f;
+    }
+
+    /** Đưa người chơi tới cột hồi sinh thông thoáng, kể cả khi đã có người xây ở đó. */
+    public void setRespawnPosition(Vector3 position) {
+        if (tryRespawnNear(position, RESPAWN_X, RESPAWN_Z)
+                || tryRespawnNear(position, CENTER_X, CENTER_Z)) {
+            return;
+        }
+        // Cho phép người chơi di chuyển trở lại bản đồ nếu cả hai vùng đã bị xây kín.
+        position.set(CENTER_X, WORLD_SIZE_Y, CENTER_Z);
+    }
+
+    /** Duyệt các vành vuông theo khoảng cách tăng dần quanh giao điểm bốn cột. */
+    private boolean tryRespawnNear(Vector3 position, int centerX, int centerZ) {
+        for (int radius = 0; radius <= 12; radius++) {
+            for (int dx = -radius; dx <= radius; dx++) {
+                for (int dz = -radius; dz <= radius; dz++) {
+                    if (Math.max(Math.abs(dx), Math.abs(dz)) != radius) {
+                        continue;
+                    }
+                    int x = centerX + dx;
+                    int z = centerZ + dz;
+                    float feet = respawnFeetY(x, z);
+                    if (feet > 0) {
+                        position.set(x, feet, z);
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /** Yêu cầu một nền rắn và hai ô Air trên toàn bộ bốn cột chạm dấu chân. */
+    private float respawnFeetY(int x, int z) {
+        float feet = 0f;
+        for (int dx = -1; dx <= 0; dx++) {
+            for (int dz = -1; dz <= 0; dz++) {
+                int wx = x + dx;
+                int wz = z + dz;
+                for (int y = findHighestBlockY(wx, wz); y + 1 > feet; y--) {
+                    if (y < 0) {
+                        break;
+                    }
+                    Block ground = Block.fromId(getBlock(wx, y, wz));
+                    Block.Bounds bounds = ground.getCollisionBounds(getBlockState(wx, y, wz));
+                    if (bounds != null && ground != Block.CACTUS) {
+                        feet = Math.max(feet, y + bounds.maxY());
+                        break;
+                    }
+                }
+            }
+        }
+        int clearanceY = (int) Math.ceil(feet);
+        if (feet == 0 || clearanceY + 1 >= WORLD_SIZE_Y) {
+            return 0;
+        }
+        for (int dx = -1; dx <= 0; dx++) {
+            for (int dz = -1; dz <= 0; dz++) {
+                int wx = x + dx;
+                int wz = z + dz;
+                int supportY = clearanceY - 1;
+                Block.Bounds bounds = getCollisionBounds(wx, supportY, wz);
+                if ((bounds != null && supportY + bounds.maxY() > feet)
+                        || getBlock(wx, clearanceY, wz) != Block.AIR.getId()
+                        || getBlock(wx, clearanceY + 1, wz) != Block.AIR.getId()) {
+                    return 0;
+                }
+            }
+        }
+        return feet;
     }
 
     /** Trả vùng khí hậu tại cột, kể cả khi chunk chưa có mesh. */
@@ -230,6 +354,7 @@ public class World implements Disposable {
         }
     }
 
+    /** Tìm ô khác Air cao nhất của một cột trong bản đồ. */
     private int findHighestBlockY(int wx, int wz) {
         int cx = wx / Chunk.SIZE;
         int cz = wz / Chunk.SIZE;
@@ -247,6 +372,26 @@ public class World implements Disposable {
             }
         }
         return 0;
+    }
+
+    /** Chia dải địa tầng khác Air tại từng biên chunk; chỉ dùng khi khởi tạo thế giới. */
+    void fillGeneratedColumn(int x, int z, int firstY, int endY, Block block) {
+        int cx = x / Chunk.SIZE;
+        int cz = z / Chunk.SIZE;
+        int lx = x % Chunk.SIZE;
+        int lz = z % Chunk.SIZE;
+        for (int y = firstY; y < endY; ) {
+            int cy = y / Chunk.SIZE;
+            int originY = cy * Chunk.SIZE;
+            int nextY = Math.min(endY, originY + Chunk.SIZE);
+            Chunk chunk = chunks[cx][cy][cz];
+            if (chunk == null) {
+                chunk = new Chunk(cx, cy, cz);
+                chunks[cx][cy][cz] = chunk;
+            }
+            chunk.fillGeneratedColumnSegment(lx, lz, y - originY, nextY - originY, block.getId());
+            y = nextY;
+        }
     }
 
     /** Ghi block và cấp phát hoặc giải phóng chunk khi nó chuyển trạng thái rỗng. */
@@ -434,35 +579,20 @@ public class World implements Disposable {
         int ly = worldY % Chunk.SIZE;
         int lz = worldZ % Chunk.SIZE;
 
-        if (lx == 0 && cx > 0) {
-            markChunkDirty(cx - 1, cy, cz);
-        } else if (lx == Chunk.SIZE - 1 && cx < WORLD_CHUNKS_X - 1) {
-            markChunkDirty(cx + 1, cy, cz);
-        }
-
-        if (ly == 0 && cy > 0) {
-            markChunkDirty(cx, cy - 1, cz);
-        } else if (ly == Chunk.SIZE - 1 && cy < WORLD_CHUNKS_Y - 1) {
-            markChunkDirty(cx, cy + 1, cz);
-        }
-
-        if (lz == 0 && cz > 0) {
-            markChunkDirty(cx, cy, cz - 1);
-        } else if (lz == Chunk.SIZE - 1 && cz < WORLD_CHUNKS_Z - 1) {
-            markChunkDirty(cx, cy, cz + 1);
-        }
-
-        // Mặt bên chất lỏng một ô dưới có thể đổi độ cao qua cả biên ngang lẫn biên đứng.
-        if (ly == 0 && cy > 0 && Block.fromId(getBlock(worldX, worldY - 1, worldZ)).isLiquid()) {
-            if (lx == 0 && cx > 0) {
-                markChunkDirty(cx - 1, cy - 1, cz);
-            } else if (lx == Chunk.SIZE - 1 && cx < WORLD_CHUNKS_X - 1) {
-                markChunkDirty(cx + 1, cy - 1, cz);
-            }
-            if (lz == 0 && cz > 0) {
-                markChunkDirty(cx, cy - 1, cz - 1);
-            } else if (lz == Chunk.SIZE - 1 && cz < WORLD_CHUNKS_Z - 1) {
-                markChunkDirty(cx, cy - 1, cz + 1);
+        // AO và mặt chất lỏng có thể phụ thuộc ô ở chunk chung mặt, cạnh hoặc góc.
+        int minX = lx == 0 && cx > 0 ? -1 : 0;
+        int maxX = lx == Chunk.SIZE - 1 && cx + 1 < WORLD_CHUNKS_X ? 1 : 0;
+        int minY = ly == 0 && cy > 0 ? -1 : 0;
+        int maxY = ly == Chunk.SIZE - 1 && cy + 1 < WORLD_CHUNKS_Y ? 1 : 0;
+        int minZ = lz == 0 && cz > 0 ? -1 : 0;
+        int maxZ = lz == Chunk.SIZE - 1 && cz + 1 < WORLD_CHUNKS_Z ? 1 : 0;
+        for (int dx = minX; dx <= maxX; dx++) {
+            for (int dy = minY; dy <= maxY; dy++) {
+                for (int dz = minZ; dz <= maxZ; dz++) {
+                    if (dx != 0 || dy != 0 || dz != 0) {
+                        markChunkDirty(cx + dx, cy + dy, cz + dz);
+                    }
+                }
             }
         }
 
@@ -630,6 +760,12 @@ public class World implements Disposable {
     /** Cho phép vẽ tầng mây sau pha ghi chiều sâu và trước khi hòa màu nước/băng. */
     public void render(ShaderProgram shader, Matrix4 projection, Matrix4 view, Vector3 cameraPosition,
                        Runnable beforeTranslucent) {
+        render(shader, projection, view, cameraPosition, beforeTranslucent, Float.POSITIVE_INFINITY);
+    }
+
+    /** Bỏ các chunk nằm hoàn toàn ngoài tầm nhìn màu sắc khi sương đạt độ đậm tối đa. */
+    public void render(ShaderProgram shader, Matrix4 projection, Matrix4 view, Vector3 cameraPosition,
+                       Runnable beforeTranslucent, float drawDistance) {
         // libGDX dùng nghịch đảo của Projection × View để dựng sáu mặt phẳng khung nhìn.
         inverseViewProjection.set(projection).mul(view).inv();
         frustum.update(inverseViewProjection);
@@ -639,7 +775,8 @@ public class World implements Disposable {
         pendingMeshCount = 0;
         visibleChunkCount = 0;
 
-        collectVisibleChunks();
+        Vector3 eye = cameraPosition == null ? nearCenter : cameraPosition;
+        collectVisibleChunks(eye, drawDistance);
         for (int i = 0; i < pendingMeshCount; i++) {
             Chunk chunk = pendingMeshes[i];
             pendingMeshes[i] = null;
@@ -648,7 +785,6 @@ public class World implements Disposable {
         releaseOffscreenMeshes();
 
         int translucentCount = 0;
-        Vector3 eye = cameraPosition == null ? nearCenter : cameraPosition;
         shader.setUniformMatrix4f("uModel", identityMatrix);
         for (int i = 0; i < visibleChunkCount; i++) {
             Chunk chunk = visibleChunks[i];
@@ -695,7 +831,7 @@ public class World implements Disposable {
     }
 
     /** Duyệt khung nhìn theo thứ tự tọa độ X, Y, Z để khóa hòa ổn định. */
-    private void collectVisibleChunks() {
+    private void collectVisibleChunks(Vector3 eye, float range) {
         float minX = Float.POSITIVE_INFINITY;
         float minZ = Float.POSITIVE_INFINITY;
         float maxX = Float.NEGATIVE_INFINITY;
@@ -706,6 +842,11 @@ public class World implements Disposable {
             maxX = Math.max(maxX, corner.x);
             maxZ = Math.max(maxZ, corner.z);
         }
+        minX = Math.max(minX, eye.x - range);
+        minZ = Math.max(minZ, eye.z - range);
+        maxX = Math.min(maxX, eye.x + range);
+        maxZ = Math.min(maxZ, eye.z + range);
+        float rangeSquared = range * range;
         // Mở rộng thêm một ô ở mép dưới để tính cả chunk tiếp xúc mặt hộp bao.
         int firstX = Math.max(0, (int) Math.floor(minX / Chunk.SIZE) - 1);
         int firstZ = Math.max(0, (int) Math.floor(minZ / Chunk.SIZE) - 1);
@@ -715,7 +856,7 @@ public class World implements Disposable {
             for (int cy = 0; cy < WORLD_CHUNKS_Y; cy++) {
                 for (int cz = firstZ; cz <= lastZ; cz++) {
                     Chunk chunk = chunks[cx][cy][cz];
-                    if (chunk != null && chunk.intersectsFrustum(frustum)) {
+                    if (chunk != null && chunk.distanceSquaredTo(eye) <= rangeSquared && chunk.intersectsFrustum(frustum)) {
                         chunk.lastVisibleFrame = renderFrame;
                         if (chunk.isDirty()) {
                             queueMeshBuild(chunk);

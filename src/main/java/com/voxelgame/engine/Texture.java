@@ -79,6 +79,13 @@ public class Texture implements Disposable {
     public static final int TILE_SUGAR_CANE = 31;
     public static final int TILE_GRAVEL = 32;
 
+    /** Mặt gỗ sơn có khóa đồng của rương trang trí. */
+    public static final int TILE_CHEST_FRONT = 33;
+    /** Mặt gỗ ghép có nẹp dọc của rương trang trí. */
+    public static final int TILE_CHEST_SIDE = 34;
+    /** Nắp rương với họa tiết khảm hình thoi. */
+    public static final int TILE_CHEST_TOP = 35;
+
     // Hệ số nhân RGB cho thảm thực vật đồng bằng và lá vân sam, lần lượt theo mã màu RGB.
     private static final int PLAINS_TINT = 0x91BD59;
     private static final int SPRUCE_TINT = 0x619961;
@@ -191,6 +198,38 @@ public class Texture implements Disposable {
         loadTileOrFallback(atlasPixmap, TILE_OXEYE_DAISY, TileStyle.CUTOUT, 0xEEE8CF, "oxeye_daisy");
         loadTileOrFallback(atlasPixmap, TILE_SUGAR_CANE, TileStyle.PLAINS, 0x8BB05B, "sugar_cane");
         loadTileOrFallback(atlasPixmap, TILE_GRAVEL, TileStyle.OPAQUE, 0x807B78, "gravel");
+        drawDecorativeChest(atlasPixmap);
+    }
+
+    /** Vẽ rương theo bảng màu gỗ sơn xanh và đồng, ghi đè trực tiếp ba ô atlas. */
+    private void drawDecorativeChest(Pixmap atlas) {
+        for (int tile = TILE_CHEST_FRONT; tile <= TILE_CHEST_TOP; tile++) {
+            for (int y = 0; y < TILE_SIZE; y++) {
+                for (int x = 0; x < TILE_SIZE; x++) {
+                    int distanceToEdge = Math.min(Math.min(x, TILE_SIZE - 1 - x),
+                            Math.min(y, TILE_SIZE - 1 - y));
+                    int centerDistance = Math.abs(2 * x - 15) + Math.abs(2 * y - 15);
+                    int rgb;
+                    if (distanceToEdge == 0) {
+                        rgb = 0x223B37;
+                    } else if (tile == TILE_CHEST_FRONT && Math.abs(2 * x - 15) + 2 * Math.abs(y - 6) <= 5) {
+                        rgb = (x == 7 || y == 5) ? 0xF5D49B : 0xB36D3A;
+                    } else if (tile != TILE_CHEST_TOP && y == 5) {
+                        rgb = 0x223B37;
+                    } else if (distanceToEdge == 1 || (tile == TILE_CHEST_TOP && centerDistance == 12)
+                            || (tile != TILE_CHEST_TOP && (x == 3 || x == 12))) {
+                        rgb = ((x + y) % 7 == 0) ? 0xE4AC72 : 0x90613C;
+                    } else if (tile == TILE_CHEST_TOP && centerDistance < 8) {
+                        rgb = 0x5E9B90;
+                    } else {
+                        rgb = y % 4 == 0 ? 0x375953 : 0x477971;
+                    }
+                    int grain = ((x * 13 + y * 7 + x * y * 3) % 11) - 5;
+                    putAtlasPixel(atlas, tile, x, y, ((rgb >>> 16) & 255) + grain,
+                            ((rgb >>> 8) & 255) + grain, (rgb & 255) + grain, 255);
+                }
+            }
+        }
     }
 
     /** Tận dụng sheet cỏ cũ cho mặt còn thiếu và lấy ô đất của sheet làm dự phòng. */

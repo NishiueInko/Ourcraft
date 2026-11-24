@@ -4,6 +4,7 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.math.Vector3;
 import com.voxelgame.engine.AudioManager;
+import com.voxelgame.engine.BiomeType;
 import com.voxelgame.engine.Camera;
 import com.voxelgame.engine.ShaderProgram;
 import com.voxelgame.engine.World;
@@ -81,6 +82,10 @@ public class Player extends Entity {
     private boolean isSprinting = false;
     private boolean isSneaking = false;
 
+    /** Các mức tốc độ kiểm tra địa hình áp dụng cho di chuyển ngang và điều khiển độ cao khi bay. */
+    private static final int[] TERRAIN_SPEED_MULTIPLIERS = {1, 3, 5, 10, 25, 50};
+    private int terrainSpeedIndex;
+
     // Biến phục vụ nhận diện thao tác bấm đúp phím Space (Double-tap Space)
     private boolean wasSpacePressed = false;
     private float lastSpaceTapTime = -1.0f;
@@ -95,6 +100,34 @@ public class Player extends Entity {
 
     public Player(float startX, float startY, float startZ) {
         super(startX, startY, startZ, PLAYER_HALF_WIDTH, PLAYER_HEIGHT);
+    }
+
+    /** Chuyển sang mức tốc độ kế tiếp và quay về 1x sau 50x. */
+    public void cycleTerrainSpeed() {
+        terrainSpeedIndex = (terrainSpeedIndex + 1) % TERRAIN_SPEED_MULTIPLIERS.length;
+    }
+
+    /** Đặt chân lên nền hợp lệ gần tâm biome và đồng bộ trạng thái chuyển động với vị trí mới. */
+    public boolean teleportToBiome(World world, BiomeType biome) {
+        if (!world.setBiomeCenterPosition(position, biome)) {
+            return false;
+        }
+
+        // Xóa đà, lực đẩy, chuỗi nhấn đúp và quãng đường âm thanh ở vị trí cũ.
+        velocity.setZero();
+        pushX = pushZ = 0f;
+        isFlying = false;
+        onGround = true;
+        lastSpaceTapTime = Float.NEGATIVE_INFINITY;
+        lastShiftTapTime = Float.NEGATIVE_INFINITY;
+        airborneTime = stepDistance = swimDistance = 0f;
+        previousLiquid = Block.AIR;
+        wasUnderwater = false;
+        nearbyLiquidDelay = 0f;
+        if (camera != null) {
+            camera.setPosition(position.x, position.y + currentEyeHeight, position.z);
+        }
+        return true;
     }
 
     /**
@@ -145,7 +178,7 @@ public class Player extends Entity {
         // Nếu rơi xuống dưới đáy bản đồ, đưa người chơi trở lại vị trí an toàn trên mặt đất
         boolean respawned = position.y < -25.0f;
         if (respawned) {
-            position.set(World.CENTER_X, 22.0f, World.CENTER_Z);
+            world.setRespawnPosition(position);
             velocity.set(0.0f, 0.0f, 0.0f);
             isFlying = false;
             lastShiftTapTime = Float.NEGATIVE_INFINITY;
@@ -245,7 +278,8 @@ public class Player extends Entity {
         // 4. Tính tốc độ di chuyển (Sprint 1.5x / Sneak 0.5x / Fly)
         isSprinting = ctrlDown && isMovingHorizontally && !isSneaking;
 
-        float currentSpeed = MOVE_SPEED;
+        int terrainSpeedMultiplier = TERRAIN_SPEED_MULTIPLIERS[terrainSpeedIndex];
+        float currentSpeed = MOVE_SPEED * terrainSpeedMultiplier;
         if (isFlying) {
             currentSpeed *= FLY_SPEED_MULTIPLIER;
             if (isSprinting) {
@@ -277,12 +311,12 @@ public class Player extends Entity {
             velocity.z = wishDir.z;
         }
 
-        // 5. Khi bay, Space ưu tiên bay lên. Left Shift hạ dần, thả cả hai phím thì giữ độ cao.
+        // 5. Nhân tốc độ bay lên và hạ độ cao với mức F1. Space vẫn ưu tiên khi giữ cả hai phím.
         if (isFlying) {
             if (spaceDown) {
-                velocity.y = FLY_ASCEND_SPEED;
+                velocity.y = FLY_ASCEND_SPEED * terrainSpeedMultiplier;
             } else if (shiftDown) {
-                velocity.y = -FLY_DESCEND_SPEED;
+                velocity.y = -FLY_DESCEND_SPEED * terrainSpeedMultiplier;
             } else {
                 velocity.y = 0.0f;
             }
@@ -381,7 +415,8 @@ public class Player extends Entity {
             swimDistance += (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
             if (swimDistance >= 1.2f) {
                 audio.playEffect(AudioManager.Effect.SWIM, 0.30f);
-                swimDistance -= 1.2f;
+                // Bỏ các nhịp đã đi qua trong cùng khung hình khi dùng hệ số tốc độ cao.
+                swimDistance %= 1.2f;
             }
         }
         if (isFlying || liquid.isLiquid()) {
@@ -401,7 +436,8 @@ public class Player extends Entity {
                 stepDistance += (float) Math.sqrt(dx * dx + dz * dz);
                 if (stepDistance >= 1.6f) {
                     audio.playStep(surface, isSneaking);
-                    stepDistance -= 1.6f;
+                    // Giữ phần lẻ để tránh phát dồn tiếng bước chân khi đã dừng lại.
+                    stepDistance %= 1.6f;
                 }
             }
             airborneTime = 0f;

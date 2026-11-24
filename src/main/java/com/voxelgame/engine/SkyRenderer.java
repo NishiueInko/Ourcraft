@@ -20,6 +20,12 @@ public final class SkyRenderer implements Disposable {
     private static final float CLOUD_HEIGHT = 140f;
     private static final float CLOUD_PERIOD = 768f;
     private static final float CLOUD_RADIUS = 500f;
+    /** Sương trời quang giữ được đường nét núi xa và hòa vào trời trước mặt phẳng cắt. */
+    private static final float CLEAR_FOG_START = 288f;
+    private static final float CLEAR_FOG_END = 640f;
+    /** Khi giáng thủy đạt đỉnh, vùng chuyển màu tiến gần camera hơn. */
+    private static final float STORM_FOG_START = 96f;
+    private static final float STORM_FOG_END = 384f;
     /** Thứ tự tám pha từ trăng tròn đến lưỡi liềm cuối tháng. */
     private static final String[] MOON_PHASES = {
             "full_moon", "waning_gibbous", "third_quarter", "waning_crescent",
@@ -119,6 +125,16 @@ public final class SkyRenderer implements Disposable {
                 MathUtils.lerp(0.25f, 1f, daylight) * dim * (1f - 0.10f * twilight),
                 MathUtils.lerp(0.34f, 1f, daylight) * dim * (1f - 0.20f * twilight));
         shader.setUniformVec3("uWorldLight", worldLight);
+    }
+
+    /** Bật sương trong lượt kết xuất thế giới, dùng màu vừa đặt cho vòm trời. */
+    public float enableWorldFog(ShaderProgram shader, Vector3 eye, float storm) {
+        float end = MathUtils.lerp(CLEAR_FOG_END, STORM_FOG_END, storm);
+        shader.enableDistanceFog(eye, MathUtils.lerp(CLEAR_FOG_START, STORM_FOG_START, storm), end);
+        // Vẫn giữ depth của địa hình trước toàn bộ vòng mây còn nhìn thấy.
+        float cloudDeltaY = CLOUD_HEIGHT - eye.y;
+        float cloudDistance = (float) Math.sqrt(CLOUD_RADIUS * CLOUD_RADIUS + cloudDeltaY * cloudDeltaY);
+        return Math.max(end + 2 * Chunk.SIZE, cloudDistance);
     }
 
     /** Dựng ảnh trên mặt phẳng tiếp xúc quỹ đạo; trục Z giữ cạnh ngang của ảnh. */

@@ -8,6 +8,7 @@ import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Vector3;
 import com.voxelgame.engine.AudioManager;
+import com.voxelgame.engine.BiomeType;
 import com.voxelgame.engine.Camera;
 import com.voxelgame.engine.Raycast;
 import com.voxelgame.engine.ShaderProgram;
@@ -41,6 +42,14 @@ import com.voxelgame.entity.Player;
  *    {@code com.badlogic.gdx.utils.Disposable} và được gọi {@code dispose()} đồng loạt.
  */
 public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
+
+    /** Thứ tự ghé thăm các biome theo trục X từ tây sang đông. */
+    private static final BiomeType[] BIOME_TOUR = {BiomeType.SNOWY_PLAINS, BiomeType.PLAINS, BiomeType.DESERT};
+    private int nextBiomeIndex;
+
+    /** Trạng thái Ctrl theo thứ tự sự kiện trong hàng đợi bàn phím của libGDX. */
+    private boolean leftControlDown;
+    private boolean rightControlDown;
 
     // =====================================================================
     // Các hệ thống cốt lõi của Engine
@@ -298,11 +307,14 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         camera.copyPosition(eyePosition);
 
         // Vòm trời và thiên thể nằm sau mọi hình học; mây và giáng thủy xét độ sâu.
-        skyRenderer.renderSky(shaderProgram, view, worldTime, weather.skyStrength());
+        float stormStrength = weather.skyStrength();
+        skyRenderer.renderSky(shaderProgram, view, worldTime, stormStrength);
 
         // Kết xuất các chunk giao khung nhìn và toàn bộ thực thể trong thế giới.
         textureAtlas.bind();
-        world.render(shaderProgram, projection, view, eyePosition, renderCloudLayer);
+        float terrainDistance = skyRenderer.enableWorldFog(shaderProgram, eyePosition, stormStrength);
+        world.render(shaderProgram, projection, view, eyePosition, renderCloudLayer, terrainDistance);
+        shaderProgram.disableDistanceFog();
         weatherRenderer.render(shaderProgram, world, eyePosition, weather);
         textureAtlas.unbind();
         shaderProgram.setUniformVec3("uWorldLight", 1f, 1f, 1f);
@@ -685,12 +697,30 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
      * Xử lý sự kiện phím bàn phím được nhấn xuống.
      * - Phím ESC: Tạm dừng game (lần 1) hoặc thoát hoàn toàn (lần 2 khi đang Pause)
      * - Phím 1-9: Chọn ô Hotbar tương ứng
+     * - F1: Đổi mức tốc độ kiểm tra địa hình, kể cả khi đang tạm dừng
+     * - Ctrl+C: Ghé tâm biome để kiểm tra địa hình
      *
      * @param keycode mã phím libGDX (hằng số {@link Input.Keys})
      * @return true nếu sự kiện đã được xử lý
      */
     @Override
     public boolean keyDown(int keycode) {
+        // Backend chỉ gửi keyDown ở lần nhấn đầu, nên giữ F1 không làm đổi thêm mức.
+        if (keycode == Input.Keys.F1 && player != null) {
+            player.cycleTerrainSpeed();
+            return true;
+        }
+
+        // Ghi nhận Ctrl cả khi Pause để Ctrl+C đọc đúng trạng thái tại lúc nhấn.
+        if (keycode == Input.Keys.CONTROL_LEFT) {
+            leftControlDown = true;
+            return false;
+        }
+        if (keycode == Input.Keys.CONTROL_RIGHT) {
+            rightControlDown = true;
+            return false;
+        }
+
         // Phím ESC: Tạm dừng (lần 1) hoặc thoát game (lần 2 khi đang Pause)
         if (keycode == Input.Keys.ESCAPE) {
             if (!isPaused) {
@@ -704,6 +734,15 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
 
         // Phím số 1..9: Chọn ô trên thanh 9 ô Hotbar (chỉ khi đang chơi, không Pause)
         if (!isPaused && player != null) {
+            // Dùng trạng thái theo sự kiện vì Ctrl có thể đã được nhả khi hàng đợi được xử lý.
+            if (keycode == Input.Keys.C && (leftControlDown || rightControlDown)) {
+                BiomeType biome = BIOME_TOUR[nextBiomeIndex];
+                nextBiomeIndex = (nextBiomeIndex + 1) % BIOME_TOUR.length;
+                if (player.teleportToBiome(world, biome)) {
+                    resetMiningProgress();
+                }
+                return true;
+            }
             // Phím thử môi trường chỉ hoạt động khi đang chơi.
             switch (keycode) {
                 case Input.Keys.F6 -> {
@@ -748,13 +787,18 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
 
     /**
      * Xử lý sự kiện phím bàn phím được nhả ra.
-     * Hiện tại không có logic đặc biệt khi nhả phím (xử lý liên tục nằm trong Player.update).
+     * Cập nhật trạng thái Ctrl dùng cho phím tắt ghé tâm biome.
      *
      * @param keycode mã phím libGDX
      * @return false (không tiêu thụ sự kiện)
      */
     @Override
     public boolean keyUp(int keycode) {
+        if (keycode == Input.Keys.CONTROL_LEFT) {
+            leftControlDown = false;
+        } else if (keycode == Input.Keys.CONTROL_RIGHT) {
+            rightControlDown = false;
+        }
         return false;
     }
 

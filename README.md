@@ -16,29 +16,30 @@ Phần A mô tả **100% tính chất hiện có** của dự án **VoxelGame**.
 - **Tài nguyên (`src/main/resources/`):**
   - **Âm thanh:** `audio/music/` chứa 5 bản Ogg Vorbis từ `import.zip`. `audio/sfx/` chứa 93 mẫu OGG được chọn từ gói hiệu ứng đi kèm, gồm biến thể vật liệu và mẫu dùng cho các tương tác hiện có. Tài nguyên được tìm theo đường dẫn cố định trong classpath.
   - **Texture khối:** `textures/` đóng gói bộ ảnh gốc của dự án và 13 PNG nhập nguyên byte từ `assets/minecraft/textures/block/` trong `1.21.11.zip`. Các tệp mới gồm `sandstone.png`, `sandstone_top.png`, `sandstone_bottom.png`, `spruce_log_top.png`, `short_grass.png`, `tall_grass_bottom.png`, `tall_grass_top.png`, `dandelion.png`, `poppy.png`, `cornflower.png`, `oxeye_daisy.png`, `sugar_cane.png` và `gravel.png`. Game nạp ảnh đã đóng gói và dùng bộ nạp dự phòng khi thiếu tài nguyên.
+  - **Rương trang trí:** Ba tile pixel art mặt có khóa, mặt bên và nắp được tạo khi dựng atlas. Cây cọ có hình dáng riêng và dùng tile thân, lá đã có của dự án.
   - **Tài nguyên môi trường:** `textures/environment/rain.png` và `snow.png` giữ nguyên ảnh 64 × 256 có sẵn. `celestial/sun.png` lấy từ `1.21.11.zip`, tám ảnh `celestial/moon/` lấy từ `Blue-Moon.zip` và `clouds.png` lấy từ `Cloudier Clouds.zip`. `audio/weather/rain.wav` là đoạn lặp nối chồng 0,65 giây từ bản thu `Kao - Minecraft Vanilla Rain Sounds Sample.mp3` đi kèm.
-- **Kiểm thử:** Gradle `regressionChecks` chạy bộ kiểm tra CPU về ID block, vòng đời thực thể rơi, cập nhật lân cận, va chạm, raycast, hình học chunk, sắp xếp mesh, sinh địa hình tất định, các mốc ngày–đêm, chuyển thời tiết và mái che. `check` gọi task này. Trình biên dịch dùng `options.release = 17`.
+- **Kiểm thử:** Gradle `regressionChecks` chạy bộ kiểm tra CPU về ID block, vòng đời thực thể rơi, cập nhật lân cận, va chạm, raycast, phím tắt đổi tốc độ, hình học chunk và AO, sắp xếp mesh, sinh địa hình tất định, sông, hồi sinh, kim tự tháp, các mốc ngày–đêm, chuyển thời tiết và mái che. `check` gọi task này. Trình biên dịch dùng `options.release = 17`.
 
 ---
 
-### 2. Kiến Trúc Mã Nguồn Hiện Tại (50 File Java)
+### 2. Kiến Trúc Mã Nguồn Hiện Tại (52 File Java)
 - **`com.voxelgame` (2 file):** `Main.java` khởi chạy desktop. `VoxelGameApp.java` quản lý Game Loop, sự kiện đầu vào, Pause Menu, đào/đặt block và vòng đời tài nguyên.
-- **`com.voxelgame.engine` (18 file):**
+- **`com.voxelgame.engine` (19 file):**
   - `Camera.java` quản lý góc nhìn, Dynamic FOV và ma trận. `Raycast.java` duyệt DDA và kiểm tra hộp chọn có thể tái sử dụng kết quả.
   - `Texture.java` dựng atlas 128 × 80 bằng Pixmap. `ShaderProgram.java` quản lý GLSL 330 cho 3D và UI. `Chunk.java` lưu ID và metadata cấp phát theo nhu cầu, dựng mesh đục/khoét alpha và mesh trong suốt.
   - `World.java` quản lý chunk, thực thể, gọi bộ sinh và điều phối kết xuất. `BlockUpdateQueue.java` quản lý FIFO tọa độ lân cận. `TranslucentChunkSort.java` sắp xếp mesh nước/băng theo khoảng cách.
-  - `BiomeType.java`, `TerrainNoise.java`, `TerrainGenerator.java` định nghĩa biome, noise tất định và các lượt sinh thế giới.
+  - `BiomeType.java`, `TerrainNoise.java`, `TerrainGenerator.java` định nghĩa biome, noise tất định và các lượt sinh thế giới. `DesertPyramid.java` chọn dấu chân khô và dựng kim tự tháp.
   - `UIRenderer.java` vẽ khung ngắm, HUD, hiệu ứng xương rồng và Pause Menu. `AudioManager.java` phát nhạc nền theo vòng xáo, chọn hiệu ứng âm thanh và giải phóng tài nguyên OpenAL.
   - `WorldTime.java` theo dõi đồng hồ và quỹ đạo thiên thể. `WeatherManager.java` điều khiển chu kỳ, cường độ cục bộ, âm lượng mưa và các lượt tích tuyết. `SkyRenderer.java` vẽ vòm trời, thiên thể và mây. `WeatherRenderer.java` vẽ hai lô mưa và tuyết. `EnvironmentMesh.java` chia sẻ định dạng đỉnh và bộ đệm VAO/VBO cho các lượt vẽ này.
-- **`com.voxelgame.entity` (30 file):**
+- **`com.voxelgame.entity` (31 file):**
   - `Entity.java` chứa tọa độ, vận tốc và quét AABB theo trục. `Player.java` xử lý điều khiển, bảo vệ mép, bước tuyết, quán tính trên băng và phản hồi xương rồng.
   - `Hotbar.java` quản lý 9 ô. `ItemEntity.java` quản lý vật phẩm rơi và mesh dùng chung. `FallingBlockEntity.java` quản lý trạng thái cát/sỏi đang rơi.
-  - `Block.java` đăng ký 26 singleton vào bảng 256 ID tra theo byte không dấu. `PlantBlock.java` chia sẻ hình học và luật nền thực vật. Các lớp block còn lại được liệt kê trong bảng bên dưới. Bốn hoa dùng chung `FlowerBlock.java`.
-- **Kiểm thử CPU (4 file):** `VoxelRegressionChecks.java`, `ChunkMeshRegressionChecks.java`, `TerrainGenerationChecks.java` và `EnvironmentChecks.java` thuộc `src/test/java/com/voxelgame/engine/`.
+  - `Block.java` đăng ký 27 singleton vào bảng 256 ID tra theo byte không dấu. `PlantBlock.java` chia sẻ hình học và luật nền thực vật. Các lớp block còn lại được liệt kê trong bảng bên dưới. Bốn hoa dùng chung `FlowerBlock.java`.
+- **Kiểm thử CPU (5 file):** `VoxelRegressionChecks.java`, `ChunkMeshRegressionChecks.java`, `TerrainGenerationChecks.java`, `DesertPyramidChecks.java` và `EnvironmentChecks.java` thuộc `src/test/java/com/voxelgame/engine/`.
 
 ---
 
-### 3. Hệ Thống Block (26 Loại) & Cơ Chế Đào / Rơi Item
+### 3. Hệ Thống Block (27 Loại) & Cơ Chế Đào / Rơi Item
 
 | ID | Lớp | Độ cứng (giây) | Hình học và lớp vẽ | Tile theo mặt | Hành vi |
 | --- | --- | ---: | --- | --- | --- |
@@ -65,6 +66,7 @@ Phần A mô tả **100% tính chất hiện có** của dự án **VoxelGame**.
 | 23 | `IceBlock` | 0,75 | Khối rắn trong suốt | 18 | Trơn. Đào tay không thành Water nếu dưới có nền rắn hoặc Water, thành Air nếu thiếu nền. |
 | 24 | `SpruceLogBlock` | 3,0 | Khối rắn đục | Đầu 23, cạnh 16 | Rơi Spruce Log. |
 | 25 | `SpruceLeavesBlock` | 0,30 | Khối rắn khoét alpha | 17 | Có thể đỡ tuyết. |
+| 26 | `DecorativeChestBlock` | 2,5 | Khối rắn đục | Nam 33, cạnh và đáy 34, trên 35 | Rương trang trí dùng âm thanh gỗ, đào rơi rương và đặt được qua Hotbar. |
 
 - Metadata dùng 0–7 cho một đến tám lớp tuyết, 0/1 cho nửa dưới/trên của Tall Grass. ID cũ 0–8 giữ nguyên. Ô mặc định không cần mảng metadata riêng. Chiều cao vẽ tuyết là số lớp × 0,125. Va chạm của lớp 2–7 thấp hơn hình vẽ một lớp. Tám lớp va chạm cao 1 block.
 - Khi sửa block, hàng đợi xử lý ô vừa đổi, sáu ô chung mặt và các phụ thuộc ngoài nhóm này. Mía kiểm tra nước ở cao độ nền. Snow Layer tan thành Air và Ice tan thành Water khi có Lava trong bán kính Manhattan 2. Cát/sỏi tạo thực thể đúng một lần khi mất nền, rồi đặt lại hoặc rơi item tùy mặt đáp.
@@ -75,11 +77,13 @@ Phần A mô tả **100% tính chất hiện có** của dự án **VoxelGame**.
 ### 4. Gameplay & Hệ Thống Điều Khiển
 - **Di chuyển & Xoay góc nhìn:** `W, A, S, D` di chuyển 4 hướng trên mặt phẳng ngang XZ theo hướng `yaw`; di chuột xoay góc nhìn 360° với độ nhạy `MOUSE_SENSITIVITY = 0.12f` và giới hạn `pitch` trong `[-89.0°, 89.0°]`[cite: 1].
 - **Nhảy & Bơi (`Space` 1 lần):** Nhảy khi `onGround == true` (`JUMP_VELOCITY = 8.6f`)[cite: 1]; khi đang trong Nước hoặc Lava sẽ bơi nổi lên với vận tốc dọc `4.2f`[cite: 1].
-- **Chế độ Bay (nhấn đúp `Space` trong tối đa `0.30s`):** Bật/tắt Fly Mode. Khi bay, trọng lực tắt, giữ `Space` để bay lên với tốc độ `7.0` block/s. Giữ cả hai phím thì ưu tiên `Space`. Thả cả `Space` và `Left Shift` để giữ độ cao. Tốc độ ngang là `1.8x`, nhân thêm `1.35x` khi chạy nhanh. Chạm mặt đất sẽ tự thoát Fly Mode.
+- **Chế độ Bay (nhấn đúp `Space` trong tối đa `0.30s`):** Bật/tắt Fly Mode. Khi bay, trọng lực tắt, giữ `Space` để bay lên với tốc độ cơ bản `7.0` block/s nhân với mức `F1`. Giữ cả hai phím thì ưu tiên `Space`. Thả cả `Space` và `Left Shift` để giữ độ cao. Tốc độ ngang là `1.8x`, nhân thêm `1.35x` khi chạy nhanh. Chạm mặt đất sẽ tự thoát Fly Mode.
 - **Hạ độ cao, thoát bay và rón rén (`Left Shift`):**
-  - Khi đang bay, giữ `Left Shift` để hạ độ cao với tốc độ `4.0` block/s. Nhấn đúp `Left Shift` trong tối đa `0.30s` để thoát bay và bật lại trọng lực.
+  - Khi đang bay, giữ `Left Shift` để hạ độ cao với tốc độ cơ bản `4.0` block/s nhân với mức `F1`. Nhấn đúp `Left Shift` trong tối đa `0.30s` để thoát bay và bật lại trọng lực.
   - Khi đứng/đi trên mặt đất: bật **Sneak**, giảm tốc độ còn `0.5x`, nội suy mượt tầm mắt Camera từ `1.62f` xuống `1.45f` (tốc độ nội suy `deltaTime * 14.0f`), và kích hoạt **giữ mép block** (`preventFallingOffEdgeX/Z` theo bước `0.02f`) không cho rơi xuống vực[cite: 1].
 - **Chạy nhanh (`Left Ctrl`):** Bật **Sprint** khi đang di chuyển ngang và không Sneak; tăng `1.5x` tốc độ đi bộ kèm hiệu ứng mở rộng Dynamic FOV[cite: 1].
+- **Đổi tốc độ kiểm tra địa hình (`F1`):** Mặc định `1x`. Mỗi lần bấm chuyển đúng một mức theo vòng `1x → 3x → 5x → 10x → 25x → 50x → 1x`, kể cả trong Pause Menu. Mức đã chọn giữ nguyên khi nhả phím hoặc giữ phím và chỉ đổi ở lần bấm tiếp theo. Hệ số áp dụng cho mọi hướng di chuyển ngang và cả tốc độ bay lên, hạ độ cao trong Fly Mode.
+- **Ghé tâm biome (`Ctrl+C` khi đang chơi):** Dịch chuyển lần lượt qua Snowy Plains, Plains, Desert rồi lặp lại. Tìm mặt đỡ khô ngay tâm hoặc trong phạm vi 32 block gần tâm của cùng biome, đặt chân trên mặt đỡ, xóa vận tốc và tắt chế độ Bay. Nếu không có nền hợp lệ, người chơi giữ nguyên vị trí và lần nhấn sau chuyển sang biome kế tiếp. Phím tắt dùng được với Ctrl trái hoặc phải.
 - **9 Ô Hotbar (`1`–`9` hoặc Cuộn chuột):**
   - `SLOT_COUNT = 9`, `MAX_STACK_SIZE = 64`[cite: 1].
   - Cuộn chuột lên giảm chỉ số ô, cuộn xuống tăng chỉ số ô (xoay vòng modulo 9)[cite: 1].
@@ -100,7 +104,7 @@ Phần A mô tả **100% tính chất hiện có** của dự án **VoxelGame**.
 
 ### 5. Vật Lý & Thuật Toán Sinh Thế Giới
 - **Vật lý Người chơi (`Player`):**
-  - Spawn tại tâm ngang `(x = 1500, z = 896)`. Độ cao chân bằng đỉnh cao nhất trong bốn cột block giáp tâm. Nếu rơi xuống dưới `y < -25.0f`, tự động đưa về `(1500, 22, 896)`, reset vận tốc và tắt bay.
+  - Spawn tại tâm ngang `(x = 1500, z = 896)`, trên nền cỏ Y=30. Khi chân rơi dưới Y=−25, hồi sinh quanh `(1500, 1500)` trên mặt đỡ rắn cao nhất có hai ô trống cho dấu chân, đặt lại vận tốc và tắt bay. Nếu vị trí đó bị xây kín hoặc không đủ chỗ, tìm vị trí hợp lệ quanh đó rồi tới vùng spawn.
   - Hộp va chạm AABB: `PLAYER_HALF_WIDTH = 0.3f` (rộng `0.6f`), `PLAYER_HEIGHT = 1.8f`[cite: 1].
   - Thông số vận tốc: `MOVE_SPEED = 5.5f`, `GRAVITY = -26.0f`, `TERMINAL_VELOCITY = -45.0f`[cite: 1].
   - Nhận diện chất lỏng (`isInLiquid`): kiểm tra block tại chân (`y + 0.1f`) và thắt lưng (`y + 0.9f`)[cite: 1]. Trong chất lỏng (không bay): tốc độ ngang `0.65x`, trọng lực `0.25x`, vận tốc chìm tối đa `-3.5f`[cite: 1].
@@ -116,14 +120,14 @@ Phần A mô tả **100% tính chất hiện có** của dự án **VoxelGame**.
   - Hoạt ảnh 3D: nhấp nhô `sin(age * 3.8f) * 0.07f + 0.08f` và tự xoay quanh trục Y theo góc `age * 110.0f` độ[cite: 1].
 - **Thế giới & Sinh Địa hình (`World`, seed `20261114L`):**
   - Bản đồ có **`3000 × 256 × 1792` block**, dùng lưới `188 × 16 × 112` chunk (`Chunk.SIZE = 16`). Tọa độ hợp lệ là `x = 0..2999`, `y = 0..255`, `z = 0..1791`. Chunk cuối theo X chỉ chứa tám cột hợp lệ. Ô lưới chỉ chứa không khí dùng `null`. Đặt block đầu tiên tạo chunk và xóa block cuối cùng giải phóng chunk cùng mesh của nó.
-  - Giới hạn chiều cao địa hình tự nhiên: `MAX_TERRAIN_LAYERS = 20` (`MAX_TERRAIN_Y = 19`)[cite: 1].
-  - Từ tây sang đông là Snowy Plains, Plains và Desert. Mỗi vùng khí hậu rộng 1.000 block theo X và trải dài 1.792 block theo Z. Quanh các mốc X=1000 và X=2000 có dải chuyển tiếp 64 block, dùng tỷ lệ nội suy và noise theo seed để xen mảng cỏ với tuyết hoặc cát. Địa tầng, lớp phủ, cây và thực vật cùng dùng kiểu bề mặt đã trộn. Hồ lạnh và ốc đảo nằm gần giữa biome tương ứng.
-  - `TerrainNoise` dùng value noise 2D ba tầng và hash theo seed/tọa độ. Nhiệt độ dựa trên khoảng cách đến ranh giới và phân loại ở ngưỡng ±0,31. Độ cao trộn qua vùng đệm quanh ngưỡng. Nền địa chất có đỉnh Y=9–19. Nền ngay spawn ở Plains là cỏ phẳng ở Y=12, chân người chơi bắt đầu Y=13.
-  - **Plains:** Bedrock → Stone → 2–3 Dirt → Grass Block. Có sồi thưa, cỏ, hoa và mía, hồ nước có đáy trộn Dirt/Sand/Gravel.
-  - **Desert:** Bedrock → Stone → 3–4 Sandstone → 3–4 Sand. Có cồn cát, cactus cao 1–3 block, bụi khô, ốc đảo và hồ Lava.
-  - **Snowy Plains:** Địa tầng tương tự Plains, phủ Snow Layer thường 1 lớp, có vùng 2–3 lớp và Snow Block. Hồ có mặt Ice và nước bên dưới, cây vân sam có tán hình nón và tuyết trên lá thoáng. Băng và tuyết tránh vùng gần dung nham khi sinh.
+  - Nền vùng thấp khoảng Y=26–34, núi tuyết của seed mặc định đạt ít nhất Y=140. Giới hạn nền địa chất là Y=154. Noise lục địa, Perlin xói mòn và ridged multifractal được ánh xạ bằng spline phân đoạn. Sa mạc có tầng cồn cát phân bậc hai block.
+  - Từ tây sang đông là Snowy Plains, Plains và Desert. Perlin làm uốn ranh giới quanh X=1000 và X=2000. Địa tầng, cây, tuyết, HUD và thời tiết dùng cùng công thức phân loại biome.
+  - **Plains:** Bedrock → Stone → 3–4 Dirt → Grass Block ở chỗ thoải. Dốc vừa lộ đá xen sỏi, dốc lớn lộ đá. Perlin quyết định trảng cỏ và cụm rừng với sồi thường, sồi cổ thụ, bụi sồi. Bốn trường Simplex tạo cụm riêng cho từng loài hoa.
+  - **Desert:** Bedrock → Stone → 3–4 Sandstone → 3–5 Sand ở chỗ thoải. Có vách sandstone, cactus cao 1–3 block, bụi khô, ốc đảo có cọ và hồ Lava. Một kim tự tháp giật cấp có nền móng sandstone, lối vào, sảnh cột, cầu thang và phòng ngầm có rương trang trí.
+  - **Snowy Plains:** Nền đá và sỏi lộ trên dốc, cỏ thoải phủ Snow Layer thường 1 lớp, có vùng 2–3 lớp và Snow Block. Đỉnh trên Y=110 có lớp Snow Block. Vân sam tán rộng ở vùng thấp, thông nhọn trên sườn và thông lùn thưa gần giới hạn cây. Tuyết đọng trên tán lá thoáng và tránh dung nham.
+  - **Sông và hồ:** Sông uốn theo dải noise, có mực nước Y=28, bờ cát hoặc sỏi có nền đỡ và mía ở ô sát nước hợp lệ. Mặt sông và hồ trong vùng lạnh đóng băng. Hồ chỉ sinh ở vùng thấp có mực hồ tối đa Y=48 và chênh cao toàn dấu chân tối đa 3 block, tránh dải sông, công trình và vùng an toàn của người chơi.
   - Hồ dung nham chọn vật liệu theo kiểu bề mặt ở tâm hồ. Desert có bờ Sand và lót Sandstone. Plains và Snowy Plains có bờ Grass Block và lót Dirt. Quy tắc tránh băng và tuyết gần dung nham áp dụng cả trên bờ.
-  - Các lượt sinh là địa tầng, hồ, băng/tuyết, cây và thực vật. Hai bộ đệm cột kiểu byte phục vụ các lượt sinh và được bỏ sau khi khởi tạo.
+  - Bộ đệm độ cao cột dùng `short[]`, mã biome và cờ sinh dùng `byte[]`. Bộ sinh tính độ cao trước, chọn dấu chân kim tự tháp, ghi địa tầng và nước theo dải cột được cắt tại biên chunk, rồi sinh hồ, băng/tuyết, công trình, cây và thực vật. Hai bộ đệm cột được bỏ sau khởi tạo. ID block trong chunk tiếp tục chiếm một byte.
 
 ---
 
@@ -135,16 +139,18 @@ Phần A mô tả **100% tính chất hiện có** của dự án **VoxelGame**.
 - **Định dạng Đỉnh & Shader (`ShaderProgram`):**
   - 6 floats/đỉnh: `[x, y, z, u, v, shade]` (`location 0: vec3 aPos`, `location 1: vec2 aTexCoord`, `location 2: float aShade`) quản lý qua `VertexAttributes` của libGDX.
   - Fragment Shader chọn màu từ `uTexture * uTintColor` hoặc `uTintColor`. Hình học thế giới và UI loại pixel có `alpha < 0.05`. Màu khối và thực thể nhân với độ lớn `vShade` và `uWorldLight`. Dấu âm của `vShade` đánh dấu dung nham tự phát sáng. `enable2DUIMode` đặt `uWorldLight = (1, 1, 1)`. `uEnvironmentMode` chọn xử lý vòm trời, mây, thiên thể hoặc giáng thủy.
+  - Sương xa hòa màu RGB của block và thực thể với màu khí quyển cùng hướng nhìn. Khoảng sương nội suy từ 288–640 block khi quang tới 96–384 block khi giáng thủy đạt cường độ tối đa. Bộ kết xuất bỏ qua chunk nằm hoàn toàn ngoài tầm sương cộng biên 32 block và ngoài khoảng có thể che mây. Các lượt vẽ HUD, overlay và môi trường giữ quy tắc màu và alpha riêng.
   - Xóa tiền tố `prependVertexCode`/`prependFragmentCode` để giữ `#version 330 core` ở dòng đầu tiên.
 - **Ánh sáng & Face Culling (`Chunk`):**
   - Directional Face Shading: `SHADE_TOP = 1.00f`, `SHADE_BOTTOM = 0.55f`, `SHADE_NORTH_SOUTH = 0.85f`, `SHADE_EAST_WEST = 0.72f`.
+  - AO ở mỗi góc mặt hộp đọc hai ô cạnh và một ô chéo, kể cả qua biên chunk. Khối đục và tuyết 8 lớp che đầy, lá che một phần. Độ sáng theo góc đi qua `aShade`. Cách chọn đường chéo thống nhất giữa mesh có chỉ số và mesh sáu đỉnh mỗi mặt.
   - Khối đục che phần mặt khối kề được phủ kín. Lá khoét alpha cho thấy bề mặt phía sau khe. Xương rồng có bốn mặt ngang lùi 1/16. Mặt bên tuyết chỉ giữ phần vượt chiều cao lớp kề. Cây hình chữ X vẽ cả hai phía. Nước/băng bỏ mặt trong cùng loại và giữ phần lộ ra cạnh loại không đục khác. Mặt thoáng Water/Lava cao 0,88 nếu phía trên là Air.
-  - Sửa ở biên đánh dấu mesh kề bị ảnh hưởng. Đổi độ cao bề mặt chất lỏng tại giao biên ngang và đứng còn làm mới chunk bên cạnh mặt chất lỏng.
+  - Sửa ở biên đánh dấu các mesh chung mặt, cạnh hoặc góc bị ảnh hưởng, gồm cả ô chéo dùng cho AO và mặt chất lỏng.
   - Khối xương rồng, vật phẩm rơi và biểu tượng Hotbar dùng chung vùng UV đã bỏ viền trong suốt. Mặt bên lấy vùng 14 × 16 pixel, mặt trên và dưới lấy vùng 14 × 14 pixel từ PNG gốc.
 - **Hai pha vẽ:** Chunk đục/khoét alpha và thực thể ghi depth trước. Nước/băng giữ depth test, tắt depth write, dùng blend `GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA` rồi khôi phục trạng thái. Heapsort tại chỗ sắp xa đến gần theo bình phương khoảng cách mắt–tâm chunk và phá hòa theo tọa độ. Mảng chunk, khoảng cách và khóa được cấp phát trước. Thứ tự giữa các mặt trong một chunk là xấp xỉ.
   - Vòm trời và thiên thể vẽ trước các chunk. Mây ở Y=140 vẽ sau địa hình đục và trước nước/băng. Mưa và tuyết vẽ sau thế giới với depth test và alpha blend. Các lượt môi trường tắt ghi độ sâu, khôi phục trạng thái sau khi vẽ và dùng lại mảng đỉnh.
 - **Frustum culling và bộ nhớ đệm:** Dựng trước 5 × 5 cột quanh spawn, mỗi frame cập nhật tối đa 16 chunk giao khung nhìn, ưu tiên gần camera. Thu hồi cả hai mesh sau 120 frame ngoài khung nhìn và giữ dữ liệu voxel. Hai bộ đệm đỉnh và bảng UV dùng lại.
-- **Texture Atlas:** Lưới 8 × 5 ô 16 × 16, kích thước 128 × 80 RGBA. Dùng Nearest, ClampToEdge và biên UV 0,0008. Các tile 0–19 giữ chỉ số cũ; tile 20–32 tương ứng thứ tự PNG mới ở mục 1. Xử lý một lần khi dựng atlas: nhuộm tông Plains cho cỏ/lá sồi/mía, tông xanh thông cho lá vân sam, giữ alpha nguồn của texture khoét và độ trong của Ice/Water. Nước và dung nham lấy khung đầu. Dùng pixel art dự phòng khi nguồn thiếu hoặc lỗi đọc và giải phóng các Pixmap sau dựng atlas.
+- **Texture Atlas:** Lưới 8 × 5 ô 16 × 16, kích thước 128 × 80 RGBA. Dùng Nearest, ClampToEdge và biên UV 0,0008. Tile 0–19 giữ chỉ số cũ, tile 20–32 dùng PNG ở mục 1, tile 33–35 dành cho rương. Xử lý một lần khi dựng atlas: nhuộm tông Plains cho cỏ/lá sồi/mía, tông xanh thông cho lá vân sam, giữ alpha nguồn của texture khoét và độ trong của Ice/Water. Nước và dung nham lấy khung đầu. Dùng pixel art dự phòng khi nguồn thiếu hoặc lỗi đọc và giải phóng các Pixmap sau dựng atlas.
 
 - **Tối ưu Hiệu năng & Quản lý Bộ nhớ:**
   - Mesh chunk dùng VAO qua OpenGL 3.3. Với tối đa 16.384 mặt, mesh nén tại chỗ còn bốn đỉnh mỗi mặt và dùng chung mẫu chỉ số 16 bit cho hai tam giác. Mesh lớn hơn tải đủ sáu đỉnh mỗi mặt.

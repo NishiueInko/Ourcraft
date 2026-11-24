@@ -40,6 +40,9 @@ public class Chunk implements Disposable {
     private static final float SHADE_BOTTOM = 0.55f;
     private static final float SHADE_NORTH_SOUTH = 0.85f;
     private static final float SHADE_EAST_WEST = 0.72f;
+    /** Mức giảm độ sáng ở mỗi bậc che góc và độ che một phần của lá khoét alpha. */
+    private static final float AO_STEP = 0.17f;
+    private static final float LEAF_OCCLUSION = 0.5f;
 
     // Tọa độ góc nhỏ nhất của chunk trong thế giới.
     private final int baseWorldX;
@@ -130,6 +133,21 @@ public class Chunk implements Disposable {
         return true;
     }
 
+    /** Ghi dải địa tầng khác Air trong một cột đã được World cắt theo biên chunk. */
+    void fillGeneratedColumnSegment(int x, int z, int firstY, int endY, byte blockId) {
+        int position = blockIndex(x, firstY, z);
+        for (int y = firstY; y < endY; y++, position += SIZE) {
+            if (blocks[position] == 0) {
+                blockCount++;
+            }
+            blocks[position] = blockId;
+            if (metadata != null) {
+                metadata[position] = 0;
+            }
+        }
+        dirty = true;
+    }
+
     /** Kiểm tra chunk chỉ còn không khí. */
     boolean isEmpty() {
         return blockCount == 0;
@@ -178,7 +196,7 @@ public class Chunk implements Disposable {
         return dirty;
     }
 
-    /** Đánh dấu cần dựng lại khi một mặt chung với chunk bên cạnh thay đổi. */
+    /** Đánh dấu cần dựng lại khi hình học hoặc ánh sáng phụ thuộc chunk bên cạnh thay đổi. */
     void markDirty() {
         dirty = true;
     }
@@ -344,6 +362,7 @@ public class Chunk implements Disposable {
         float inset = horizontalInset(block);
         float height = renderHeight(world, block, state, x, y, z);
         for (Face face : FACES) {
+            int first = v.size;
             int nx = x + (face == Face.EAST ? 1 : face == Face.WEST ? -1 : 0);
             int ny = y + (face == Face.TOP ? 1 : face == Face.BOTTOM ? -1 : 0);
             int nz = z + (face == Face.SOUTH ? 1 : face == Face.NORTH ? -1 : 0);
@@ -376,7 +395,80 @@ public class Chunk implements Disposable {
                     addSideFace(v, face, x, y, z, inset, visibleFrom, height, uv);
                 }
             }
+            if (v.size != first && block != Block.LAVA) {
+                // Với mặt trên thấp, các góc nhìn vào lớp ô ngang mặt thay vì lớp cao hơn.
+                int sampleY = face == Face.TOP && height < 1.0f ? y : ny;
+                shadeFace(world, v, first, face, x, y, z, nx, sampleY, nz);
+            }
         }
+    }
+
+    /** Lấy độ che ở bốn góc của mặt, dùng chung cho cả mặt đầy và dải mặt bị cắt. */
+    private static void shadeFace(World world, FloatArray vertices, int first, Face face,
+                                  int x, int y, int z, int sampleX, int sampleY, int sampleZ) {
+        boolean alongZ = face == Face.EAST || face == Face.WEST;
+        boolean horizontal = face == Face.TOP || face == Face.BOTTOM;
+        int ux = alongZ ? 0 : 1;
+        int uz = alongZ ? 1 : 0;
+        int vy = horizontal ? 0 : 1;
+        int vz = horizontal ? 1 : 0;
+        float sideU0 = occlusionAt(world, sampleX - ux, sampleY, sampleZ - uz);
+        float sideU1 = occlusionAt(world, sampleX + ux, sampleY, sampleZ + uz);
+        float sideV0 = occlusionAt(world, sampleX, sampleY - vy, sampleZ - vz);
+        float sideV1 = occlusionAt(world, sampleX, sampleY + vy, sampleZ + vz);
+        float light00 = cornerLight(sideU0, sideV0, occlusionAt(world, sampleX - ux, sampleY - vy, sampleZ - uz - vz));
+        float light01 = cornerLight(sideU0, sideV1, occlusionAt(world, sampleX - ux, sampleY + vy, sampleZ - uz + vz));
+        float light10 = cornerLight(sideU1, sideV0, occlusionAt(world, sampleX + ux, sampleY - vy, sampleZ + uz - vz));
+        float light11 = cornerLight(sideU1, sideV1, occlusionAt(world, sampleX + ux, sampleY + vy, sampleZ + uz + vz));
+        if (light00 == 1.0f && light01 == 1.0f && light10 == 1.0f && light11 == 1.0f) {
+            return;
+        }
+
+        int axisU = alongZ ? 2 : 0;
+        int axisV = horizontal ? 2 : 1;
+        int originU = alongZ ? z : x;
+        int originV = horizontal ? z : y;
+        float[] items = vertices.items;
+        for (int quad = first; quad < vertices.size; quad += 6 * FLOATS_PER_VERTEX) {
+            for (int i = quad; i < quad + 6 * FLOATS_PER_VERTEX; i += FLOATS_PER_VERTEX) {
+                float u = items[i + axisU] - originU;
+                float v = items[i + axisV] - originV;
+                items[i + FLOATS_PER_VERTEX - 1] *= lerp(lerp(light00, light10, u), lerp(light01, light11, u), v);
+            }
+            rotateIfDarkerDiagonal(items, quad);
+        }
+    }
+
+    /** Đọc ô từ thế giới để tính che khuất cả qua mặt, cạnh và đỉnh chung của chunk. */
+    private static float occlusionAt(World world, int x, int y, int z) {
+        Block block = Block.fromId(world.getBlock(x, y, z));
+        if (block.isOpaque() || (block == Block.SNOW_LAYER && world.getBlockState(x, y, z) == 7)) {
+            return 1.0f;
+        }
+        return block == Block.OAK_LEAVES || block == Block.SPRUCE_LEAVES ? LEAF_OCCLUSION : 0.0f;
+    }
+
+    /** Hai ô đặc cạnh nhau che trọn góc, bất kể có thêm khối chéo. */
+    private static float cornerLight(float sideU, float sideV, float diagonal) {
+        float covered = sideU == 1.0f && sideV == 1.0f ? 3.0f : sideU + sideV + diagonal;
+        return 1.0f - AO_STEP * covered;
+    }
+
+    /** Chọn đường chéo tối hơn và giữ mẫu hai tam giác 0–1–2, 0–2–3 sau khi nén. */
+    private static void rotateIfDarkerDiagonal(float[] items, int first) {
+        int vertex = FLOATS_PER_VERTEX;
+        int shade = first + vertex - 1;
+        if (items[shade] + items[shade + 2 * vertex] <= items[shade + vertex] + items[shade + 5 * vertex]) {
+            return;
+        }
+
+        // Đổi A B C A C D thành B C D B D A, dùng hai đỉnh trùng làm chỗ lưu tạm.
+        System.arraycopy(items, first + 5 * vertex, items, first + 4 * vertex, vertex);
+        System.arraycopy(items, first, items, first + 5 * vertex, vertex);
+        System.arraycopy(items, first + vertex, items, first + 3 * vertex, vertex);
+        System.arraycopy(items, first + 2 * vertex, items, first + vertex, vertex);
+        System.arraycopy(items, first + 4 * vertex, items, first + 2 * vertex, vertex);
+        System.arraycopy(items, first + 3 * vertex, items, first, vertex);
     }
 
     /** Lá và cây khoét alpha không che kín mặt kề. Nước hoặc băng che mặt tiếp xúc cùng loại. */
