@@ -3,7 +3,7 @@ package com.voxelgame.entity;
 /** Nguồn sát thương và khả năng được giảm bởi giáp tự nhiên. */
 public enum DamageSource {
     MELEE(true), ARROW(true), POTION_MAGIC(false), EXPLOSION(true), FALL(false),
-    CACTUS(true), LAVA(false), FIRE(false), SUNLIGHT(false), DROWNING(false);
+    CACTUS(true), LAVA(false), FIRE(false), SUNLIGHT(false), DROWNING(false), WATER(false);
 
     /** Cờ cho phép áp dụng công thức giáp vật lý. */
     private final boolean armorApplies;

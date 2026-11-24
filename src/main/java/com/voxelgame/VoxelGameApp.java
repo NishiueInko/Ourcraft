@@ -287,8 +287,8 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         float miningProgressRatio = 0.0f;
 
         if (!isPaused) {
-            // Cập nhật đa hình toàn bộ Entity (Player + mọi ItemEntity)
-            world.updateEntities(deltaTime);
+            // Dùng môi trường chung cho người chơi, vật phẩm và chu kỳ sinh/thu hồi mob.
+            world.updateEntities(deltaTime, worldTime, weather);
 
             // Bắn tia từ mắt Camera theo hướng nhìn để tìm block đang ngắm
             currentHit = Raycast.cast(world, camera.copyPosition(eyePosition), camera.copyFront(aimDirection),

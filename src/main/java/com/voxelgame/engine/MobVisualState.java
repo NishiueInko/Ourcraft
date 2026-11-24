@@ -8,7 +8,7 @@ import java.util.Objects;
 public final class MobVisualState {
     /** Tư thế do hành vi của cá thể chọn trước khi vẽ. */
     public enum Pose {
-        IDLE, UNDEAD, AIM_BOW, THRUST, GRAZE, RAM, REAR, FLAP, HOP, TILT_HEAD, POUNCE, SLEEP, SIT, ANGRY
+        IDLE, UNDEAD, AIM_BOW, THRUST, GRAZE, RAM, REAR, FLAP, HOP, TILT_HEAD, POUNCE, SLEEP, SIT, ANGRY, DRINK
     }
 
     private MobAppearance appearance;

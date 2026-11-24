@@ -9,14 +9,18 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Disposable;
 import com.badlogic.gdx.utils.FloatArray;
 import com.voxelgame.entity.Block;
+import com.voxelgame.entity.DamageSource;
 import com.voxelgame.entity.Entity;
 import com.voxelgame.entity.FallingBlockEntity;
 import com.voxelgame.entity.Hotbar;
 import com.voxelgame.entity.ItemEntity;
 import com.voxelgame.entity.LivingEntity;
 import com.voxelgame.entity.Player;
+import com.voxelgame.entity.mob.MobEntity;
+import com.voxelgame.entity.projectile.ProjectileEntity;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -78,7 +82,14 @@ public class World implements Disposable {
     private MobRenderer mobRenderer;
     /** Thời tiết dùng chung với bộ kết xuất để dập lửa ngoài trời. */
     private WeatherManager weather;
+    /** Đồng hồ và bộ sinh dùng chung trên luồng cập nhật thực thể. */
+    private WorldTime worldTime = new WorldTime();
+    private final MobSpawner mobSpawner = new MobSpawner(WORLD_SEED);
     private final Vector3 audioListener = new Vector3();
+    /** Bộ đệm tâm thực thể dùng chung cho các lượt ảnh hưởng của vụ nổ. */
+    private final Vector3 blastTarget = new Vector3();
+    /** Tọa độ tạm khi kiểm tra thực thể chiếm chỗ trong một vùng. */
+    private final Vector3 occupiedPosition = new Vector3();
     // Các luật có thể ghi thêm ô trong lúc hàng đợi đang được xử lý.
     private final BlockUpdateQueue blockUpdates = new BlockUpdateQueue();
     private boolean drainingBlockUpdates;
@@ -93,6 +104,11 @@ public class World implements Disposable {
     /** Dung lượng chặn trên bởi tổng số ô chunk, kể cả thế giới đã được xây kín. */
     private static final int CHUNK_CAPACITY = WORLD_CHUNKS_X * WORLD_CHUNKS_Y * WORLD_CHUNKS_Z;
     private final Chunk[] visibleChunks = new Chunk[CHUNK_CAPACITY];
+    /** Nhóm chunk đục theo từng dải khoảng cách để giảm overdraw ở rừng dày. */
+    private static final int OPAQUE_BINS = 64;
+    private final int[] opaqueHead = new int[OPAQUE_BINS];
+    private final int[] opaqueTail = new int[OPAQUE_BINS];
+    private final int[] opaqueNext = new int[CHUNK_CAPACITY];
     private final Chunk[] translucentChunks = new Chunk[CHUNK_CAPACITY];
     private final float[] translucentDistances = new float[CHUNK_CAPACITY];
     private final int[] translucentKeys = new int[CHUNK_CAPACITY];
@@ -303,19 +319,57 @@ public class World implements Disposable {
         }
     }
 
+    /** Thay một cá thể tại cùng chỉ số để vòng cập nhật không bỏ qua hoặc chạy hai lượt. */
+    public void replaceLivingEntity(LivingEntity previous, LivingEntity replacement) {
+        if (previous == player || replacement == null || previous == replacement || entities.contains(replacement)) {
+            return;
+        }
+        int slot = entities.indexOf(previous);
+        if (slot >= 0) {
+            previous.discard();
+            entities.set(slot, replacement);
+        }
+    }
+
     /** Trả số thực thể hiện diện để raycast duyệt theo chỉ số. */
-    int entityCount() {
+    public int entityCount() {
         return entities.size();
     }
 
     /** Đọc một thực thể mà không công khai danh sách có thể sửa. */
-    Entity entityAt(int index) {
+    public Entity entityAt(int index) {
         return entities.get(index);
+    }
+
+    /** Kiểm tra hộp hành lang sinh hoặc dịch chuyển có bị một thực thể sống khác chiếm hay không. */
+    public boolean hasLivingOverlap(float x, float y, float z, float halfWidth, float height, Entity excluded) {
+        float top = y + height;
+        for (int i = 0; i < entities.size(); i++) {
+            if (entities.get(i) instanceof LivingEntity living && living != excluded && living.isAlive()) {
+                living.copyPosition(occupiedPosition);
+                if (Math.abs(occupiedPosition.x - x) < halfWidth + living.getHalfWidth()
+                        && Math.abs(occupiedPosition.z - z) < halfWidth + living.getHalfWidth()
+                        && occupiedPosition.y < top && occupiedPosition.y + living.getHeight() > y) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /** Gắn đồng hồ thời tiết đang điều khiển giáng thủy của thế giới. */
     public void setWeather(WeatherManager weather) {
         this.weather = weather;
+    }
+
+    /** Trả đồng hồ được dùng cho ánh nắng, hành vi và điều kiện sinh mob. */
+    public WorldTime worldTime() {
+        return worldTime;
+    }
+
+    /** Trả giáng thủy hiện tại, hoặc null trong thế giới kiểm thử chưa gắn thời tiết. */
+    public WeatherManager weatherManager() {
+        return weather;
     }
 
     /** Kiểm tra vị trí lộ thiên ở cột mưa, có xét khí hậu tại thực thể. */
@@ -340,8 +394,7 @@ public class World implements Disposable {
     }
 
     /**
-     * Cập nhật đa hình toàn bộ các thực thể (`Player` và `ItemEntity`) trong thế giới
-     * và tự động dọn dẹp các `ItemEntity` đã được nhặt vào Hotbar.
+     * Cập nhật đa hình toàn bộ các thực thể và chạy lượt sinh sau khi đã dọn cá thể rời thế giới.
      *
      * @param deltaTime khoảng thời gian giữa hai khung hình (giây)
      */
@@ -349,19 +402,59 @@ public class World implements Disposable {
         int frameEntityCount = entities.size();
         for (int i = 0; i < frameEntityCount; i++) {
             Entity entity = entities.get(i);
+            float mobDistance = entity instanceof MobEntity mob && player != null
+                    ? mobSpawner.distanceSquared(mob, player) : 0;
+            if (entity instanceof MobEntity mob && player != null && mobSpawner.shouldDespawn(mob, mobDistance, deltaTime)) {
+                if (MobSpawner.isNaturalJockeyMount(mob)) {
+                    // Dọn bộ kỵ sĩ cùng lượt dù các ghế nằm trước hay sau thú cưỡi trong danh sách.
+                    for (int seat = 0; seat < mob.getSeatCount(); seat++) {
+                        if (mob.getPassenger(seat) instanceof MobEntity rider && !rider.isPersistent()) {
+                            rider.discard();
+                            int riderIndex = entities.indexOf(rider);
+                            if (riderIndex >= 0) {
+                                entities.remove(riderIndex);
+                                if (riderIndex < frameEntityCount) {
+                                    frameEntityCount--;
+                                    if (riderIndex < i) {
+                                        i--;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                mob.discard();
+                entities.remove(i);
+                frameEntityCount--;
+                i--;
+                continue;
+            }
+            // Mob sống ngoài vùng tương tác giữ trạng thái và tiếp tục AI khi người chơi quay lại.
+            if (mobDistance > MobSpawner.MAX_DISTANCE_SQUARED && ((MobEntity) entity).isAlive()) {
+                continue;
+            }
             entity.update(this, deltaTime);
             if (entity == player) {
                 syncMobListener();
             }
 
-            if ((entity instanceof ItemEntity item && item.isCollected())
+            if (entities.get(i) == entity && ((entity instanceof ItemEntity item && item.isCollected())
                     || (entity instanceof FallingBlockEntity falling && falling.isFinished())
-                    || (entity instanceof LivingEntity living && living.isReadyToRemove())) {
+                    || (entity instanceof ProjectileEntity projectile && projectile.isFinished())
+                    || (entity instanceof LivingEntity living && living.isReadyToRemove()))) {
                 entities.remove(i);
                 frameEntityCount--;
                 i--;
             }
         }
+        mobSpawner.update(this, worldTime, deltaTime);
+    }
+
+    /** Dùng cùng đồng hồ và giáng thủy với Game Loop trước khi cập nhật thực thể. */
+    public void updateEntities(float deltaTime, WorldTime worldTime, WeatherManager weather) {
+        this.worldTime = worldTime;
+        this.weather = weather;
+        updateEntities(deltaTime);
     }
 
     /** Nhận hệ thống âm thanh sau khi thế giới và các tài nguyên đã sẵn sàng. */
@@ -532,7 +625,7 @@ public class World implements Disposable {
     }
 
     /** Tán lá và các khối rắn che tai người chơi, kể cả khi mắt đang dưới nước. */
-    boolean hasWeatherRoof(int x, float eyeY, int z) {
+    public boolean hasWeatherRoof(int x, float eyeY, int z) {
         int y = findWeatherSurface(x, z, false);
         return y >= 0 && y + Block.fromId(getBlock(x, y, z))
                 .getSelectionBounds(getBlockState(x, y, z)).maxY() > eyeY;
@@ -800,6 +893,47 @@ public class World implements Disposable {
         drainBlockUpdates();
     }
 
+    /** Gây sát thương tỏa tròn và ghi các ô phá được bằng cùng đường cập nhật block lúc chơi. */
+    public void explode(Entity source, float x, float y, float z, float radius, float maxDamage) {
+        float radiusSquared = radius * radius;
+        for (int i = 0, count = entities.size(); i < count; i++) {
+            if (!(entities.get(i) instanceof LivingEntity living) || living == source || !living.isAlive()) {
+                continue;
+            }
+            living.copyCenterPosition(blastTarget);
+            float dx = blastTarget.x - x;
+            float dz = blastTarget.z - z;
+            float distanceSquared = blastTarget.dst2(x, y, z);
+            if (distanceSquared < radiusSquared) {
+                float power = 1f - (float) Math.sqrt(distanceSquared) / radius;
+                float horizontal = (float) Math.sqrt(dx * dx + dz * dz);
+                float push = horizontal > 0.0001f ? 12f * power / horizontal : 0f;
+                living.damage(this, maxDamage * power, DamageSource.EXPLOSION, source, dx * push, dz * push);
+            }
+        }
+        int minX = Math.max(0, (int) Math.floor(x - radius));
+        int minY = Math.max(0, (int) Math.floor(y - radius));
+        int minZ = Math.max(0, (int) Math.floor(z - radius));
+        int maxX = Math.min(WORLD_SIZE_X - 1, (int) Math.floor(x + radius));
+        int maxY = Math.min(WORLD_SIZE_Y - 1, (int) Math.floor(y + radius));
+        int maxZ = Math.min(WORLD_SIZE_Z - 1, (int) Math.floor(z + radius));
+        for (int bx = minX; bx <= maxX; bx++) {
+            float dx = bx + 0.5f - x;
+            for (int by = minY; by <= maxY; by++) {
+                float dy = by + 0.5f - y;
+                for (int bz = minZ; bz <= maxZ; bz++) {
+                    float dz = bz + 0.5f - z;
+                    if (dx * dx + dy * dy + dz * dz <= radiusSquared
+                            && Block.fromId(getBlock(bx, by, bz)).isBreakable()) {
+                        writeGameplayBlock(bx, by, bz, Block.AIR.getId(), 0);
+                    }
+                }
+            }
+        }
+        // Chạy một đợt sau khi tất cả ô đã đổi để cát, sỏi và cây bên rìa phản ứng theo nền cuối.
+        drainBlockUpdates();
+    }
+
     /**
      * Vẽ các chunk giao khung nhìn và duyệt danh sách đa hình để vẽ các thực thể 3D.
      *
@@ -844,18 +978,34 @@ public class World implements Disposable {
         releaseOffscreenMeshes();
 
         int translucentCount = 0;
-        shader.setUniformMatrix4f("uModel", identityMatrix);
+        Arrays.fill(opaqueHead, -1);
         for (int i = 0; i < visibleChunkCount; i++) {
             Chunk chunk = visibleChunks[i];
-            visibleChunks[i] = null;
-            chunk.render(shader);
+            float distance = chunk.centerDistanceSquaredTo(eye);
+            if (chunk.hasOpaqueMesh()) {
+                int bin = Math.min(OPAQUE_BINS - 1, (int) Math.sqrt(distance) / Chunk.SIZE);
+                if (opaqueHead[bin] < 0) {
+                    opaqueHead[bin] = i;
+                } else {
+                    opaqueNext[opaqueTail[bin]] = i;
+                }
+                opaqueTail[bin] = i;
+                opaqueNext[i] = -1;
+            }
             if (chunk.hasTranslucentMesh()) {
                 translucentChunks[translucentCount] = chunk;
-                translucentDistances[translucentCount] = chunk.centerDistanceSquaredTo(eye);
+                translucentDistances[translucentCount] = distance;
                 translucentKeys[translucentCount] = i;
                 translucentCount++;
             }
         }
+        shader.setUniformMatrix4f("uModel", identityMatrix);
+        for (int head : opaqueHead) {
+            for (int i = head; i >= 0; i = opaqueNext[i]) {
+                visibleChunks[i].render(shader);
+            }
+        }
+        Arrays.fill(visibleChunks, 0, visibleChunkCount, null);
         // Thực thể đục phải ghi chiều sâu trước khi vẽ nước và băng.
         boolean hasVisualMob = false;
         for (int i = 0; i < entities.size(); i++) {

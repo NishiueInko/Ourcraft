@@ -191,6 +191,11 @@ public abstract class Entity {
         return new Vector3(position);
     }
 
+    /** Chép tọa độ chân vào bộ đệm có sẵn để duyệt thực thể mà không cấp phát. */
+    public Vector3 copyPosition(Vector3 target) {
+        return target.set(position);
+    }
+
     /** Chép tâm thực thể vào bộ đệm có sẵn để cập nhật vật lý mỗi khung hình. */
     public Vector3 copyCenterPosition(Vector3 target) {
         return target.set(position.x, position.y + height * 0.5f, position.z);

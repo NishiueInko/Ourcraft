@@ -99,6 +99,11 @@ public abstract class LivingEntity extends Entity {
         if (dead || invulnerabilityTimer > TIMER_EPSILON || !(amount > 0f) || !Float.isFinite(amount)) {
             return false;
         }
+        if (((source == DamageSource.FIRE || source == DamageSource.LAVA || source == DamageSource.SUNLIGHT)
+                && hasEffect(StatusEffectType.FIRE_RESISTANCE))
+                || source == DamageSource.DROWNING && hasEffect(StatusEffectType.WATER_BREATHING)) {
+            return false;
+        }
         if (source.armorApplies() && armor > 0f) {
             float effectiveArmor = Math.min(20f, Math.max(armor * 0.2f, armor - amount * 0.5f));
             amount *= 1f - effectiveArmor / 25f;
@@ -108,16 +113,32 @@ public abstract class LivingEntity extends Entity {
         hurtFlashTimer = HURT_SECONDS;
         applyKnockback(knockbackX, knockbackZ);
         if (health <= 0f) {
-            dead = true;
-            deathTimer = DEATH_SECONDS;
-            leaveMount();
-            for (int seat = 0; seat < passengers.length; seat++) {
-                if (passengers[seat] != null) {
-                    passengers[seat].leaveMount();
-                }
-            }
+            endLife(DEATH_SECONDS);
         }
         return true;
+    }
+
+    /** Quyết định né đạn trước khi áp sát thương, mặc định mọi thực thể có thể bị đánh trúng. */
+    public boolean dodgeProjectile(World world, Entity owner) {
+        return false;
+    }
+
+    /** Kết thúc vòng đời ngay khi đã nổ hoặc được thay bằng một thực thể khác. */
+    public final void discard() {
+        endLife(0f);
+    }
+
+    /** Xóa các liên kết cưỡi theo cả hai hướng khi cá thể rời vòng đời. */
+    private void endLife(float linger) {
+        health = 0f;
+        dead = true;
+        deathTimer = linger;
+        leaveMount();
+        for (int seat = 0; seat < passengers.length; seat++) {
+            if (passengers[seat] != null) {
+                passengers[seat].leaveMount();
+            }
+        }
     }
 
     /** Thêm xung lực ngang, có thể ghi đè nếu điều khiển đặt lại vận tốc mỗi frame. */
@@ -147,6 +168,8 @@ public abstract class LivingEntity extends Entity {
         effect.set(amplifier, durationSeconds);
         if (type == StatusEffectType.POISON && !active) {
             poisonElapsed = 0f;
+        } else if (type == StatusEffectType.FIRE_RESISTANCE) {
+            extinguish();
         }
         return true;
     }
@@ -169,7 +192,10 @@ public abstract class LivingEntity extends Entity {
     /** Tính hệ số vận tốc ngang, giới hạn ở 0 khi hiệu ứng quá mạnh. */
     public float getMovementSpeedMultiplier() {
         StatusEffectInstance slow = effects[StatusEffectType.SLOWNESS.ordinal()];
-        return slow.duration() > 0f ? Math.max(0f, 1f - 0.15f * (slow.amplifier() + 1f)) : 1f;
+        StatusEffectInstance speed = effects[StatusEffectType.SWIFTNESS.ordinal()];
+        float slowMultiplier = slow.duration() > 0f ? Math.max(0f, 1f - 0.15f * (slow.amplifier() + 1f)) : 1f;
+        float speedMultiplier = speed.duration() > 0f ? 1f + 0.20f * (speed.amplifier() + 1f) : 1f;
+        return slowMultiplier * speedMultiplier;
     }
 
     /** Trừ 4 HP sát thương cận chiến mỗi cấp Weakness; đòn ở mức 0 không gây sát thương. */
@@ -205,7 +231,8 @@ public abstract class LivingEntity extends Entity {
 
     /** Bắt đầu hoặc nối dài thời gian cháy mà giữ nhịp sát thương hiện tại. */
     public void ignite(float durationSeconds) {
-        if (!dead && durationSeconds > fireTimer && Float.isFinite(durationSeconds)) {
+        if (!dead && durationSeconds > fireTimer && Float.isFinite(durationSeconds)
+                && !hasEffect(StatusEffectType.FIRE_RESISTANCE)) {
             fireTimer = durationSeconds;
         }
     }

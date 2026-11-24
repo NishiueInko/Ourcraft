@@ -160,6 +160,16 @@ public class Player extends LivingEntity {
         this.camera = camera;
     }
 
+    /** Chép tia từ tâm ngắm vào bộ đệm của AI, dùng cùng góc và cao độ mắt như camera. */
+    public boolean copyAim(Vector3 eye, Vector3 direction) {
+        if (camera == null) {
+            return false;
+        }
+        eye.set(position.x, position.y + currentEyeHeight, position.z);
+        camera.copyFront(direction);
+        return true;
+    }
+
     /**
      * Phương thức nạp chồng tiện ích cho phép truyền camera khi cập nhật.
      */

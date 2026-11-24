@@ -205,8 +205,9 @@ public final class MobModels {
                 weapon.setVisible(pose == MobVisualState.Pose.THRUST);
             }
             if (pose == MobVisualState.Pose.AIM_BOW) {
+                float draw = state.poseAmount();
                 leftArm.setRotation(92 + headPitch, headYaw - 12, -7);
-                rightArm.setRotation(77 + headPitch, headYaw + 28, 18);
+                rightArm.setRotation(77 + headPitch, headYaw + 19 + 9 * draw, 11 + 7 * draw);
                 if (weapon != null && kind != HumanoidKind.HUSK) {
                     weapon.setRotation(-88, 0, 0);
                 }
@@ -218,6 +219,11 @@ public final class MobModels {
                     || kind == HumanoidKind.VILLAGER || kind == HumanoidKind.HUSK) {
                 leftArm.setRotation(83 + breath, -8, 0);
                 rightArm.setRotation(83 - breath, 8, 0);
+            } else if (pose == MobVisualState.Pose.DRINK && kind == HumanoidKind.WITCH) {
+                float lift = Math.min(1f, state.poseAmount() * 4);
+                leftArm.setRotation(46 + 69 * lift, -12 + 40 * lift, -18 + 30 * lift);
+                rightArm.setRotation(45 - breath, 10, 21);
+                weapon.setRotation(-100 * lift, 0, 8 * lift);
             } else if (kind == HumanoidKind.WITCH) {
                 leftArm.setRotation(46 + breath, -12, -18);
                 rightArm.setRotation(45 - breath, 10, 21);

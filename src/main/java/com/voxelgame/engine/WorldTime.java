@@ -64,6 +64,11 @@ public final class WorldTime {
         return dayCount;
     }
 
+    /** Trả chỉ số tick trong ngày, dùng để đánh giá khoảng tối của bầu trời. */
+    public int tickOfDay() {
+        return (int) tick;
+    }
+
     /** Giờ dân dụng bắt đầu ở 06:00 khi tick trong ngày bằng 0. */
     public int minuteOfDay() {
         return ((int) (tick * 1_440 / TICKS_PER_DAY) + 360) % 1_440;

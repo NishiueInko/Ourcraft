@@ -180,6 +180,11 @@ public class Chunk implements Disposable {
         return opaqueMesh != null || translucentMesh != null;
     }
 
+    /** Kiểm tra chunk có hình học ghi chiều sâu trong lượt đầu. */
+    boolean hasOpaqueMesh() {
+        return opaqueMesh != null;
+    }
+
     /** Kiểm tra chunk có đỉnh để vẽ trong pha hòa màu. */
     boolean hasTranslucentMesh() {
         return translucentMesh != null;
