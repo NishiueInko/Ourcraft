@@ -33,6 +33,31 @@ final class EnvironmentChecks {
         check(weather.strength() == 0f, "Mưa tạnh dần");
 
         checkWeatherSurface();
+        checkCameraLiquidFog();
+    }
+
+    /** Mắt phải ở dưới mặt thoáng 0,88 block mới đổi môi trường quan sát. */
+    private static void checkCameraLiquidFog() {
+        World world = World.empty();
+        try {
+            Camera camera = new Camera();
+            world.setBlock(10, 10, 10, Block.WATER.getId());
+            world.setBlock(11, 10, 10, Block.LAVA.getId());
+            camera.setPosition(10.5f, 10.9f, 10.5f);
+            check(camera.liquidView(world) == Camera.LiquidView.AIR, "Mắt trên mặt nước nhìn qua không khí");
+            camera.setPosition(10.5f, 10.8f, 10.5f);
+            check(camera.liquidView(world) == Camera.LiquidView.WATER, "Mắt ngập nước chọn sương xanh");
+            camera.setPosition(11.5f, 10.8f, 10.5f);
+            check(camera.liquidView(world) == Camera.LiquidView.LAVA, "Mắt ngập lava chọn sương dày");
+            world.setBlock(10, 11, 10, Block.WATER.getId());
+            camera.setPosition(10.5f, 10.95f, 10.5f);
+            check(camera.liquidView(world) == Camera.LiquidView.WATER, "Lớp nước dưới đầy tới biên block");
+            check(Camera.LiquidView.WATER.fogStart == 1f && Camera.LiquidView.WATER.fogEnd == 22f
+                            && Camera.LiquidView.LAVA.fogStart == 0.25f && Camera.LiquidView.LAVA.fogEnd == 1.6f,
+                    "Khoảng nhìn trong lava phải ngắn hơn nhiều so với nước");
+        } finally {
+            world.dispose();
+        }
     }
 
     /** Kiểm tra mái cao, tán lá, nước lộ thiên và ảnh hưởng của dung nham. */

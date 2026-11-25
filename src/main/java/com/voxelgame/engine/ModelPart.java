@@ -8,7 +8,14 @@ import java.util.Objects;
 /** Hộp pixel trong cây khớp, với mặt trước theo -Z và trục đứng theo +Y. */
 public final class ModelPart {
     /** Chọn vật liệu của bộ phận trong mỗi lượt vẽ mô hình. */
-    public enum Layer { BASE, OVERLAY, EYES }
+    public enum Layer { BASE, OVERLAY, EYES, EQUIPMENT }
+
+    /** Chiều trải ảnh gốc của hộp, kể cả thân nằm ngang và chi trái đối xứng. */
+    enum UvOrientation { OURCRAFT, MINECRAFT, HORIZONTAL, MIRRORED }
+
+    /** Kích thước hình trải tính theo ảnh nguồn, độc lập với tỉ lệ hộp khi vẽ. */
+    record CuboidUv(int u, int v, int width, int height, int depth, UvOrientation orientation) {
+    }
 
     /** Độ sáng tương đối của sáu mặt theo quy ước hình học chunk. */
     private static final float SHADE_TOP = 1f;
@@ -20,7 +27,7 @@ public final class ModelPart {
     static final int VERTEX_COUNT = 36;
 
     /** Thông số bất biến để chia sẻ mesh giữa các bộ phận có cùng hình học và UV. */
-    record Geometry(float x, float y, float z, int width, int height, int depth, int u, int v, float inflate) {
+    record Geometry(float x, float y, float z, int width, int height, int depth, float inflate, CuboidUv uv) {
     }
 
     private final float pivotX;
@@ -40,14 +47,26 @@ public final class ModelPart {
     /** Lưu điểm xoay, kích thước hộp và tọa độ pixel của sơ đồ trải UV. */
     public ModelPart(float pivotX, float pivotY, float pivotZ, float offsetX, float offsetY, float offsetZ,
                      int sizeX, int sizeY, int sizeZ, int texU, int texV, float inflate, ModelPart... children) {
-        if (sizeX <= 0 || sizeY <= 0 || sizeZ <= 0 || texU < 0 || texV < 0
-                || !Float.isFinite(inflate) || Math.min(sizeX, Math.min(sizeY, sizeZ)) + 2 * inflate <= 0f) {
+        this(pivotX, pivotY, pivotZ, offsetX, offsetY, offsetZ, sizeX, sizeY, sizeZ, inflate,
+                new CuboidUv(texU, texV, sizeX, sizeY, sizeZ, UvOrientation.OURCRAFT), children);
+    }
+
+    /** Lưu hộp hiển thị cùng kích thước và chiều trải UV của ảnh nguồn. */
+    ModelPart(float pivotX, float pivotY, float pivotZ, float offsetX, float offsetY, float offsetZ,
+              int sizeX, int sizeY, int sizeZ, float inflate, CuboidUv uv, ModelPart... children) {
+        int shortestSide = Math.min(sizeX, Math.min(sizeY, sizeZ));
+        float expandedSide = shortestSide + 2 * inflate;
+        // Râu dê và đuôi lạc đà dùng mặt phẳng. Hình học Ourcraft vẫn dùng hộp đặc.
+        if (sizeX < 0 || sizeY < 0 || sizeZ < 0 || uv.u < 0 || uv.v < 0
+                || uv.width < 0 || uv.height < 0 || uv.depth < 0
+                || !Float.isFinite(inflate) || expandedSide < 0f
+                || (uv.orientation == UvOrientation.OURCRAFT && (shortestSide == 0 || expandedSide == 0f))) {
             throw new IllegalArgumentException("Kích thước hộp, độ phồng hoặc gốc UV không hợp lệ");
         }
         this.pivotX = pivotX;
         this.pivotY = pivotY;
         this.pivotZ = pivotZ;
-        geometry = new Geometry(offsetX, offsetY, offsetZ, sizeX, sizeY, sizeZ, texU, texV, inflate);
+        geometry = new Geometry(offsetX, offsetY, offsetZ, sizeX, sizeY, sizeZ, inflate, uv);
         this.children = children.clone();
     }
 
@@ -102,8 +121,9 @@ public final class ModelPart {
 
     /** Cho biết footprint pixel có nằm hoàn toàn trong tấm ảnh vật liệu. */
     boolean fitsTexture(int width, int height) {
-        return (long) geometry.u + 2L * (geometry.width + (long) geometry.depth) <= width
-                && (long) geometry.v + geometry.depth + geometry.height <= height;
+        CuboidUv uv = geometry.uv;
+        return (long) uv.u + 2L * (uv.width + (long) uv.depth) <= width
+                && (long) uv.v + uv.depth + uv.height <= height;
     }
 
     /** Kiểm tra đồng thời các phần dùng cùng một lớp ảnh trong toàn bộ nhánh. */
@@ -143,24 +163,58 @@ public final class ModelPart {
         float z0 = geometry.z - geometry.inflate;
         float z1 = geometry.z + geometry.depth + geometry.inflate;
 
-        float u0 = (float) geometry.u / texWidth;
-        float u1 = (float) (geometry.u + geometry.depth) / texWidth;
-        float u2 = (float) (geometry.u + geometry.depth + geometry.width) / texWidth;
-        float u3 = (float) (geometry.u + 2 * geometry.depth + geometry.width) / texWidth;
-        float u4 = (float) (geometry.u + 2 * (geometry.depth + geometry.width)) / texWidth;
-        float bottomU = (float) (geometry.u + geometry.depth + 2 * geometry.width) / texWidth;
-        float v0 = (float) geometry.v / texHeight;
-        float v1 = (float) (geometry.v + geometry.depth) / texHeight;
-        float v2 = (float) (geometry.v + geometry.depth + geometry.height) / texHeight;
+        CuboidUv uv = geometry.uv;
+        float u0 = (float) uv.u / texWidth;
+        float u1 = (float) (uv.u + uv.depth) / texWidth;
+        float u2 = (float) (uv.u + uv.depth + uv.width) / texWidth;
+        float u3 = (float) (uv.u + 2 * uv.depth + uv.width) / texWidth;
+        float u4 = (float) (uv.u + 2 * (uv.depth + uv.width)) / texWidth;
+        float bottomU = (float) (uv.u + uv.depth + 2 * uv.width) / texWidth;
+        float v0 = (float) uv.v / texHeight;
+        float v1 = (float) (uv.v + uv.depth) / texHeight;
+        float v2 = (float) (uv.v + uv.depth + uv.height) / texHeight;
         float[] vertices = new float[VERTEX_COUNT * STRIDE];
+        boolean horizontal = uv.orientation == UvOrientation.HORIZONTAL;
+        boolean vanilla = uv.orientation != UvOrientation.OURCRAFT;
+        if (horizontal) {
+            // Dựng trong hệ của hình trải rồi xoay quanh X để đặt thân lên bốn chân.
+            float bottom = y0;
+            float top = y1;
+            y0 = -z1;
+            y1 = -z0;
+            z0 = bottom;
+            z1 = top;
+        }
 
-        // Mỗi mặt bắt đầu ở góc trên trái khi nhìn từ ngoài vào hộp.
-        face(vertices, 0, x0, y1, z0, x0, y0, z0, x0, y0, z1, x0, y1, z1, u0, v1, u1, v2, SHADE_EAST_WEST);
-        face(vertices, 1, x1, y1, z0, x1, y0, z0, x0, y0, z0, x0, y1, z0, u1, v1, u2, v2, SHADE_NORTH_SOUTH);
-        face(vertices, 2, x1, y1, z1, x1, y0, z1, x1, y0, z0, x1, y1, z0, u2, v1, u3, v2, SHADE_EAST_WEST);
-        face(vertices, 3, x0, y1, z1, x0, y0, z1, x1, y0, z1, x1, y1, z1, u3, v1, u4, v2, SHADE_NORTH_SOUTH);
-        face(vertices, 4, x0, y1, z0, x0, y1, z1, x1, y1, z1, x1, y1, z0, u1, v0, u2, v1, SHADE_TOP);
-        face(vertices, 5, x0, y0, z1, x0, y0, z0, x1, y0, z0, x1, y0, z1, u2, v0, bottomU, v1, SHADE_BOTTOM);
+        face(vertices, 0, x0, y1, z0, x0, y0, z0, x0, y0, z1, x0, y1, z1,
+                vanilla ? u1 : u0, v1, vanilla ? u0 : u1, v2, SHADE_EAST_WEST);
+        face(vertices, 1, x1, y1, z0, x1, y0, z0, x0, y0, z0, x0, y1, z0,
+                vanilla ? u2 : u1, v1, vanilla ? u1 : u2, v2, horizontal ? SHADE_BOTTOM : SHADE_NORTH_SOUTH);
+        face(vertices, 2, x1, y1, z1, x1, y0, z1, x1, y0, z0, x1, y1, z0,
+                vanilla ? u3 : u2, v1, vanilla ? u2 : u3, v2, SHADE_EAST_WEST);
+        face(vertices, 3, x0, y1, z1, x0, y0, z1, x1, y0, z1, x1, y1, z1,
+                vanilla ? u4 : u3, v1, vanilla ? u3 : u4, v2, horizontal ? SHADE_TOP : SHADE_NORTH_SOUTH);
+        face(vertices, 4, x0, y1, z0, x0, y1, z1, x1, y1, z1, x1, y1, z0,
+                u1, vanilla ? v1 : v0, u2, vanilla ? v0 : v1, horizontal ? SHADE_NORTH_SOUTH : SHADE_TOP);
+        face(vertices, 5, x0, y0, z1, x0, y0, z0, x1, y0, z0, x1, y0, z1,
+                u2, v0, bottomU, v1, horizontal ? SHADE_NORTH_SOUTH : SHADE_BOTTOM);
+
+        if (uv.orientation == UvOrientation.MIRRORED) {
+            // Phản chiếu vị trí đi kèm UV và đảo thứ tự đỉnh để mặt vẫn quay ra ngoài.
+            float twiceCenterX = 2f * geometry.x + geometry.width;
+            for (int i = 0; i < vertices.length; i += 3 * STRIDE) {
+                for (int vertex = i; vertex < i + 3 * STRIDE; vertex += STRIDE) {
+                    vertices[vertex] = twiceCenterX - vertices[vertex];
+                }
+                for (int attribute = 0; attribute < STRIDE; attribute++) {
+                    int first = i + STRIDE + attribute;
+                    int second = first + STRIDE;
+                    float value = vertices[first];
+                    vertices[first] = vertices[second];
+                    vertices[second] = value;
+                }
+            }
+        }
         return vertices;
     }
 
@@ -179,10 +233,11 @@ public final class ModelPart {
     }
 
     /** Ghi một đỉnh theo định dạng shader. */
-    private static void vertex(float[] out, int i, float x, float y, float z, float u, float v, float shade) {
+    private void vertex(float[] out, int i, float x, float y, float z, float u, float v, float shade) {
         out[i] = x;
-        out[i + 1] = y;
-        out[i + 2] = z;
+        boolean horizontal = geometry.uv.orientation == UvOrientation.HORIZONTAL;
+        out[i + 1] = horizontal ? z : y;
+        out[i + 2] = horizontal ? -y : z;
         out[i + 3] = u;
         out[i + 4] = v;
         out[i + 5] = shade;

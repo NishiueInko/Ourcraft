@@ -12,6 +12,7 @@ import com.voxelgame.entity.Block;
 import com.voxelgame.entity.Hotbar;
 import com.voxelgame.entity.Player;
 import com.voxelgame.entity.StatusEffectType;
+import com.voxelgame.entity.mob.MountableMob;
 
 /**
  * Hệ thống Kết xuất Giao diện Người dùng 2D & Hiệu ứng Tương tác 3D (UI & HUD Renderer),
@@ -55,6 +56,23 @@ public class UIRenderer implements Disposable {
     // Kích thước của 9 ô Hotbar ở cạnh dưới màn hình
     private static final float HOTBAR_SLOT_SIZE = 50.0f;
     private static final float HOTBAR_SLOT_PADDING = 4.0f;
+    /** Một nền, một viền, tối đa sáu lượt mỗi ô và hai lượt tên khối. */
+    private static final int HOTBAR_STYLES = 4 + Hotbar.SLOT_COUNT * 6;
+    /** Dự trù cả nhãn khối dài, bóng chữ và số lượng hai chữ số ở mọi ô. */
+    private static final int HOTBAR_VERTEX_CAPACITY = 4096 * 6;
+    private final float[] hotbarVertices = new float[HOTBAR_VERTEX_CAPACITY * 6];
+    private final float[] hotbarTints = new float[HOTBAR_STYLES * 4];
+    private final boolean[] hotbarTexture = new boolean[HOTBAR_STYLES];
+    private final int[] hotbarEnd = new int[HOTBAR_STYLES];
+    private final Block[] hotbarBlocks = new Block[Hotbar.SLOT_COUNT];
+    private final int[] hotbarCounts = new int[Hotbar.SLOT_COUNT];
+    private Mesh hotbarMesh;
+    private int hotbarStyleCount;
+    private int hotbarLength;
+    private int hotbarWidth = -1;
+    private int hotbarHeight = -1;
+    private int hotbarSelection = -1;
+    private boolean recordingHotbar;
 
     // Hộp mặc định cho đường gọi cũ và bộ đệm đỉnh dùng lại cho lớp phủ, viền và biểu tượng.
     private static final Block.Bounds DEFAULT_TARGET_BOUNDS = new Block.Bounds(0, 0, 0, 1, 1, 1);
@@ -210,7 +228,13 @@ public class UIRenderer implements Disposable {
     /** Vẽ viền đỏ mờ dần theo cường độ 0–1 ngay trước lượt vẽ HUD. */
     public void renderCactusFlash(ShaderProgram shader, Camera camera, int windowWidth, int windowHeight,
                                   float intensity) {
-        if (intensity <= 0.0f) {
+        renderScreenEffects(shader, camera, windowWidth, windowHeight, Camera.LiquidView.AIR, intensity);
+    }
+
+    /** Phủ màu chất lỏng sau cảnh 3D, rồi vẽ phản hồi va gai trước HUD. */
+    public void renderScreenEffects(ShaderProgram shader, Camera camera, int windowWidth, int windowHeight,
+                                    Camera.LiquidView liquid, float intensity) {
+        if (liquid.tintAlpha == 0f && intensity <= 0f) {
             return;
         }
 
@@ -221,14 +245,19 @@ public class UIRenderer implements Disposable {
         Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
         shader.enable2DUIMode(camera.getOrthoMatrix(windowWidth, windowHeight));
         shader.setUniform1i("uUseTexture", 0);
-        shader.setUniformVec4("uTintColor", 0.9f, 0.04f, 0.04f, 0.55f * Math.min(1.0f, intensity));
-
-        // Hai dải ngang phủ góc. Hai dải dọc chỉ phủ phần ở giữa để góc có cùng độ mờ.
-        float thickness = 0.07f * Math.min(windowWidth, windowHeight);
-        drawRect2D(0.0f, 0.0f, windowWidth, thickness);
-        drawRect2D(0.0f, windowHeight - thickness, windowWidth, thickness);
-        drawRect2D(0.0f, thickness, thickness, windowHeight - 2.0f * thickness);
-        drawRect2D(windowWidth - thickness, thickness, thickness, windowHeight - 2.0f * thickness);
+        if (liquid.tintAlpha > 0f) {
+            shader.setUniformVec4("uTintColor", liquid.red, liquid.green, liquid.blue, liquid.tintAlpha);
+            drawRect2D(0f, 0f, windowWidth, windowHeight);
+        }
+        if (intensity > 0f) {
+            shader.setUniformVec4("uTintColor", 0.9f, 0.04f, 0.04f, 0.55f * Math.min(1.0f, intensity));
+            // Hai dải ngang phủ góc. Hai dải dọc chỉ phủ phần giữa để màu không chồng ở góc.
+            float thickness = 0.07f * Math.min(windowWidth, windowHeight);
+            drawRect2D(0.0f, 0.0f, windowWidth, thickness);
+            drawRect2D(0.0f, windowHeight - thickness, windowWidth, thickness);
+            drawRect2D(0.0f, thickness, thickness, windowHeight - 2.0f * thickness);
+            drawRect2D(windowWidth - thickness, thickness, thickness, windowHeight - 2.0f * thickness);
+        }
 
         shader.enable3DWorldMode();
         Gdx.gl.glDisable(GL20.GL_BLEND);
@@ -308,6 +337,9 @@ public class UIRenderer implements Disposable {
         }
         if (player != null) {
             renderVitals(player, windowWidth, windowHeight);
+            if (player.getMount() instanceof MountableMob mount) {
+                renderMountVitals(mount, windowWidth, windowHeight);
+            }
         }
 
         if (!isPaused) {
@@ -353,6 +385,30 @@ public class UIRenderer implements Disposable {
         if (vitalVertexCount > foodVertex) {
             vitalMesh.render(currentShader.getGdxShader(), GL20.GL_TRIANGLES, foodVertex, vitalVertexCount - foodVertex);
         }
+    }
+
+    /** Hiển thị máu và tiến độ nhảy hoặc hồi lướt ngay trên hàng chỉ số người chơi. */
+    private void renderMountVitals(MountableMob mount, int width, int height) {
+        float y = height - HOTBAR_SLOT_SIZE - HOTBAR_SLOT_PADDING * 2f - 75f;
+        float left = width * 0.5f - 100f;
+        drawMountMeter("MOUNT HP", left, y, mount.getHealth() / mount.getMaxHealth(), 0.94f, 0.29f, 0.35f);
+        float cooldown = mount.dashCooldownRemaining();
+        float progress = cooldown > 0f ? 1f - cooldown / 2.75f : mount.chargeProgress();
+        drawMountMeter(mount.isDashMount() ? "DASH" : "JUMP", left + 106f, y, progress,
+                cooldown > 0f ? 0.30f : 0.97f, 0.70f, cooldown > 0f ? 0.95f : 0.25f);
+    }
+
+    /** Vẽ thanh bằng bộ đệm UI dùng lại, bỏ lượt vẽ phần tô khi giá trị bằng không. */
+    private void drawMountMeter(String label, float x, float y, float progress, float r, float g, float b) {
+        currentShader.setUniform1i("uUseTexture", 0);
+        currentShader.setUniformVec4("uTintColor", 0.15f, 0.12f, 0.17f, 0.95f);
+        drawRect2D(x, y, 94f, 8f);
+        if (progress > 0f) {
+            currentShader.setUniformVec4("uTintColor", r, g, b, 1f);
+            drawRect2D(x + 1f, y + 1f, 92f * Math.min(1f, progress), 6f);
+        }
+        currentShader.setUniformVec4("uTintColor", 1f, 1f, 1f, 0.95f);
+        drawPixelText(label, x, y - 9f, 1f);
     }
 
     /** Ghi nền, tim và thịt vào một bộ đệm khi số điểm hoặc kích thước cửa sổ thay đổi. */
@@ -503,15 +559,60 @@ public class UIRenderer implements Disposable {
             int windowWidth,
             int windowHeight
     ) {
+        boolean changed = windowWidth != hotbarWidth || windowHeight != hotbarHeight
+                || hotbar.getSelectedSlot() != hotbarSelection;
+        for (int i = 0; i < Hotbar.SLOT_COUNT; i++) {
+            Block block = hotbar.getSlotBlock(i);
+            int count = hotbar.getSlotCount(i);
+            changed |= block != hotbarBlocks[i] || count != hotbarCounts[i];
+            hotbarBlocks[i] = block;
+            hotbarCounts[i] = count;
+        }
+        if (changed) {
+            hotbarWidth = windowWidth;
+            hotbarHeight = windowHeight;
+            hotbarSelection = hotbar.getSelectedSlot();
+            hotbarLength = 0;
+            hotbarStyleCount = 0;
+            recordingHotbar = true;
+            rebuildHotbar(hotbar, windowWidth, windowHeight);
+            recordingHotbar = false;
+            if (hotbarMesh == null) {
+                hotbarMesh = new Mesh(Mesh.VertexDataType.VertexBufferObjectWithVAO, true,
+                        HOTBAR_VERTEX_CAPACITY, 0, VERTEX_ATTRIBUTES);
+            }
+            hotbarMesh.setVertices(hotbarVertices, 0, hotbarLength);
+        }
+        // Giữ thứ tự vẽ của các lớp trong suốt và bind một lần cho toàn bộ thanh.
+        var program = shader.getGdxShader();
+        int start = 0;
+        textureAtlas.bind();
+        hotbarMesh.bind(program);
+        for (int i = 0; i < hotbarStyleCount; i++) {
+            int end = hotbarEnd[i];
+            if (end <= start) {
+                continue;
+            }
+            int tint = i * 4;
+            shader.setUniform1i("uUseTexture", hotbarTexture[i] ? 1 : 0);
+            shader.setUniformVec4("uTintColor", hotbarTints[tint], hotbarTints[tint + 1],
+                    hotbarTints[tint + 2], hotbarTints[tint + 3]);
+            hotbarMesh.render(program, GL20.GL_TRIANGLES, start, end - start, false);
+            start = end;
+        }
+        hotbarMesh.unbind(program);
+        textureAtlas.unbind();
+    }
+
+    /** Ghi lại chiều hình học của các ô, biểu tượng và nhãn khi dữ liệu hiển thị thay đổi. */
+    private void rebuildHotbar(Hotbar hotbar, int windowWidth, int windowHeight) {
         float totalWidth = Hotbar.SLOT_COUNT * HOTBAR_SLOT_SIZE + (Hotbar.SLOT_COUNT + 1) * HOTBAR_SLOT_PADDING;
         float barHeight = HOTBAR_SLOT_SIZE + HOTBAR_SLOT_PADDING * 2.0f;
         float startX = (windowWidth - totalWidth) * 0.5f;
         float startY = windowHeight - barHeight - 16.0f;
 
-        shader.setUniform1i("uUseTexture", 0);
-
         // 1. Vẽ tấm nền tổng của thanh Hotbar
-        shader.setUniformVec4("uTintColor", 0.10f, 0.11f, 0.14f, 0.82f);
+        beginHotbarStyle(false, 0.10f, 0.11f, 0.14f, 0.82f);
         drawRect2D(startX - 4.0f, startY - 4.0f, totalWidth + 8.0f, barHeight + 8.0f);
 
         // 2. Vẽ từng ô từ 0 đến 8 (tương ứng phím 1 đến 9)
@@ -522,21 +623,19 @@ public class UIRenderer implements Disposable {
             boolean isSelected = (i == hotbar.getSelectedSlot());
 
             if (isSelected) {
-                shader.setUniform1i("uUseTexture", 0);
-                shader.setUniformVec4("uTintColor", 1.0f, 0.92f, 0.32f, 1.0f);
+                beginHotbarStyle(false, 1.0f, 0.92f, 0.32f, 1.0f);
                 drawRect2D(slotX - 3.0f, slotY - 3.0f, HOTBAR_SLOT_SIZE + 6.0f, HOTBAR_SLOT_SIZE + 6.0f);
             }
 
-            shader.setUniform1i("uUseTexture", 0);
             if (isSelected) {
-                shader.setUniformVec4("uTintColor", 0.28f, 0.30f, 0.35f, 0.95f);
+                beginHotbarStyle(false, 0.28f, 0.30f, 0.35f, 0.95f);
             } else {
-                shader.setUniformVec4("uTintColor", 0.18f, 0.19f, 0.23f, 0.90f);
+                beginHotbarStyle(false, 0.18f, 0.19f, 0.23f, 0.90f);
             }
             drawRect2D(slotX, slotY, HOTBAR_SLOT_SIZE, HOTBAR_SLOT_SIZE);
 
             // Số thứ tự phím (1..9) nhỏ ở góc trái-trên của ô
-            shader.setUniformVec4("uTintColor", 0.72f, 0.74f, 0.78f, 0.85f);
+            beginHotbarStyle(false, 0.72f, 0.74f, 0.78f, 0.85f);
             drawPixelText(NUMBER_LABELS[i + 1], slotX + 4.0f, slotY + 4.0f, 1.5f);
 
             Block itemBlock = hotbar.getSlotBlock(i);
@@ -556,24 +655,20 @@ public class UIRenderer implements Disposable {
                 float iconY = slotY + (HOTBAR_SLOT_SIZE - iconHeight) * 0.5f;
 
                 float[] uv = Chunk.tileUv(itemBlock.getTileIndex(Block.Face.SOUTH));
-                textureAtlas.bind();
-                shader.setUniform1i("uUseTexture", 1);
-                shader.setUniformVec4("uTintColor", 1.0f, 1.0f, 1.0f, 1.0f);
+                beginHotbarStyle(true, 1.0f, 1.0f, 1.0f, 1.0f);
                 drawTexturedRect2D(iconX, iconY, iconWidth, iconHeight, uv[0], uv[1], uv[2], uv[3]);
-                textureAtlas.unbind();
 
                 // Vẽ số lượng item hiện có ở góc phải-dưới của ô
-                shader.setUniform1i("uUseTexture", 0);
                 String countStr = NUMBER_LABELS[count];
                 float textScale = 2.0f;
                 float textW = countStr.length() * 6.0f * textScale;
                 float tx = slotX + HOTBAR_SLOT_SIZE - textW - 3.0f;
                 float ty = slotY + HOTBAR_SLOT_SIZE - 7.0f * textScale - 3.0f;
 
-                shader.setUniformVec4("uTintColor", 0.05f, 0.05f, 0.05f, 0.95f);
+                beginHotbarStyle(false, 0.05f, 0.05f, 0.05f, 0.95f);
                 drawPixelText(countStr, tx + 1.5f, ty + 1.5f, textScale);
 
-                shader.setUniformVec4("uTintColor", 1.0f, 1.0f, 1.0f, 1.0f);
+                beginHotbarStyle(false, 1.0f, 1.0f, 1.0f, 1.0f);
                 drawPixelText(countStr, tx, ty, textScale);
             }
         }
@@ -587,12 +682,23 @@ public class UIRenderer implements Disposable {
             float lx = (windowWidth - labelW) * 0.5f;
             float ly = startY - 24.0f;
 
-            shader.setUniform1i("uUseTexture", 0);
-            shader.setUniformVec4("uTintColor", 0.0f, 0.0f, 0.0f, 0.75f);
+            beginHotbarStyle(false, 0.0f, 0.0f, 0.0f, 0.75f);
             drawPixelText(label, lx + 2.0f, ly + 2.0f, scale);
-            shader.setUniformVec4("uTintColor", 1.0f, 0.96f, 0.72f, 1.0f);
+            beginHotbarStyle(false, 1.0f, 0.96f, 0.72f, 1.0f);
             drawPixelText(label, lx, ly, scale);
         }
+    }
+
+    /** Lưu màu và cờ atlas cho một khoảng đỉnh liên tiếp. */
+    private void beginHotbarStyle(boolean textured, float r, float g, float b, float a) {
+        int style = hotbarStyleCount++;
+        int tint = style * 4;
+        hotbarTexture[style] = textured;
+        hotbarTints[tint] = r;
+        hotbarTints[tint + 1] = g;
+        hotbarTints[tint + 2] = b;
+        hotbarTints[tint + 3] = a;
+        hotbarEnd[style] = hotbarLength / 6;
     }
 
     // =========================================================================
@@ -876,6 +982,12 @@ public class UIRenderer implements Disposable {
         if (currentShader == null || length == 0) {
             return;
         }
+        if (recordingHotbar) {
+            System.arraycopy(vertices, 0, hotbarVertices, hotbarLength, length);
+            hotbarLength += length;
+            hotbarEnd[hotbarStyleCount - 1] = hotbarLength / 6;
+            return;
+        }
 
         int count = length / 6;
         if (uiMesh == null || uiMesh.getMaxVertices() < count) {
@@ -947,6 +1059,10 @@ public class UIRenderer implements Disposable {
 
     @Override
     public void dispose() {
+        if (hotbarMesh != null) {
+            hotbarMesh.dispose();
+            hotbarMesh = null;
+        }
         if (vitalMesh != null) {
             vitalMesh.dispose();
             vitalMesh = null;

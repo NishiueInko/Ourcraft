@@ -8,6 +8,7 @@ import com.voxelgame.engine.BiomeType;
 import com.voxelgame.engine.Camera;
 import com.voxelgame.engine.ShaderProgram;
 import com.voxelgame.engine.World;
+import com.voxelgame.entity.mob.MountableMob;
 
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -125,6 +126,7 @@ public class Player extends LivingEntity {
         if (!world.setBiomeCenterPosition(position, biome)) {
             return false;
         }
+        leaveMount();
 
         // Xóa đà, lực đẩy, chuỗi nhấn đúp và quãng đường âm thanh ở vị trí cũ.
         velocity.setZero();
@@ -190,6 +192,10 @@ public class Player extends LivingEntity {
         cactusCooldown = Math.max(0, cactusCooldown - deltaTime);
         cactusFlash = Math.max(0, cactusFlash - deltaTime);
         updateRegeneration(deltaTime);
+        if (getMount() instanceof MountableMob vehicle) {
+            updateRiding(world, vehicle, deltaTime);
+            return;
+        }
         if (camera == null) {
             updateLavaContact(world);
             return;
@@ -207,7 +213,7 @@ public class Player extends LivingEntity {
         }
 
         // Nếu rơi xuống dưới đáy bản đồ, đưa người chơi trở lại vị trí an toàn trên mặt đất
-        boolean respawned = position.y < -25.0f;
+        boolean respawned = fellBelowWorld();
         if (respawned) {
             moveToRespawn(world);
         } else {
@@ -239,6 +245,60 @@ public class Player extends LivingEntity {
         }
     }
 
+    /** Gửi thao tác lái trước khi World cập nhật thú, đồng thời tắt các chế độ đi bộ và bay. */
+    private void updateRiding(World world, MountableMob vehicle, float dt) {
+        syncMountedPosition();
+        if (fellBelowWorld()) {
+            resetRespawnMotion(world);
+            if (camera != null) {
+                camera.setPosition(position.x, position.y + currentEyeHeight, position.z);
+            }
+            return;
+        }
+        isFlying = false;
+        isSneaking = false;
+        isSprinting = false;
+        pushX = pushZ = 0f;
+        lastSpaceTapTime = lastShiftTapTime = Float.NEGATIVE_INFINITY;
+        if (camera != null && Gdx.input != null) {
+            boolean shiftDown = Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT);
+            boolean spaceDown = Gdx.input.isKeyPressed(Input.Keys.SPACE);
+            boolean tryLeave = shiftDown && !wasShiftPressed;
+            wasShiftPressed = shiftDown;
+            wasSpacePressed = spaceDown;
+            if (tryLeave && vehicle.tryDismount(world, this)) {
+                camera.setPosition(position.x, position.y + currentEyeHeight, position.z);
+                return;
+            }
+            readMovementDirection(camera);
+            wishDir.nor();
+            boolean sprint = Gdx.input.isKeyPressed(Input.Keys.CONTROL_LEFT) && !wishDir.isZero();
+            vehicle.updateRiderInput(this, wishDir.x, wishDir.z, sprint, spaceDown, dt);
+            camera.updateDynamicFov(sprint, false, dt);
+        }
+        currentEyeHeight += (STANDING_EYE_HEIGHT - currentEyeHeight) * Math.min(1f, dt * 14f);
+        updateLavaContact(world);
+    }
+
+    /** Cùng ngưỡng hồi sinh khi đi bộ và khi thú cưỡi rơi ra ngoài thế giới. */
+    private boolean fellBelowWorld() {
+        return position.y < -25f;
+    }
+
+    /** Gắn chân và mắt vào ghế sau lượt chuyển động của thú để camera theo kịp ngay trong khung hình. */
+    public void syncMountedPosition() {
+        LivingEntity vehicle = getMount();
+        if (vehicle == null) {
+            return;
+        }
+        vehicle.copySeatPosition(getMountedSeat(), position);
+        velocity.setZero();
+        onGround = false;
+        if (camera != null) {
+            camera.setPosition(position.x, position.y + currentEyeHeight, position.z);
+        }
+    }
+
     /** Xử lý hồi sinh sau khi các bước sát thương của lượt cập nhật kết thúc. */
     @Override
     protected void finishLivingUpdate(World world) {
@@ -257,6 +317,7 @@ public class Player extends LivingEntity {
 
     /** Dùng lại bộ tìm vị trí an toàn và xóa đà từ nơi vừa rơi hoặc chết. */
     private void moveToRespawn(World world) {
+        leaveMount();
         world.setRespawnPosition(position);
         velocity.setZero();
         resetFallTracking();
@@ -390,25 +451,8 @@ public class Player extends LivingEntity {
         }
         wasShiftPressed = shiftDown;
 
-        // 3. Tính hướng di chuyển trên mặt phẳng ngang XZ
-        double yawRad = Math.toRadians(camera.getYaw());
-        forwardXZ.set((float) Math.cos(yawRad), 0, (float) Math.sin(yawRad)).nor();
-        rightXZ.set(-forwardXZ.z, 0, forwardXZ.x).nor();
-
-        wishDir.setZero();
-        if (Gdx.input.isKeyPressed(Input.Keys.W)) {
-            wishDir.add(forwardXZ);
-        }
-        if (Gdx.input.isKeyPressed(Input.Keys.S)) {
-            wishDir.sub(forwardXZ);
-        }
-        if (Gdx.input.isKeyPressed(Input.Keys.D)) {
-            wishDir.add(rightXZ);
-        }
-        if (Gdx.input.isKeyPressed(Input.Keys.A)) {
-            wishDir.sub(rightXZ);
-        }
-
+        // 3. Đọc hướng di chuyển ngang theo góc camera.
+        readMovementDirection(camera);
         boolean isMovingHorizontally = wishDir.len2() > 0.0001f;
 
         // 4. Tính tốc độ di chuyển (Sprint 1.5x / Sneak 0.5x / Fly)
@@ -465,6 +509,26 @@ public class Player extends LivingEntity {
                 velocity.y = JUMP_VELOCITY;
                 onGround = false;
             }
+        }
+    }
+
+    /** Dùng chung phép đổi WASD sang trục thế giới cho đi bộ và lái thú. */
+    private void readMovementDirection(Camera camera) {
+        double yawRad = Math.toRadians(camera.getYaw());
+        forwardXZ.set((float) Math.cos(yawRad), 0, (float) Math.sin(yawRad)).nor();
+        rightXZ.set(-forwardXZ.z, 0, forwardXZ.x).nor();
+        wishDir.setZero();
+        if (Gdx.input.isKeyPressed(Input.Keys.W)) {
+            wishDir.add(forwardXZ);
+        }
+        if (Gdx.input.isKeyPressed(Input.Keys.S)) {
+            wishDir.sub(forwardXZ);
+        }
+        if (Gdx.input.isKeyPressed(Input.Keys.D)) {
+            wishDir.add(rightXZ);
+        }
+        if (Gdx.input.isKeyPressed(Input.Keys.A)) {
+            wishDir.sub(rightXZ);
         }
     }
 

@@ -216,6 +216,7 @@ public final class MobGoals {
         private static final int SEARCH_RADIUS = 7;
         private static final int CELLS_PER_SEARCH = 20;
         private static final float MAX_ROUTE_SECONDS = 5f;
+        private static final float CLOSE_COMBAT_RANGE_SQUARED = 8f * 8f;
         private static final int[] OFFSETS = sortedOffsets();
 
         private final Destination destination = new Destination();
@@ -225,7 +226,7 @@ public final class MobGoals {
         private int nextOffset;
         private float remaining;
         private boolean searching;
-        private boolean sheltered;
+        private final Vector3 combatTarget = new Vector3();
 
         /** Gắn hành vi tìm nơi trú tránh cháy nắng. */
         public SunlightShelterGoal(int priority) {
@@ -259,7 +260,7 @@ public final class MobGoals {
         /** Chọn ô râm mát hoặc nước đầu tiên có thể dùng theo thứ tự gần đến xa. */
         @Override
         public boolean canStart(World world, MobEntity mob) {
-            if (!mob.burnsInSunlight() || mob.getFireTimer() <= 0f || !mob.isSunExposed(world)) {
+            if (!needsShelter(world, mob)) {
                 searching = false;
                 return false;
             }
@@ -305,32 +306,31 @@ public final class MobGoals {
                     || world.hasWeatherRoof(x, feetY + headOffset, z) ? feetY : Float.NaN;
         }
 
-        /** Giữ chỗ trú khi còn nắng, hoặc thử chỗ khác nếu đường chạy không thành công. */
+        /** Nhả kênh di chuyển ngay khi hết phơi nắng hoặc cần đánh mục tiêu ở gần. */
         @Override
         public boolean shouldContinue(World world, MobEntity mob) {
-            if (world.worldTime().sunY() <= 0.05f) {
+            return remaining > 0f && !destination.reached(mob) && needsShelter(world, mob);
+        }
+
+        /** Zombie đang áp sát mục tiêu ưu tiên cận chiến, kể cả khi còn ở ngoài nắng. */
+        private boolean needsShelter(World world, MobEntity mob) {
+            if (!mob.burnsInSunlight() || mob.getFireTimer() <= 0f || !mob.isSunExposed(world)) {
                 return false;
             }
-            sheltered = mob.inWater() || world.hasWeatherRoof(floor(mob.x()),
-                    mob.y() + mob.getHeight(), floor(mob.z()));
-            return sheltered || (remaining > 0f && !destination.reached(mob)
-                    && mob.getFireTimer() > 0f && mob.isSunExposed(world));
+            LivingEntity target = mob.target();
+            return !(mob instanceof Zombie) || target == null || !target.isAlive()
+                    || distanceSquared(mob, target.copyCenterPosition(combatTarget)) > CLOSE_COMBAT_RANGE_SQUARED;
         }
 
         /** Giới hạn thời gian cố bám một chỗ trú bị chặn bởi địa hình. */
         @Override
         public void start(World world, MobEntity mob) {
             remaining = MAX_ROUTE_SECONDS;
-            sheltered = false;
         }
 
         /** Tiếp tục chạy tới bóng râm hoặc điểm nước đã chọn. */
         @Override
         public void tick(World world, MobEntity mob, float dt) {
-            if (sheltered) {
-                mob.stopMoving();
-                return;
-            }
             remaining -= dt;
             destination.move(world, mob, 1.1f);
         }

@@ -15,13 +15,13 @@ Phần A mô tả **100% tính chất hiện có** của dự án **VoxelGame**.
   - Đã loại bỏ hoàn toàn: LWJGL BOM 3.3.3, JOML 1.10.5, JLayer 1.0.1 (libGDX đã tích hợp sẵn LWJGL 3, GLFW, OpenGL, STB, OpenAL và thư viện toán học).
 - **Tài nguyên (`src/main/resources/`):**
   - **Âm thanh:** `audio/music/` chứa 5 bản Ogg Vorbis từ `import.zip`. `audio/sfx/` chứa 93 mẫu OGG được chọn từ gói hiệu ứng đi kèm, gồm biến thể vật liệu và mẫu dùng cho các tương tác hiện có. Tài nguyên được tìm theo đường dẫn cố định trong classpath.
-  - **Texture khối:** `textures/` đóng gói bộ ảnh gốc của dự án và 13 PNG nhập nguyên byte từ `assets/minecraft/textures/block/` trong `1.21.11.zip`. Các tệp mới gồm `sandstone.png`, `sandstone_top.png`, `sandstone_bottom.png`, `spruce_log_top.png`, `short_grass.png`, `tall_grass_bottom.png`, `tall_grass_top.png`, `dandelion.png`, `poppy.png`, `cornflower.png`, `oxeye_daisy.png`, `sugar_cane.png` và `gravel.png`. Game nạp ảnh đã đóng gói và dùng bộ nạp dự phòng khi thiếu tài nguyên.
+  - **Texture khối:** `textures/` đóng gói bộ ảnh gốc của dự án và 13 PNG nhập nguyên byte từ `assets/minecraft/textures/block/` trong `1.21.11.zip`, gồm `sandstone.png`, `sandstone_top.png`, `sandstone_bottom.png`, `spruce_log_top.png`, `short_grass.png`, `tall_grass_bottom.png`, `tall_grass_top.png`, `dandelion.png`, `poppy.png`, `cornflower.png`, `oxeye_daisy.png`, `sugar_cane.png` và `gravel.png`. `dirt.png`, `grass_block_side.png`, `grass_block_side_overlay.png`, `grass_block_snow.png`, `water_still.png` và `lava_still.png` khớp nguyên byte với `minecraft_entities_assets.zip`. `grass_block_top.png` giữ nguyên độ sáng từng pixel của ảnh 16 × 16 từ cùng gói và lưu dưới dạng PNG RGB để libGDX đọc họa tiết vào các kênh màu. Game nạp ảnh đã đóng gói và dùng bộ nạp dự phòng khi thiếu tài nguyên.
   - **Rương trang trí:** Ba tile pixel art mặt có khóa, mặt bên và nắp được tạo khi dựng atlas. Cây cọ có hình dáng riêng và dùng tile thân, lá đã có của dự án.
   - **Tài nguyên môi trường:** `textures/environment/rain.png` và `snow.png` giữ nguyên ảnh 64 × 256 có sẵn. `celestial/sun.png` lấy từ `1.21.11.zip`, tám ảnh `celestial/moon/` lấy từ `Blue-Moon.zip` và `clouds.png` lấy từ `Cloudier Clouds.zip`. `audio/weather/rain.wav` là đoạn lặp nối chồng 0,65 giây từ bản thu `Kao - Minecraft Vanilla Rain Sounds Sample.mp3` đi kèm.
-  - **Mob và đạn đạo:** 43 ảnh pixel art Ourcraft 128 × 64 nằm tại `textures/entity/<nhóm>/<tên>.png`, tương ứng 35 diện mạo đã đăng ký và 8 lớp phủ, mắt hoặc hoa văn. Cung, giáo và lọ của mô hình hình người dùng vùng riêng trên tấm ảnh nền. `audio/sfx/mob/<id>/<sự_kiện>{1,2}.wav` chứa 212 mẫu Ourcraft tổng hợp gốc, mono PCM 16 bit ở 22.050 Hz. Bảng dưới ghi các đường dẫn classpath theo nhóm.
-- **Kiểm thử:** Gradle `regressionChecks` chạy các ca CPU về block, vật lý, raycast, điều khiển, mesh, terrain, ngày đêm, thời tiết, sát thương, hiệu ứng, tài nguyên mob, UV, cây khớp và âm thanh theo khoảng cách. Các ca mob xác minh ưu tiên goal, cháy nắng, trọng số, phân vùng tuyết, cap, khám phá chunk, despawn, va chạm đạn tốc độ cao, hiệu ứng tên và thuốc, cùng hành vi riêng của 10 loài thù địch và 9 loài thú. `check` gọi task này. Trình biên dịch dùng `options.release = 17`.
+  - **Mob và đạn đạo:** 41 PNG mob nhập nguyên byte từ `minecraft_entities_assets.zip` dưới `textures/entity/<nhóm>/<tên>.png`, gồm 33 ảnh nền và 8 ảnh lớp phủ, mắt hoặc hoa văn. Ảnh mob có kích thước từ 48 × 32 đến 128 × 128. Hai ảnh đạn `arrow` và `potion` dùng pixel art Ourcraft 128 × 64. Cung, giáo và lọ cầm tay dùng chung ảnh `equipment/held.png`, trích từ ba vùng trang bị của ảnh Ourcraft. `audio/sfx/mob/<id>/<sự_kiện>{1,2}.wav` chứa 212 mẫu Ourcraft tổng hợp gốc, mono PCM 16 bit ở 22.050 Hz. Bảng dưới ghi các đường dẫn classpath theo nhóm.
+- **Kiểm thử:** Gradle `regressionChecks` chạy các ca CPU về block, vật lý, raycast, điều khiển, mesh, terrain, ngày đêm, thời tiết, sát thương, hiệu ứng, tài nguyên mob, UV, cây khớp và âm thanh theo khoảng cách. Các ca mob xác minh đủ 24 cấu hình, ưu tiên goal, cháy nắng, trọng số, phân vùng tuyết, cap, khám phá chunk, despawn, đạn, thú cưỡi và chuyển quyền điều khiển Camel Husk. `check` gọi task này. Trình biên dịch dùng `options.release = 17`.
 
-| Nhóm dưới `textures/entity/` | Tên PNG Ourcraft (bỏ đuôi `.png`) |
+| Nhóm dưới `textures/entity/` | Tên PNG (bỏ đuôi `.png`) |
 | --- | --- |
 | `zombie`, `zombie_villager`, `skeleton` | `zombie`, `husk`; `zombie_villager`; `skeleton`, `stray`, `stray_overlay`, `parched` |
 | `creeper`, `spider`, `enderman`, `witch` | `creeper`; `spider`, `spider_eyes`; `enderman`, `enderman_eyes`; `witch` |
@@ -29,12 +29,13 @@ Phần A mô tả **100% tính chất hiện có** của dự án **VoxelGame**.
 | `horse` | `donkey`; `horse_white`, `horse_creamy`, `horse_chestnut`, `horse_brown`, `horse_black`, `horse_gray`, `horse_darkbrown`; `horse_markings_white`, `horse_markings_whitefield`, `horse_markings_whitedots`, `horse_markings_blackdots` |
 | `rabbit`, `camel`, `goat`, `bear` | `gold`, `white`, `white_splotched`; `camel`, `camel_husk`; `goat`; `polarbear` |
 | `wolf`, `fox`, `projectile` | `wolf_snowy`, `wolf_snowy_angry`; `snow_fox`, `snow_fox_sleep`; `arrow`, `potion` |
+| `equipment` | `held` |
 
 - **Đối chiếu ZIP tham chiếu:** Texture 1.21.11 có các biến thể trên và trang bị ở nhánh `assets/minecraft/textures/`. Các đường dẫn khác tên đích gồm `entity/sheep/sheep_wool.png`, `entity/spider_eyes.png`, `entity/witch.png`, `entity/projectiles/arrow.png`, `item/potion.png`, `item/bow*.png` và `item/iron_spear_in_hand.png`. Gói SFX 1.17 đặt một số nhóm dưới `mob/endermen/`, `entity/witch/`, `mob/horse/donkey/`, `mob/polarbear/` và mẫu chung dưới `random/`. Gói này thiếu nhóm Camel, Camel Husk và Parched cùng hiệu ứng Camel Dash và Spear Charge. Các sự kiện đó có WAV gốc Ourcraft trong classpath.
 
 ---
 
-### 2. Kiến Trúc Mã Nguồn Hiện Tại (103 File Java)
+### 2. Kiến Trúc Mã Nguồn Hiện Tại (108 File Java)
 - **`com.voxelgame` (2 file):** `Main.java` khởi chạy desktop. `VoxelGameApp.java` quản lý Game Loop, sự kiện đầu vào, Pause Menu, đào/đặt block và vòng đời tài nguyên.
 - **`com.voxelgame.engine` (33 file):**
   - `Camera.java` quản lý góc nhìn, Dynamic FOV và ma trận. `Raycast.java` duyệt DDA và kiểm tra hộp chọn có thể tái sử dụng kết quả.
@@ -49,9 +50,9 @@ Phần A mô tả **100% tính chất hiện có** của dự án **VoxelGame**.
   - `Entity.java` chứa tọa độ, vận tốc và quét AABB theo trục. `LivingEntity.java` thêm HP, giáp, hiệu ứng, lửa, sát thương rơi, vòng đời chết và liên kết ghế hai chiều. `DamageSource.java`, `StatusEffectType.java` và `StatusEffectInstance.java` định nghĩa nguồn sát thương cùng các khe hiệu ứng. `Player.java` kế thừa `LivingEntity`, xử lý điều khiển, sinh tồn, đòn đánh tay không, bảo vệ mép, bước tuyết, quán tính trên băng và phản hồi xương rồng.
   - `Hotbar.java` quản lý 9 ô. `ItemEntity.java` quản lý vật phẩm rơi và mesh dùng chung. `FallingBlockEntity.java` quản lý trạng thái cát/sỏi đang rơi.
   - `Block.java` đăng ký 27 singleton vào bảng 256 ID tra theo byte không dấu. `PlantBlock.java` chia sẻ hình học và luật nền thực vật. Các lớp block còn lại được liệt kê trong bảng bên dưới. Bốn hoa dùng chung `FlowerBlock.java`.
-- **`com.voxelgame.entity.mob` (28 file):** `MobEntity.java` mở rộng `LivingEntity` với vật lý, hoạt ảnh và phản ứng theo cá thể. `MobType.java`, `MobCategory.java` và `MobAttitude.java` định nghĩa danh mục 24 cấu hình, nhóm sinh và thái độ. `MobGoal.java`, `MobGoalSelector.java` và `MobGoals.java` điều phối hành vi. `SimpleGridNavigator.java` thử những bước ngắn và chọn hướng tránh vật cản. Mười loài thù địch và chín loài thú đăng ký tổng cộng 20 factory, gồm hai cấu hình sinh thỏ. Ba cung thủ và Witch dùng chung `RangedMob.java` để ngắm, kiểm tra tầm nhìn và tính vận tốc đạn.
+- **`com.voxelgame.entity.mob` (33 file):** `MobEntity.java` mở rộng `LivingEntity` với vật lý, hoạt ảnh và phản ứng theo cá thể. `MobType.java`, `MobCategory.java` và `MobAttitude.java` định nghĩa danh mục 24 cấu hình và 24 factory, gồm hai cấu hình sinh thỏ. `MobGoal.java`, `MobGoalSelector.java` và `MobGoals.java` điều phối hành vi. `SimpleGridNavigator.java` chọn hướng tránh vật cản. `MountableMob.java` xử lý ghế, điều khiển, thuần hóa và tìm chỗ xuống. `Horse.java`, `Donkey.java`, `Camel.java` và `CamelHusk.java` bổ sung chỉ số, hành vi và đòn tấn công riêng. Ba cung thủ và Witch dùng chung `RangedMob.java` để ngắm, kiểm tra tầm nhìn và tính vận tốc đạn.
 - **`com.voxelgame.entity.projectile` (5 file):** `ProjectileEntity.java` xử lý trọng lực, tuổi thọ, quét va chạm và trạng thái vẽ. `ArrowEntity.java` cùng `ArrowType.java` xử lý tên. `ThrownPotionEntity.java` cùng `PotionType.java` xử lý vùng vỡ và hiệu lực thuốc.
-- **Kiểm thử CPU (19 file):** `VoxelRegressionChecks.java` gọi `MobSpawnerChecks.java` để chạy `MobSpawnTableChecks.java`, `MobPhysicsChecks.java` và `MobGoalChecks.java`. `HostileMobChecks.java` kiểm tra đăng ký loài, cháy nắng và Enderman, rồi gọi `ProjectileChecks.java`, `CloseHostileChecks.java` và `RangedHostileChecks.java`. `PassiveAndNeutralMobChecks.java` xác minh factory, đội hình gấu và gọi `PlainsAnimalChecks.java`, `RabbitFoxChecks.java` và `NeutralSnowChecks.java`. Mọi lớp đều nằm trong `src/test/java/com/voxelgame/engine/`.
+- **Kiểm thử CPU (23 file):** `VoxelRegressionChecks.java` gọi `MobSpawnerChecks.java` để chạy `MobSpawnTableChecks.java`, `MobPhysicsChecks.java` và `MobGoalChecks.java`. `HostileMobChecks.java` gọi `ProjectileChecks.java`, `CloseHostileChecks.java` và `RangedHostileChecks.java`. `PassiveAndNeutralMobChecks.java` xác minh factory, đội hình gấu và gọi `PlainsAnimalChecks.java`, `RabbitFoxChecks.java` và `NeutralSnowChecks.java`. `MountAndCamelHuskChecks.java` kiểm tra factory, sinh đàn ngựa và cụm kỵ sĩ thật, rồi gọi `EquineMountChecks.java`, `CamelMountChecks.java` và `CamelHuskBehaviorChecks.java`. Mọi lớp đều nằm trong `src/test/java/com/voxelgame/engine/`.
 
 ---
 
@@ -61,7 +62,7 @@ Phần A mô tả **100% tính chất hiện có** của dự án **VoxelGame**.
 | --- | --- | ---: | --- | --- | --- |
 | 0 | `AirBlock` | −1 | Bỏ qua | 0 | Không khí, thay thế được. |
 | 1 | `DirtBlock` | 0,75 | Khối rắn đục | 0 | Rơi Dirt. |
-| 2 | `GrassBlock` | 0,75 | Khối rắn đục | Trên 1, đáy 0, cạnh 2 | Rơi Dirt. Khi tuyết phủ, trên dùng 19 và cạnh 11. Khối đục đầy khác phía trên chuyển cỏ thành Dirt. |
+| 2 | `GrassBlock` | 0,75 | Khối rắn đục | Trên 1, đáy 0, cạnh 2 | Rơi Dirt. Khi tuyết phủ, trên dùng 19 và cạnh 11. Khối đục đầy, chất lỏng hoặc tuyết dày phía trên làm cỏ tàn thành Dirt. Cỏ lộ sáng ban ngày có thể lan sang Dirt gần đó. |
 | 3 | `StoneBlock` | 5,0 | Khối rắn đục | 3 | Rơi Stone. |
 | 4 | `BedrockBlock` | −1 | Khối rắn đục | 4 | Nền Y=0, không phá được. |
 | 5 | `OakLogBlock` | 3,0 | Khối rắn đục | Đầu 6, cạnh 5 | Rơi Oak Log. |
@@ -85,6 +86,7 @@ Phần A mô tả **100% tính chất hiện có** của dự án **VoxelGame**.
 | 26 | `DecorativeChestBlock` | 2,5 | Khối rắn đục | Nam 33, cạnh và đáy 34, trên 35 | Rương trang trí dùng âm thanh gỗ, đào rơi rương và đặt được qua Hotbar. |
 
 - Metadata dùng 0–7 cho một đến tám lớp tuyết, 0/1 cho nửa dưới/trên của Tall Grass. ID cũ 0–8 giữ nguyên. Ô mặc định không cần mảng metadata riêng. Chiều cao vẽ tuyết là số lớp × 0,125. Va chạm của lớp 2–7 thấp hơn hình vẽ một lớp. Tám lớp va chạm cao 1 block.
+- Mỗi 50 ms, World lấy ba mẫu ngẫu nhiên trên mỗi section có dữ liệu trong bán kính mô phỏng 128 block theo phương ngang. Grass Block lộ sáng ban ngày thử tối đa bốn ô trong vùng ngang ±1 và dọc −3 đến +1. Dirt lộ sáng dưới cây thấp hoặc một lớp tuyết có thể mọc cỏ. Block đổi trạng thái dùng hàng đợi cập nhật và đánh dấu mesh qua biên chunk.
 - Khi sửa block, hàng đợi xử lý ô vừa đổi, sáu ô chung mặt và các phụ thuộc ngoài nhóm này. Mía kiểm tra nước ở cao độ nền. Snow Layer tan thành Air và Ice tan thành Water khi có Lava trong bán kính Manhattan 2. Cát/sỏi tạo thực thể đúng một lần khi mất nền, rồi đặt lại hoặc rơi item tùy mặt đáp.
 - Tia chọn được mọi block trừ Air, Water và Lava. Chỉ block có hộp va chạm thực mới cản chuyển động. Chữ X của cây vẽ hai phía và không có hộp vật lý.
 
@@ -145,18 +147,47 @@ Phần A mô tả **100% tính chất hiện có** của dự án **VoxelGame**.
   - Nền vùng thấp khoảng Y=26–34, núi tuyết của seed mặc định đạt ít nhất Y=140. Giới hạn nền địa chất là Y=154. Noise lục địa, Perlin xói mòn và ridged multifractal được ánh xạ bằng spline phân đoạn. Sa mạc có tầng cồn cát phân bậc hai block.
   - Từ tây sang đông là Snowy Plains, Plains và Desert. Perlin làm uốn ranh giới quanh X=1000 và X=2000. Địa tầng, cây, tuyết, HUD và thời tiết dùng cùng công thức phân loại biome.
   - **Plains:** Bedrock → Stone → 3–4 Dirt → Grass Block ở chỗ thoải. Dốc vừa lộ đá xen sỏi, dốc lớn lộ đá. Perlin quyết định trảng cỏ và cụm rừng với sồi thường, sồi cổ thụ, bụi sồi. Bốn trường Simplex tạo cụm riêng cho từng loài hoa.
-  - **Desert:** Bedrock → Stone → 3–4 Sandstone → 3–5 Sand ở chỗ thoải. Có vách sandstone, cactus cao 1–3 block, bụi khô, ốc đảo có cọ và hồ Lava. Một kim tự tháp giật cấp có nền móng sandstone, lối vào, sảnh cột, cầu thang và phòng ngầm có rương trang trí.
+  - **Desert:** Bedrock → Stone → 3–4 Sandstone → 3–5 Sand ở chỗ thoải. Dốc vừa và dốc lớn lộ sandstone, bờ sông sa mạc dùng cát có lớp đệm sandstone. Các cột Desert không sinh sỏi, tuyết hoặc băng. Có cactus cao 1–3 block, bụi khô, ốc đảo có cọ và hồ Lava. Một kim tự tháp giật cấp có nền móng sandstone, lối vào, sảnh cột, cầu thang và phòng ngầm có rương trang trí.
   - **Snowy Plains:** Nền đá và sỏi lộ trên dốc, cỏ thoải phủ Snow Layer thường 1 lớp, có vùng 2–3 lớp và Snow Block. Đỉnh trên Y=110 có lớp Snow Block. Vân sam tán rộng ở vùng thấp, thông nhọn trên sườn và thông lùn thưa gần giới hạn cây. Tuyết đọng trên tán lá thoáng và tránh dung nham.
   - **Sông và hồ:** Sông uốn theo dải noise, có mực nước Y=28, bờ cát hoặc sỏi có nền đỡ và mía ở ô sát nước hợp lệ. Mặt sông và hồ trong vùng lạnh đóng băng. Hồ chỉ sinh ở vùng thấp có mực hồ tối đa Y=48 và chênh cao toàn dấu chân tối đa 3 block, tránh dải sông, công trình và vùng an toàn của người chơi.
-  - Hồ dung nham chọn vật liệu theo kiểu bề mặt ở tâm hồ. Desert có bờ Sand và lót Sandstone. Plains và Snowy Plains có bờ Grass Block và lót Dirt. Quy tắc tránh băng và tuyết gần dung nham áp dụng cả trên bờ.
+  - Hồ dung nham chọn vật liệu theo biome ở từng cột. Desert có bờ Sand và lót Sandstone. Plains và Snowy Plains có bờ Grass Block và lót Dirt. Quy tắc tránh băng và tuyết gần dung nham áp dụng cả trên bờ.
   - Bộ đệm độ cao cột dùng `short[]`, mã biome và cờ sinh dùng `byte[]`. Bộ sinh tính độ cao trước, chọn dấu chân kim tự tháp, ghi địa tầng và nước theo dải cột được cắt tại biên chunk, rồi sinh hồ, băng/tuyết, công trình, cây và thực vật. Hai bộ đệm cột được bỏ sau khởi tạo. ID block trong chunk tiếp tục chiếm một byte.
 
 #### Vật lý, AI và lượt sinh mob
 
 - **Cập nhật cá thể.** `MobEntity` quét AABB theo X → Z → Y, nhảy qua bậc tối đa 1 block khi có khoảng trống và có thể được cấu hình bước thẳng tối đa 1,5 block cho thú cưỡi. Điều hướng kiểm tra vài bước quanh hướng đích, tránh Lava, Cactus và mép rơi sâu hơn 3 block. Chicken có ngưỡng điều hướng 8 block và Goat có ngưỡng 13 block. Mob có thể tự nổi trong Water. Mob nhạy nắng bắt lửa với thời lượng tối thiểu 2 giây khi `sunY() > 0,05`, lộ thiên, khô và không có mưa tại cột hiện tại. Hoạt ảnh theo hướng thân, hướng đầu và quãng di chuyển thực.
-- **Mục tiêu AI.** Số ưu tiên thấp được chọn trước. Các kênh di chuyển, nhìn và nhảy điều phối riêng. Bộ dùng chung gồm nổi, tìm nước hoặc mái che, hoảng 3–5 giây ở tốc độ ×1,25, lánh thực thể, đuổi và đánh cận chiến theo hồi chiêu, đi theo vật phẩm trên Hotbar, đi lang thang trong bán kính 9 block và nhìn người chơi hoặc nhìn quanh. Skeleton và Stray tránh Wolf trong 6 block. Các loài chỉ sinh tự nhiên khi factory được đăng ký.
+- **Mục tiêu AI.** Số ưu tiên thấp được chọn trước. Các kênh di chuyển, nhìn và nhảy điều phối riêng. Bộ dùng chung gồm nổi, tìm nước hoặc mái che, hoảng 3–5 giây ở tốc độ ×1,25, lánh thực thể, đuổi và đánh cận chiến theo hồi chiêu, đi theo vật phẩm trên Hotbar, đi lang thang trong bán kính 9 block và nhìn người chơi hoặc nhìn quanh. Goal trú nắng nhả kênh ngay khi mob vào bóng râm, chạm nước hoặc hết phơi nắng. Zombie và Zombie Villager ưu tiên mục tiêu sống trong 8 block khi đang cháy ngoài nắng. Skeleton và Stray tránh Wolf trong 6 block. Các loài chỉ sinh tự nhiên khi factory được đăng ký.
 - **Bảng sinh.** Monster có tổng trọng số 415 trong mỗi biome. Creature dùng tổng 46 ở Plains, 13 ở Desert và 11/24/9 lần lượt ở đồng bằng tuyết, Grove và sườn núi tuyết. Chọn theo trọng số rồi thử đặt các thành viên ở điểm gần nhau, cùng biome và phân vùng thú tuyết. Snowy Slopes/Peaks ưu tiên Y ≥ 62, hoặc nền đá, sỏi hay Snow Block từ Y=48 với chênh cao tối thiểu hai block ở cột kề. Grove nhận diện vân sam trong cầu bán kính 10 block ở Y từ 30 đến 61. Phần còn lại là Snowy Plains Flat.
-- **Vị trí sinh.** Vành hoạt động cách chân người chơi 24–128 block theo khoảng cách 3D. Monster cần tick 13.000–23.000, mặt trời thấp hơn −0,15, hoặc mái che rắn. Husk, Parched, Stray và Camel Husk luôn cần lộ thiên. Creature ở Plains cần Grass Block ban ngày, ở Desert cần Sand hoặc Grass Block, và ở Snowy Plains dùng nền theo loài. Nước, Lava, Cactus, lá và Bedrock bị loại. Chỉ Polar Bear dùng nền Ice. Cả hộp va chạm phải nằm trong bản đồ và có khoảng trống. Khi đủ factory, chỗ trống và ba suất, một lượt sinh Husk có 10% cơ hội tạo Camel Husk cùng Husk và Parched đã gắn vào hai ghế.
+- **Vị trí sinh.** Vành hoạt động cách chân người chơi 24–128 block theo khoảng cách 3D. Monster cần tick 13.000–23.000, mặt trời thấp hơn −0,15, hoặc mái che rắn. Husk, Parched, Stray và Camel Husk cần lộ thiên. Creature ở Plains cần Grass Block ban ngày. Thỏ Desert dùng Sand hoặc Grass Block. Camel dùng Sand và ưu tiên các cột cát liền kề cùng cao độ. Snowy Plains dùng nền theo loài. Nước, Lava, Cactus, lá và Bedrock bị loại. Chỉ Polar Bear dùng nền Ice. Cả hộp va chạm phải nằm trong bản đồ và có khoảng trống. Một lượt sinh Husk ở mặt đất Desert ban đêm có 10% cơ hội tạo Camel Husk, Husk cầm giáo sắt và Parched khi còn ít nhất ba suất quái và đủ khoảng trống cho cả cụm.
+
+| Cấu hình | Plains | Desert | Snowy Plains |
+| --- | --- | --- | --- |
+| Sheep | 12 (4) | — | — |
+| Pig | 10 (4) | — | — |
+| Chicken | 10 (4) | — | — |
+| Cow | 8 (4) | — | — |
+| Horse | 5 (2–6) | — | — |
+| Donkey | 1 (1–3) | — | — |
+| Rabbit | — | 12 (2–3) | — |
+| Camel | — | 1 (1) | — |
+| Snow Rabbit | — | — | Flat 10, Grove 8, Slopes/Peaks 4 (2–3) |
+| Polar Bear | — | — | Flat 1 (1–2) |
+| Wolf | — | — | Grove 8 (4) |
+| Snow Fox | — | — | Grove 8 (2–4) |
+| Goat | — | — | Slopes/Peaks 5 (1–3) |
+| Spider | 100 (4) | 100 (4) | 100 (4) |
+| Creeper | 100 (4) | 100 (4) | 100 (4) |
+| Zombie | 95 (4) | 19 (4) | 95 (4) |
+| Skeleton | 100 (4) | 50 (4) | 20 (4) |
+| Enderman | 10 (1–4) | 10 (1–4) | 10 (1–4) |
+| Zombie Villager | 5 (1) | 1 (1) | 5 (1) |
+| Witch | 5 (1) | 5 (1) | 5 (1) |
+| Husk | — | 80 (4) | — |
+| Parched | — | 50 (4) | — |
+| Stray | — | — | 80 (4) |
+| Camel Husk | — | 10% trên lượt Husk đủ điều kiện (cụm 3 cá thể) | — |
+
+Mỗi ô ghi trọng số rồi đến cỡ bầy trong ngoặc. Tỷ lệ chọn tính trên tổng trọng số trong cùng nhóm và phân vùng.
 - **Dân số và chi phí.** Mỗi 0,25 giây, bộ sinh thử tối đa bốn điểm gốc cho quái và một điểm sinh bổ sung cho thú, rồi thử tối đa 16 ô lân cận cho từng bầy đã chọn. Cap định kỳ trong vùng hoạt động là 70 Monster và 10 Creature. Mỗi nhịp xét tối đa sáu cột chunk quanh người chơi. Cột mới đủ gần mặt đất có một lần bốc 10% trong phiên World để sinh thú, bỏ qua cap 10. Trạng thái khám phá dùng bit theo tọa độ chunk. Mob ngoài phạm vi 128 block tạm dừng AI nếu được giữ lại. Monster không persistent biến mất ngay khi vượt 128 block, hoặc có xác suất 1/800 mỗi tick mô phỏng 20 Hz sau 30 giây liên tục ở khoảng 32–128 block. Creature và cá thể persistent được giữ lại.
 
 #### Đạn đạo và các loài thù địch
@@ -188,8 +219,15 @@ Phần A mô tả **100% tính chất hiện có** của dự án **VoxelGame**.
 - **Rabbit.** Thỏ hiền lành sa mạc luôn vàng cát. Thỏ tuyết có 80% lông trắng mắt đỏ và 20% lông trắng đốm đen. Thỏ nhảy cóc cao gần hai block, tránh người chơi trong 8 block, sói trong 10 block và quái thù địch trong 4 block. Dandelion ở ô Hotbar đang chọn dụ thỏ theo người chơi.
 - **Goat.** Dê trung lập chịu rơi thêm 10 block trước khi tính sát thương. Dê chọn chỗ đáp để nhảy vượt địa hình đến 10 block và lấy đà húc mục tiêu đứng yên hoặc di chuyển chậm, gây 2 HP và đẩy lùi mạnh. Nhịp húc thông thường 30–300 giây. 2% cá thể là dê hét, dùng âm thanh riêng và nhịp 5–15 giây.
 - **Polar Bear.** Bầy hai con gồm một trưởng thành và một con non với hộp 0,7 × 0,7 block. Gấu bơi với đầy đủ tốc độ ngang. Khi bị người chơi đánh, gấu trưởng thành quanh đó nổi giận và gấu con chạy. Người chơi tới gần gấu con trong 4 block kích thích gấu trưởng thành dựng lên, gầm và lao tới. Đòn đánh gây 6 HP. Gấu đôi khi săn Snow Fox.
-- **Wolf.** Sói tuyết đổi sang mắt đỏ, gầm và gọi sói trong 16 block cùng tấn công người chơi đã đánh nó. Sói săn thỏ, cáo, cừu, Skeleton và Stray với đòn 4 HP. Sói rũ nước khi lên bờ và nghiêng đầu nhìn người chơi gần.
+- **Wolf.** Sói tuyết đổi sang mắt đỏ, gầm và gọi sói trong 16 block cùng tấn công người chơi đã đánh trúng bằng tay hoặc tên. Mỗi đòn trúng cho cá thể bị đánh một thời gian giận mới từ 20–39 giây. Sói đuổi người chơi tối đa 32 block và thôi đuổi khi mục tiêu chết, thoát tầm hoặc hết giận. Sói săn thỏ, cáo, cừu, Skeleton và Stray với đòn 4 HP. Sói rũ nước khi lên bờ và nghiêng đầu nhìn người chơi gần.
 - **Snow Fox.** Cáo lông trắng, 5% là con non. Ban ngày cáo tìm tuyết hoặc tán vân sam để cuộn ngủ, ban đêm hoạt động. Người chơi đứng thường đến gần có thể đánh thức cáo và khiến cáo chạy trong 12 block. Người chơi rón rén có thể tiếp cận mà cáo vẫn ngủ. Cáo lấy đà và vồ thỏ hay gà trong 16 block, gây 2 HP và có thể chúi vào tuyết mỏng khi hụt. Cáo nhặt một vật phẩm khối gần để ngậm và nhả ra khi chết.
+
+#### Thú cưỡi và kỵ sĩ sa mạc
+
+- **Điều khiển.** Chuột phải để lên ghế trống nếu đủ khoảng trống. Người ngồi ghế trước dùng `WASD` theo hướng nhìn, `Ctrl trái` để chạy nhanh trên lạc đà và giữ rồi nhả `Space` để nhảy hoặc Dash. `Shift trái` tìm điểm đặt chân trống bên cạnh thú. Camera theo ghế sau mỗi lượt cập nhật vật lý. Thú chở người chìm và lội ở 40% tốc độ ngang, với trọng lực giảm trong nước. Khi nước ngập hơn 2 block với ngựa/lừa hoặc qua chiều cao 2,38 block của lạc đà, các ghế tự tách tại chỗ. Người chơi có thể tự bơi và thú mới nổi lên sau khi trống ghế.
+- **Horse và Donkey.** Cả hai loài có một ghế, bước thẳng qua bậc 1 block, 15–30 HP và 20% cơ hội sinh con non. Cá thể hoang tăng 25 điểm thiện cảm sau một lượt cưỡi khoảng 2,2–3,5 giây và có thể hất người chơi xuống nếu có điểm đứng an toàn. Cá thể thuần hóa ở 100 điểm và được giữ trong World. Ngựa dùng hitbox 1,3965 × 1,6, tốc độ 4,8–14,5 block/s và nhảy cao 1,25–5,25 block. Một đàn có chung màu lông nền và từng cá thể chọn hoa văn độc lập. Lừa dùng hitbox 1,3965 × 1,5, tốc độ 7,5 block/s, nhảy cao 2,1 block, tai dài và bộ âm thanh riêng.
+- **Camel.** Có hai ghế, 32 HP, hitbox 1,7 × 2,38 và bước thẳng qua bậc 1,5 block. Khi ngồi nghỉ trên cát, hitbox hạ còn 0,945 block. Camel đi 4,0 và chạy 6,8 block/s. Dash đầy lực lao khoảng 12 block, nâng chân khoảng 1 block, phát `CAMEL_DASH` và hồi sau 2,75 giây. Camel chịu thêm 4 block rơi an toàn, đi theo người cầm Cactus và hồi 2 HP khi được cho ăn.
+- **Camel Husk.** Dùng chỉ số, cơ chế bước, ghế, ngồi và Dash của lạc đà. Cả lạc đà xác sống và hai kỵ sĩ đều chịu được nắng. Husk ghế trước lấy đà, hạ giáo với âm `SPEAR_CHARGE`, rồi gây sát thương và đẩy lùi theo tốc độ lao. Parched ghế sau bắn Weakness I trong 30 giây và tiếp quản điều khiển để giữ cự ly bắn khi mất Husk. Khi cả hai kỵ sĩ rời ghế, Camel Husk chuyển hiền lành. Chuột phải lên ghế khi đó sẽ thuần hóa và giữ cá thể trong World.
 
 ---
 
@@ -197,6 +235,7 @@ Phần A mô tả **100% tính chất hiện có** của dự án **VoxelGame**.
 - **OpenGL & Vòng lặp:** OpenGL 3.3 Core Profile trong backend LWJGL 3 của libGDX, bật `GL_DEPTH_TEST`, `GL_CULL_FACE` (`GL_BACK`, `GL_CCW`), bật V-Sync `config.useVsync(true)` với mục tiêu 60 FPS, giới hạn `deltaTime <= 0.05f`.
 - **Màu trời & Ống kính:**
   - Vòm trời xoay theo camera, dùng xanh sáng vào ban ngày, xanh đen vào ban đêm và ánh cam theo hướng mọc/lặn. Mưa và tuyết chuyển bầu trời sang xám xanh.
+  - Khi mắt camera nằm dưới mặt thoáng của Water hoặc Lava, địa hình đục và trong suốt, mob, mây và giáng thủy dùng chung sương khoảng cách. Water có sương xanh từ 1 đến 22 block. Lava có sương đỏ cam từ 0,25 đến 1,6 block. Nền trời và màu xóa khớp với sương, thiên thể ẩn và lớp phủ chất lỏng nằm dưới HUD.
   - Camera: `BASE_FOV_DEG = 70.0f` (`+8.0f` khi Sprint, `+5.0f` khi Fly, nội suy `deltaTime * 10.0f`), `NEAR_PLANE = 0.08f`, `FAR_PLANE = 1024.0f`, ma trận tính qua `Matrix4.setToProjection` và `setToLookAt`.
 - **Định dạng Đỉnh & Shader (`ShaderProgram`):**
   - 6 floats/đỉnh: `[x, y, z, u, v, shade]` (`location 0: vec3 aPos`, `location 1: vec2 aTexCoord`, `location 2: float aShade`) quản lý qua `VertexAttributes` của libGDX.
@@ -212,9 +251,9 @@ Phần A mô tả **100% tính chất hiện có** của dự án **VoxelGame**.
 - **Hai pha vẽ:** Chunk đục/khoét alpha ghi chiều sâu theo dải từ gần ra xa để giới hạn overdraw ở vùng nhiều cây. Thực thể đục cũng ghi chiều sâu. Nước/băng giữ depth test, tắt ghi chiều sâu, dùng blend `GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA` rồi khôi phục trạng thái. Heapsort tại chỗ sắp pha trong suốt từ xa đến gần theo bình phương khoảng cách mắt–tâm chunk và phá hòa theo tọa độ. Các mảng được cấp phát trước. Thứ tự giữa các mặt trong một chunk là xấp xỉ.
   - Vòm trời và thiên thể vẽ trước các chunk. Mây ở Y=140 vẽ sau địa hình đục và trước nước/băng. Mưa và tuyết vẽ sau thế giới với depth test và alpha blend. Các lượt môi trường tắt ghi độ sâu, khôi phục trạng thái sau khi vẽ và dùng lại mảng đỉnh.
   - **Mô hình mob:** Thực thể có `MobVisual` được vẽ sau vật phẩm và khối đang rơi, trước mây, nước và băng. Cầu bao tính từ cây hình học, có dư địa cho chuyển động và trang bị, được thử với frustum và tầm vẽ. Mẫu hình người, thú bốn chân, nhện, gà, thỏ, sói, cáo, ngựa/lừa, lạc đà và đạn đạo dùng các hộp phân cấp với phép đổi 16 pixel trên 1 block. Góc dọc ở gốc hỗ trợ hướng bay. Mắt tự phát sáng, lớp phủ khoét alpha, sát thương chớp đỏ, tiến độ Fuse phồng và chớp trắng, hoạt ảnh chết nghiêng tối đa 90 độ. Lượt vẽ trả màu về trắng, tắt chớp và bind lại atlas khối.
-  - **Tài nguyên mob:** Cache PNG riêng dùng Nearest/ClampToEdge và kích thước thật khi chuẩn bị UV. Hai mắt thỏ trắng được tô đỏ khi nạp ảnh. Màu len cừu là hệ số RGB trên lớp `sheep_fur`, dùng chung một texture cho sáu màu. Cáo ngậm khối bằng lưới vật phẩm sẵn có gắn theo ma trận khớp đầu. Bộ nạp báo đường dẫn khi tệp thiếu, lỗi giải mã hoặc thiếu diện tích UV. Lớp nền dùng ảnh màu 16 × 16 khi gặp lỗi và lớp phủ lỗi được ẩn. Pixmap được giải phóng ngay sau khi tải. Mesh tĩnh chia sẻ theo hình học, UV và lớp phát sáng, dựng trước cùng ngăn xếp ma trận. Ứng dụng giải phóng cache ảnh và mesh khi đóng.
+  - **Tài nguyên mob:** Cache PNG riêng dùng Nearest/ClampToEdge và kích thước thật khi chuẩn bị UV. Ảnh được tải lên GPU ở định dạng RGBA8888, kể cả hoa văn ngựa thang xám có alpha. Mô hình Minecraft dùng hình trải theo loài, với chiều UV riêng cho thân nằm ngang và các chi đối xứng. Mắt thỏ trắng lấy trực tiếp từ PNG nguồn. Màu len cừu là hệ số RGB trên lớp `sheep_fur`, dùng chung một texture cho sáu màu. Cáo ngậm khối bằng lưới vật phẩm sẵn có gắn theo ma trận khớp đầu. Bộ nạp báo đường dẫn khi tệp thiếu, lỗi giải mã hoặc thiếu diện tích UV. Lớp nền dùng ảnh màu 16 × 16 khi gặp lỗi và lớp phủ lỗi được ẩn. Pixmap được giải phóng ngay sau khi tải. Mesh tĩnh chia sẻ theo hình học, UV và lớp phát sáng, dựng trước cùng ngăn xếp ma trận. Ứng dụng giải phóng cache ảnh và mesh khi đóng.
 - **Frustum culling và bộ nhớ đệm:** Dựng trước 5 × 5 cột quanh spawn, mỗi frame cập nhật tối đa 16 chunk giao khung nhìn, ưu tiên gần camera. Với mỗi mặt phẳng, thử góc xa nhất của hộp chunk theo pháp tuyến. Chunk sạch không có mặt lộ được bỏ qua cho đến lần đánh dấu dựng lại. Thu hồi cả hai mesh sau 120 frame ngoài khung nhìn và giữ dữ liệu voxel. Hai bộ đệm đỉnh và bảng UV dùng lại.
-- **Texture Atlas:** Lưới 8 × 5 ô 16 × 16, kích thước 128 × 80 RGBA. Dùng Nearest, ClampToEdge và biên UV 0,0008. Tile 0–19 giữ chỉ số cũ, tile 20–32 dùng PNG ở mục 1, tile 33–35 dành cho rương. Xử lý một lần khi dựng atlas: nhuộm tông Plains cho cỏ/lá sồi/mía, tông xanh thông cho lá vân sam, giữ alpha nguồn của texture khoét và độ trong của Ice/Water. Nước và dung nham lấy khung đầu. Dùng pixel art dự phòng khi nguồn thiếu hoặc lỗi đọc và giải phóng các Pixmap sau dựng atlas.
+- **Texture Atlas:** Lưới 8 × 5 ô 16 × 16, kích thước 128 × 80 RGBA. Dùng Nearest, ClampToEdge và biên UV 0,0008. Tile 0–19 giữ chỉ số cũ, tile 20–32 dùng PNG ở mục 1, tile 33–35 dành cho rương. Xử lý một lần khi dựng atlas: nhuộm tông Plains cho cỏ/lá sồi/mía, tông xanh thông cho lá vân sam, giữ alpha nguồn của texture khoét và độ trong của Ice/Water. Mặt trên Grass Block dùng họa tiết xanh đậm nhạt theo từng pixel và có alpha 255. Nước và dung nham lấy khung đầu. Dùng pixel art dự phòng khi nguồn thiếu hoặc lỗi đọc và giải phóng các Pixmap sau dựng atlas.
 
 - **Tối ưu Hiệu năng & Quản lý Bộ nhớ:**
   - Mesh chunk dùng VAO qua OpenGL 3.3. Với tối đa 16.384 mặt, mesh nén tại chỗ còn bốn đỉnh mỗi mặt và dùng chung mẫu chỉ số 16 bit cho hai tam giác. Mesh lớn hơn tải đủ sáu đỉnh mỗi mặt.
@@ -237,6 +276,8 @@ Phần A mô tả **100% tính chất hiện có** của dự án **VoxelGame**.
   - **Thanh 9 ô Hotbar (luôn hiển thị):** Căn giữa cạnh dưới (cách đáy `16px`), mỗi ô `50 x 50` px, đệm `4px`; ô đang chọn có viền vàng `3px` và nền sáng hơn; góc trên-trái hiển thị số phím `1..9`; chính giữa vẽ icon texture `28 x 28` lấy từ `Block.Face.SOUTH`; góc dưới-phải hiển thị số lượng có bóng đổ; phía trên thanh Hotbar hiển thị tên Block in hoa màu vàng nhạt[cite: 1].
   - **Thông tin môi trường:** Khi đang chơi, góc trên trái hiện tên biome, `CLEAR`/`RAIN`/`SNOW` và hai chỉ số ngày, giờ theo dạng `DAY 1 - 07:00`. Chữ dùng font 5 × 7 và bộ đệm ký tự dùng lại.
   - **Chỉ số sinh tồn:** Phía trên tên block và Hotbar, 10 tim bên trái hiển thị HP và 10 đùi thịt bên phải hiển thị độ đói. Mỗi biểu tượng có trạng thái đầy, nửa đầy và trống. Góc trên phải hiện tên hiệu ứng và số giây còn lại khi đang chơi. Nền và hai dải biểu tượng chia sẻ một mesh GPU được cập nhật khi chỉ số hiển thị hoặc kích thước cửa sổ đổi. Nhãn tái sử dụng `StringBuilder` và bộ đệm đỉnh của font 5 × 7.
+  - **Chỉ số thú cưỡi:** Khi đang cưỡi, hàng trên cùng của Hotbar hiển thị HP của thú và lực Nhảy hoặc Dash. Thanh Dash màu xanh hiển thị thời gian hồi còn lại bằng tiến độ lấp đầy. Các thanh dùng bộ đệm giao diện có sẵn.
+  - **Bộ đệm Hotbar:** Ô, viền, biểu tượng và chữ dùng chung mesh GPU. Mesh cập nhật khi đổi kích thước cửa sổ, ô đang chọn, vật phẩm hoặc số lượng trong ô.
   - **Pause Menu (khi `isPaused == true`):**
     - Phủ màn tối bán trong suốt toàn màn hình (`alpha = 0.68`)[cite: 1].
     - Hộp thoại trung tâm `420 x 270`, tiêu đề `GAME PAUSED` (màu vàng, có bóng)[cite: 1].

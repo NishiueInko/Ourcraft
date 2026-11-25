@@ -40,6 +40,9 @@ public abstract class Entity {
     protected static final float CONTACT_EPSILON = 0.0001f;
     /** Đỉnh vật cản của lần quét gần nhất, dùng khi thử bước lên tuyết. */
     protected float obstacleTop;
+    /** Kết quả gần nhất dùng chung giữa hộp thân và các hộp gắn kèm trong một lần quét. */
+    private float sweepLimit;
+    private Block sweepHit;
 
     // Tọa độ điểm chính giữa dưới đáy (Bottom-Center) của hộp va chạm AABB (sử dụng
     // Vector3 của libGDX)
@@ -49,7 +52,8 @@ public abstract class Entity {
 
     // Một nửa chiều rộng (bán kính ngang) và toàn bộ chiều cao của hộp va chạm AABB
     protected final float halfWidth;
-    protected final float height;
+    /** Chiều cao thực của hộp, có thể đổi khi loài có tư thế ngồi. */
+    protected float height;
 
     // Cờ trạng thái báo hiệu thực thể đang đứng chạm mặt đất rắn
     protected boolean onGround = false;
@@ -112,12 +116,37 @@ public abstract class Entity {
         if (distance == 0) {
             return null;
         }
-        float left = position.x - halfWidth;
-        float right = position.x + halfWidth;
-        float base = position.y;
-        float top = position.y + height;
-        float back = position.z - halfWidth;
-        float front = position.z + halfWidth;
+        sweepLimit = distance;
+        sweepHit = null;
+        sweepTerrainBox(world, axis, distance, position.x, position.y, position.z, halfWidth, height);
+        sweepAttachedTerrainBoxes(world, axis, distance);
+        float limit = sweepLimit;
+        if (sweepHit != null) {
+            limit = distance > 0f ? Math.max(0, limit - CONTACT_EPSILON)
+                    : Math.min(0, limit + (axis == 1 ? 0 : CONTACT_EPSILON));
+        }
+        if (axis == 0) {
+            position.x += limit;
+        } else if (axis == 1) {
+            position.y += limit;
+        } else {
+            position.z += limit;
+        }
+        return sweepHit;
+    }
+
+    /** Cho thực thể mang hành khách bổ sung hộp của người ngồi vào cùng lượt quét. */
+    protected void sweepAttachedTerrainBoxes(World world, int axis, float distance) {
+    }
+
+    /** Quét một hộp qua các hình va chạm chính xác và cập nhật mặt cản gần nhất. */
+    protected final void sweepTerrainBox(World world, int axis, float distance,
+                                         float centerX, float base, float centerZ, float radius, float boxHeight) {
+        float left = centerX - radius;
+        float right = centerX + radius;
+        float top = base + boxHeight;
+        float back = centerZ - radius;
+        float front = centerZ + radius;
         float low = Math.min(0, distance);
         float high = Math.max(0, distance);
         int minX = (int) Math.floor(left + (axis == 0 ? low : 0));
@@ -129,8 +158,6 @@ public abstract class Entity {
         boolean positive = distance > 0;
         float entityEdge = axis == 0 ? (positive ? right : left)
                 : axis == 1 ? (positive ? top : base) : (positive ? front : back);
-        float limit = distance;
-        Block hit = null;
         for (int x = minX; x <= maxX; x++) {
             for (int y = minY; y <= maxY; y++) {
                 for (int z = minZ; z <= maxZ; z++) {
@@ -144,27 +171,15 @@ public abstract class Entity {
                             : axis == 1 ? y + (positive ? b.minY() : b.maxY())
                             : z + (positive ? b.minZ() : b.maxZ());
                     float gap = edge - entityEdge;
-                    if (positive ? gap >= -CONTACT_EPSILON && gap <= limit
-                            : gap <= CONTACT_EPSILON && gap >= limit) {
-                        limit = gap;
-                        hit = Block.fromId(world.getBlock(x, y, z));
+                    if (positive ? gap >= -CONTACT_EPSILON && gap <= sweepLimit
+                            : gap <= CONTACT_EPSILON && gap >= sweepLimit) {
+                        sweepLimit = gap;
+                        sweepHit = Block.fromId(world.getBlock(x, y, z));
                         obstacleTop = y + b.maxY();
                     }
                 }
             }
         }
-        if (hit != null) {
-            limit = positive ? Math.max(0, limit - CONTACT_EPSILON)
-                    : Math.min(0, limit + (axis == 1 ? 0 : CONTACT_EPSILON));
-        }
-        if (axis == 0) {
-            position.x += limit;
-        } else if (axis == 1) {
-            position.y += limit;
-        } else {
-            position.z += limit;
-        }
-        return hit;
     }
 
     /** Kiểm tra hộp thực thể tại vị trí hiện tại trước khi cam kết một bước. */

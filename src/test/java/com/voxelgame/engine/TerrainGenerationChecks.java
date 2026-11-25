@@ -146,14 +146,31 @@ final class TerrainGenerationChecks {
         }
     }
 
-    /** Kiểm tra đan xen đá và sỏi ở dốc 2 tại cụm cồn cát ngoài khu công trình. */
+    /** Kiểm tra vách sandstone và bảo vệ vật liệu sa mạc tới ranh giới uốn lượn. */
     private static void checkDesertSlope(World world, TerrainGenerator generator) {
         int x = 2350;
         int z = 1086;
         int y = generator.getSurfaceY(x, z);
         Block surface = Block.fromId(world.getBlock(x, y, z));
-        if (surface != Block.STONE && surface != Block.GRAVEL) {
-            throw new AssertionError("Dốc vừa ở sa mạc phải dùng đá hoặc sỏi");
+        if (surface != Block.SANDSTONE || world.getBlock(x, y - 3, z) != Block.SANDSTONE.getId()) {
+            throw new AssertionError("Dốc vừa ở sa mạc phải có ít nhất bốn khối sandstone");
+        }
+        for (int columnX = 1920; columnX < World.WORLD_SIZE_X; columnX += 3) {
+            for (int columnZ = 0; columnZ < World.WORLD_SIZE_Z; columnZ += 3) {
+                if (generator.getBiome(columnX, columnZ) != BiomeType.DESERT) {
+                    continue;
+                }
+                int top = generator.getSurfaceY(columnX, columnZ) + 12;
+                for (int blockY = 1; blockY <= top; blockY++) {
+                    Block block = Block.fromId(world.getBlock(columnX, blockY, columnZ));
+                    if (block == Block.SNOW_BLOCK || block == Block.SNOW_LAYER || block == Block.ICE
+                            || block == Block.GRAVEL && world.getBlock(columnX, blockY + 1, columnZ)
+                                    != Block.WATER.getId()) {
+                        throw new AssertionError("Vật liệu sai trong cột sa mạc tại "
+                                + columnX + ", " + blockY + ", " + columnZ);
+                    }
+                }
+            }
         }
     }
 

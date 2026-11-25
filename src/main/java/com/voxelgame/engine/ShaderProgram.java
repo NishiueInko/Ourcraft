@@ -82,6 +82,7 @@ public class ShaderProgram implements Disposable {
             uniform vec3 uCloudCenter;
             uniform int uFogEnabled;
             uniform vec2 uFogRange;
+            uniform vec3 uLiquidFogColor;
 
             // Dùng chung màu theo hướng nhìn để địa hình xa nối liền với nền trời.
             vec3 atmosphereColor(vec3 direction) {
@@ -95,8 +96,15 @@ public class ShaderProgram implements Disposable {
 
             void main() {
                 if (uEnvironmentMode == 1) {
-                    FragColor = vec4(atmosphereColor(normalize(vPosition)), 1.0);
+                    // Mắt chìm thấy đúng màu nền, kể cả qua khoảng trống giữa các chunk.
+                    vec3 sky = uFogEnabled == 2 ? uLiquidFogColor : atmosphereColor(normalize(vPosition));
+                    FragColor = vec4(sky, 1.0);
                     return;
+                }
+
+                // Thiên thể dùng blend cộng, nên ẩn hẳn bên dưới mặt chất lỏng.
+                if (uFogEnabled == 2 && uEnvironmentMode == 3) {
+                    discard;
                 }
 
                 // 1. Xác định màu cơ sở (lấy từ Texture Atlas hoặc dùng màu thuần túy cho 2D UI)
@@ -133,12 +141,18 @@ public class ShaderProgram implements Disposable {
                     litColor = mix(litColor, vec3(1.0), uMobWhiteFlash);
                 }
 
-                if (uEnvironmentMode == 0 && uFogEnabled == 1) {
+                if (uFogEnabled == 2 || (uEnvironmentMode == 0 && uFogEnabled == 1)) {
                     float distanceToEye = length(vEyeOffset);
                     if (distanceToEye > uFogRange.x) {
                         float fog = clamp((distanceToEye - uFogRange.x) / (uFogRange.y - uFogRange.x), 0.0, 1.0);
                         // Trộn RGB sau khi tính ánh sáng và giữ nguyên độ trong của mặt khối.
-                        litColor = mix(litColor, atmosphereColor(vEyeOffset / distanceToEye), fog);
+                        vec3 fogColor = uFogEnabled == 2 ? uLiquidFogColor
+                                : atmosphereColor(vEyeOffset / distanceToEye);
+                        litColor = mix(litColor, fogColor, fog);
+                        // Mây và giáng thủy xa chìm hẳn vào nền, để giữ màu của hình học phía trước.
+                        if (uFogEnabled == 2 && uEnvironmentMode != 0) {
+                            baseColor.a *= 1.0 - fog;
+                        }
                     }
                 }
 
@@ -210,7 +224,15 @@ public class ShaderProgram implements Disposable {
         setUniform1i("uFogEnabled", 1);
     }
 
-    /** Kết thúc sương thế giới trước khi chuyển sang giáng thủy hoặc giao diện. */
+    /** Bật sương màu chất lỏng cho hình học, nền trời, mây và giáng thủy. */
+    public void enableLiquidFog(Vector3 eye, Camera.LiquidView liquid) {
+        setUniformVec3("uFogEye", eye);
+        gdxShader.setUniformf("uFogRange", liquid.fogStart, liquid.fogEnd);
+        setUniformVec3("uLiquidFogColor", liquid.red, liquid.green, liquid.blue);
+        setUniform1i("uFogEnabled", 2);
+    }
+
+    /** Kết thúc sương thế giới trước khi chuyển sang lượt vẽ không dùng sương. */
     public void disableDistanceFog() {
         setUniform1i("uFogEnabled", 0);
     }

@@ -9,15 +9,18 @@ import com.voxelgame.entity.DamageSource;
 import com.voxelgame.entity.Entity;
 import com.voxelgame.entity.LivingEntity;
 import com.voxelgame.entity.Player;
+import java.util.concurrent.ThreadLocalRandom;
 
 /** Sói tuyết hoang dã săn mồi và bảo vệ đàn khi bị người chơi tấn công. */
 public final class Wolf extends MobEntity {
     /** Phạm vi gọi đàn và tìm mồi, dùng khoảng cách ba chiều. */
     private static final float PACK_RANGE_SQUARED = 16f * 16f;
-    /** Dùng cùng giới hạn cho đòn cận chiến và việc giữ con mồi đã bỏ chạy. */
-    private static final float PURSUIT_RANGE = 20f;
-    /** Thời gian giữ mục tiêu trả đũa trước khi săn mồi trở lại. */
-    private static final float ANGER_SECONDS = 30f;
+    /** Cho sói ở rìa đàn đủ tầm đánh trả, giữ tầm săn cũ cho mồi tự nhiên. */
+    private static final float PLAYER_PURSUIT_RANGE = 32f;
+    private static final float PREY_PURSUIT_RANGE = 20f;
+    /** Khoảng giận lấy ngẫu nhiên theo từng cá thể khi người chơi đánh trúng. */
+    private static final int MIN_ANGER_SECONDS = 20;
+    private static final int MAX_ANGER_SECONDS = 39;
     /** Đệm vị trí dùng lại trong lượt ngắm và tìm mồi. */
     private final Vector3 nearby = new Vector3();
     private float huntDelay;
@@ -29,7 +32,7 @@ public final class Wolf extends MobEntity {
         super(MobType.WOLF, x, y, z, 0f, 0, false);
         setMoveSpeed(3f);
         MobGoals.addDefaults(goals(), type(), false);
-        goals().add(new MobGoals.MeleeAttackGoal(4, 1.35f, 4f, 1.55f, 1f, PURSUIT_RANGE));
+        goals().add(new MobGoals.MeleeAttackGoal(4, 1.35f, 4f, 1.55f, 1f, PLAYER_PURSUIT_RANGE));
     }
 
     /** Tìm mồi theo nhịp riêng và ưu tiên trả đũa hơn chu kỳ săn. */
@@ -37,7 +40,8 @@ public final class Wolf extends MobEntity {
     protected void updateGoals(World world, float dt) {
         huntDelay -= dt;
         LivingEntity prey = target();
-        if (prey != null && !(prey instanceof Player) && distanceSquared(prey) > PURSUIT_RANGE * PURSUIT_RANGE) {
+        float range = prey instanceof Player ? PLAYER_PURSUIT_RANGE : PREY_PURSUIT_RANGE;
+        if (prey != null && distanceSquared(prey) > range * range) {
             setTarget(null);
         }
         if (target() == null && huntDelay <= 0f) {
@@ -55,7 +59,10 @@ public final class Wolf extends MobEntity {
         }
         updateAppearance();
         Player player = world.getPlayer();
-        if (shakeRemaining > 0f) {
+        if (target() instanceof Player) {
+            shakeRemaining = 0f;
+            mobVisualState().setPose(MobVisualState.Pose.ANGRY, 1f);
+        } else if (shakeRemaining > 0f) {
             stopMoving();
             shakeRemaining = Math.max(0f, shakeRemaining - dt);
             mobVisualState().setPose(MobVisualState.Pose.SHAKE, shakeRemaining / 0.85f);
@@ -63,8 +70,7 @@ public final class Wolf extends MobEntity {
             lookAt(nearby.x, nearby.y, nearby.z);
             mobVisualState().setPose(MobVisualState.Pose.TILT_HEAD, 1f);
         } else {
-            mobVisualState().setPose(target() instanceof Player ? MobVisualState.Pose.ANGRY : MobVisualState.Pose.IDLE,
-                    target() instanceof Player ? 1f : 0f);
+            mobVisualState().setPose(MobVisualState.Pose.IDLE, 0f);
         }
     }
 
@@ -115,7 +121,8 @@ public final class Wolf extends MobEntity {
         if (mobVisualState().appearance() != MobAppearance.WOLF_SNOWY_ANGRY) {
             playSound(world, MobSoundEvent.WOLF_GROWL);
         }
-        enrage(player, ANGER_SECONDS);
+        enrage(player, ThreadLocalRandom.current().nextInt(MIN_ANGER_SECONDS, MAX_ANGER_SECONDS + 1));
+        mobVisualState().setPose(MobVisualState.Pose.ANGRY, 1f);
         updateAppearance();
     }
 

@@ -17,11 +17,41 @@ final class HostileMobChecks {
         CloseHostileChecks.run();
         RangedHostileChecks.run();
         checkFactoriesAndSunlight();
+        checkAttackAfterReachingShade();
         checkBlastNeighborhood();
         checkSpiderJockey();
         checkEndermanGaze();
         checkEndermanWaterAndArrow();
         checkEndermanSparseLanding();
+    }
+
+    /** Undead đang cháy phải nhả goal trú nắng và chiến đấu ngay khi vào dưới mái. */
+    private static void checkAttackAfterReachingShade() {
+        for (MobType type : new MobType[]{MobType.ZOMBIE, MobType.ZOMBIE_VILLAGER, MobType.SKELETON, MobType.STRAY}) {
+            World world = flatWorld();
+            try {
+                for (int x = 1511; x <= 1519; x++) {
+                    world.setBlockInternal(x, 34, 810, Block.STONE.getId(), 0);
+                }
+                MobEntity mob = type.create(1510.5f, 31, 810.5f);
+                for (int tick = 0; tick < 4; tick++) {
+                    mob.update(world, 0.05f);
+                }
+                require(mob.getFireTimer() > 0f, "Mob phải bắt lửa trước khi vào mái");
+                mob.setPosition(1512.5f, 31, 810.5f);
+                boolean archer = type == MobType.SKELETON || type == MobType.STRAY;
+                // Cung thủ dưới mái bắn được người chơi ở ngoài nắng.
+                Player player = new Player(archer ? 1512.5f : 1513.5f, 31, archer ? 815.5f : 810.5f);
+                world.registerPlayer(player);
+                for (int tick = 0; tick < 45; tick++) {
+                    mob.update(world, 0.05f);
+                }
+                require(mob.target() == player && (archer ? world.entityCount() > 1
+                        : player.getHealth() < player.getMaxHealth()), type + " phải đánh khi vừa vào bóng râm");
+            } finally {
+                world.dispose();
+            }
+        }
     }
 
     /** Tác động ngoài mép nổ phải đi qua luật cát, sỏi và cây mất nền. */

@@ -117,8 +117,14 @@ public class MobEntity extends LivingEntity implements MobVisual {
     /** Dùng đúng kích thước thể chất ngay khi tạo cá thể non hoặc biến thể thu nhỏ. */
     protected MobEntity(MobType type, float x, float y, float z, float armor, int seatCount,
                         boolean installDefaultGoals, float dimensionsScale) {
+        this(type, x, y, z, armor, seatCount, installDefaultGoals, dimensionsScale, type.health());
+    }
+
+    /** Tạo cá thể với chỉ số máu đã bốc và cùng quy tắc vật lý của loài. */
+    protected MobEntity(MobType type, float x, float y, float z, float armor, int seatCount,
+                        boolean installDefaultGoals, float dimensionsScale, float maxHealth) {
         super(x, y, z, type.width() * 0.5f * dimensionsScale, type.height() * dimensionsScale,
-                type.health(), armor, type.undead(), seatCount);
+                maxHealth, armor, type.undead(), seatCount);
         this.type = type;
         visual = new MobVisualState(type.appearance());
         persistent = type.category() == MobCategory.CREATURE;
@@ -141,8 +147,7 @@ public class MobEntity extends LivingEntity implements MobVisual {
         }
         LivingEntity mount = getMount();
         if (mount != null) {
-            mount.copyCenterPosition(position);
-            position.y += mount.getHeight() * 0.5f;
+            mount.copySeatPosition(getMountedSeat(), position);
             velocity.setZero();
             onGround = false;
             stopMoving();
@@ -247,7 +252,9 @@ public class MobEntity extends LivingEntity implements MobVisual {
                     : navigator.avoidsHazards(world, destX, y(), destZ);
             boolean approachesWall = !legal && wallClimbRequested && navigator.avoidsHazards(world, destX, y(), destZ)
                     && !navigator.canOccupy(world, destX, y(), destZ);
-            if (!legal && !approachesWall) {
+            boolean entersWater = !legal && this instanceof MountableMob mount
+                    && mount.canWadeInto(world, destX, destZ);
+            if (!legal && !approachesWall && !entersWater) {
                 requested = 0f;
             }
         }

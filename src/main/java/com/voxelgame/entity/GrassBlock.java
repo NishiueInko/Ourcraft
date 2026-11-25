@@ -2,6 +2,7 @@ package com.voxelgame.entity;
 
 import com.voxelgame.engine.Texture;
 import com.voxelgame.engine.World;
+import java.util.Random;
 
 /**
  * Khối Cỏ (ID = 2): Thể hiện rõ nét Tính Đa hình (Polymorphism) trong OOP:
@@ -47,12 +48,41 @@ public class GrassBlock extends Block {
     }
 
     @Override
-    /** Cỏ mất khi bị che bởi một khối đục đầy, riêng tuyết vẫn giữ lớp cỏ. */
+    /** Xử lý ngay khi ô phía trên thay đổi; random tick cũng kiểm tra địa hình được sinh sẵn. */
     public void onNeighborChange(World world, int x, int y, int z) {
-        Block above = fromId(world.getBlock(x, y + 1, z));
-        if (above != SNOW_BLOCK && above.isOpaque() && above.getGeometryType() == GeometryType.FULL_CUBE) {
+        if (!canSurvive(world, x, y, z)) {
             world.setBlock(x, y, z, DIRT.getId());
         }
+    }
+
+    /** Cỏ tàn dưới lớp phủ chặn sáng và gieo tối đa bốn điểm khi nguồn có nắng. */
+    public void randomTick(World world, int x, int y, int z, Random random) {
+        if (!canSurvive(world, x, y, z)) {
+            world.setBlock(x, y, z, DIRT.getId());
+            return;
+        }
+        if (world.worldTime().sunY() <= 0.05f || world.hasWeatherRoof(x, y + 2f, z)) {
+            return;
+        }
+        for (int attempt = 0; attempt < 4; attempt++) {
+            int targetX = x + random.nextInt(3) - 1;
+            int targetY = y + random.nextInt(5) - 3;
+            int targetZ = z + random.nextInt(3) - 1;
+            if (world.getBlock(targetX, targetY, targetZ) == DIRT.getId()
+                    && canSurvive(world, targetX, targetY, targetZ)
+                    && !world.hasWeatherRoof(targetX, targetY + 2f, targetZ)) {
+                world.setBlock(targetX, targetY, targetZ, GRASS.getId());
+            }
+        }
+    }
+
+    /** Cây thấp và một lớp tuyết cho ánh sáng qua. Chất lỏng và lớp phủ dày làm cỏ tàn. */
+    private static boolean canSurvive(World world, int x, int y, int z) {
+        Block above = fromId(world.getBlock(x, y + 1, z));
+        if (above == SNOW_LAYER) {
+            return world.getBlockState(x, y + 1, z) == 0;
+        }
+        return !above.isLiquid() && !(above.isOpaque() && above.getGeometryType() == GeometryType.FULL_CUBE);
     }
 
     @Override

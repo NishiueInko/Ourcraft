@@ -1,5 +1,7 @@
 package com.voxelgame.entity;
 
+import com.badlogic.gdx.math.Vector3;
+
 import com.voxelgame.engine.World;
 
 /** Thực thể vật lý có máu, hiệu ứng trạng thái và vòng đời chiến đấu. */
@@ -31,6 +33,8 @@ public abstract class LivingEntity extends Entity {
     private float deathTimer;
     private final StatusEffectInstance[] effects = new StatusEffectInstance[StatusEffectType.COUNT];
     private LivingEntity mount;
+    /** Chỉ số ghế trong thú đang cưỡi, hoặc -1 khi đứng độc lập. */
+    private int mountedSeat = -1;
     private final LivingEntity[] passengers;
 
     /** Khởi tạo thực thể không có ghế ngồi. */
@@ -386,6 +390,16 @@ public abstract class LivingEntity extends Entity {
         return mount;
     }
 
+    /** Đọc ghế hiện tại để đồng bộ người cưỡi với đúng khớp. */
+    public final int getMountedSeat() {
+        return mountedSeat;
+    }
+
+    /** Chép vị trí chân ghế mặc định ở đỉnh hộp va chạm, dùng cho kỵ sĩ nhện. */
+    public Vector3 copySeatPosition(int seat, Vector3 out) {
+        return out.set(position.x, position.y + height, position.z);
+    }
+
     /** Trả hành khách của ghế được chỉ định. */
     public final LivingEntity getPassenger(int seat) {
         return passengers[seat];
@@ -408,6 +422,7 @@ public abstract class LivingEntity extends Entity {
             }
         }
         mount = vehicle;
+        mountedSeat = seat;
         vehicle.passengers[seat] = this;
         resetFallTracking();
         return true;
@@ -418,13 +433,9 @@ public abstract class LivingEntity extends Entity {
         if (mount == null) {
             return;
         }
-        for (int seat = 0; seat < mount.passengers.length; seat++) {
-            if (mount.passengers[seat] == this) {
-                mount.passengers[seat] = null;
-                break;
-            }
-        }
+        mount.passengers[mountedSeat] = null;
         mount = null;
+        mountedSeat = -1;
         resetFallTracking();
     }
 

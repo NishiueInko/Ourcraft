@@ -1,6 +1,7 @@
 package com.voxelgame.entity.mob;
 
 import com.badlogic.gdx.math.MathUtils;
+import com.badlogic.gdx.math.Vector3;
 import com.voxelgame.engine.MobSoundEvent;
 import com.voxelgame.engine.MobVisualState;
 import com.voxelgame.engine.World;
@@ -18,6 +19,10 @@ public final class Husk extends Zombie {
     private static final float HUNGER_MIN_SECONDS = 7f;
     private static final float HUNGER_MAX_SECONDS = 14f;
 
+    /** Trang bị của kỵ sĩ được giữ nguyên nếu nó rời ghế. */
+    private final boolean ironSpear;
+    private final Vector3 spearTarget;
+
     private double submergedSeconds;
     private double convertingSeconds;
     private boolean converting;
@@ -25,8 +30,42 @@ public final class Husk extends Zombie {
 
     /** Tạo Husk người lớn có kích thước hình vẽ lớn hơn 6% nhưng giữ hộp vật lý cũ. */
     public Husk(float x, float y, float z) {
+        this(x, y, z, false);
+    }
+
+    /** Trang bị giáo cho Husk ghế lái của bộ kỵ sĩ sa mạc. */
+    public Husk(float x, float y, float z, boolean ironSpear) {
         super(MobType.HUSK, x, y, z, false);
+        this.ironSpear = ironSpear;
+        spearTarget = ironSpear ? new Vector3() : null;
         mobVisualState().setScale(1.06f);
+        if (ironSpear) {
+            mobVisualState().setPose(MobVisualState.Pose.THRUST, 0f);
+        }
+    }
+
+    /** Nhận diện Husk có thể chỉ huy cú lao bằng giáo. */
+    public boolean hasIronSpear() {
+        return ironSpear;
+    }
+
+    /** Giữ giáo trên tay và ngắm theo đích mà thú cưỡi đang tiếp cận. */
+    @Override
+    protected void updateMounted(World world, float dt) {
+        if (ironSpear && getMount() instanceof CamelHusk camel && camel.activeDriver() == this) {
+            LivingEntity target = camel.target();
+            if (target != null) {
+                target.copyCenterPosition(spearTarget);
+                lookAt(spearTarget.x, spearTarget.y, spearTarget.z);
+                faceBody(spearTarget.x, spearTarget.z);
+            }
+            mobVisualState().setPose(MobVisualState.Pose.THRUST, camel.spearExtension());
+        }
+    }
+
+    /** Thực hiện đòn giáo từ ghế lái, giữ hiệu ứng Hunger vốn có của Husk. */
+    boolean thrustSpear(World world, LivingEntity target, float damage, float knockbackX, float knockbackZ) {
+        return ironSpear && strikeMelee(world, target, damage, knockbackX, knockbackZ);
     }
 
     /** Chỉ áp Hunger I khi sát thương cận chiến được mục tiêu chấp nhận. */
@@ -43,6 +82,9 @@ public final class Husk extends Zombie {
     /** Đếm thời gian theo bước mô phỏng, cập nhật hiệu ứng rung và thay cá thể đúng một lần. */
     @Override
     protected void updateLiving(World world, float dt) {
+        if (ironSpear && !(getMount() instanceof CamelHusk)) {
+            mobVisualState().setPose(MobVisualState.Pose.THRUST, 0f);
+        }
         super.updateLiving(world, dt);
         if (converted) {
             return;

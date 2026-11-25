@@ -2,6 +2,7 @@ package com.voxelgame.engine;
 
 import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Vector3;
+import com.voxelgame.entity.Block;
 
 /**
  * Quản lý góc nhìn thứ nhất (First-Person Camera) trong không gian 3 chiều và phép chiếu 2D cho giao diện.
@@ -13,6 +14,39 @@ import com.badlogic.gdx.math.Vector3;
  *   làm biến dạng hệ trục tọa độ của Camera.
  */
 public class Camera {
+
+    /** Màu, khoảng sương và độ đậm lớp phủ dùng chung cho mọi lượt vẽ khi mắt chìm. */
+    public enum LiquidView {
+        AIR(0f, 0f, 0f, 0f, 0f, 0f),
+        WATER(0.035f, 0.18f, 0.27f, 1f, 22f, 0.23f),
+        LAVA(0.64f, 0.12f, 0.015f, 0.25f, 1.6f, 0.68f);
+
+        public final float red;
+        public final float green;
+        public final float blue;
+        public final float fogStart;
+        public final float fogEnd;
+        public final float tintAlpha;
+
+        /** Lưu bộ thông số cố định để dùng lại mỗi khung hình. */
+        LiquidView(float red, float green, float blue, float fogStart, float fogEnd, float tintAlpha) {
+            this.red = red;
+            this.green = green;
+            this.blue = blue;
+            this.fogStart = fogStart;
+            this.fogEnd = fogEnd;
+            this.tintAlpha = tintAlpha;
+        }
+    }
+
+    /** Chọn môi trường từ mắt camera, kể cả lúc người chơi đang ngồi trên thú. */
+    public LiquidView liquidView(World world) {
+        Block liquid = world.liquidAt(position.x, position.y, position.z);
+        if (liquid == Block.WATER) {
+            return LiquidView.WATER;
+        }
+        return liquid == Block.LAVA ? LiquidView.LAVA : LiquidView.AIR;
+    }
 
     // Tọa độ vị trí mắt của Camera trong không gian thế giới (World Space)
     private final Vector3 position;

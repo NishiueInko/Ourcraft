@@ -19,7 +19,7 @@ public enum MobType {
     HORSE("horse", MobCategory.CREATURE, MobAttitude.PASSIVE, 1.3965f, 1.6f, 20, false, false, MobAppearance.HORSE_BROWN),
     DONKEY("donkey", MobCategory.CREATURE, MobAttitude.PASSIVE, 1.3965f, 1.5f, 20, false, false, MobAppearance.DONKEY),
     RABBIT("rabbit", MobCategory.CREATURE, MobAttitude.PASSIVE, .4f, .5f, 3, false, false, MobAppearance.RABBIT_GOLD),
-    CAMEL("camel", MobCategory.CREATURE, MobAttitude.PASSIVE, 1.7f, 2.375f, 32, false, false, MobAppearance.CAMEL),
+    CAMEL("camel", MobCategory.CREATURE, MobAttitude.PASSIVE, 1.7f, 2.38f, 32, false, false, MobAppearance.CAMEL),
     CAMEL_HUSK("camel_husk", MobCategory.MONSTER, MobAttitude.HOSTILE, 1.7f, 2.38f, 32, true, false,
             MobAppearance.CAMEL_HUSK),
     HUSK("husk", MobCategory.MONSTER, MobAttitude.HOSTILE, .6f, 1.95f, 20, true, false, MobAppearance.HUSK),
@@ -67,6 +67,10 @@ public enum MobType {
         PIG.registerFactory(Pig::new);
         CHICKEN.registerFactory(Chicken::new);
         RABBIT.registerFactory(Rabbit::new);
+        HORSE.registerFactory(Horse::new);
+        DONKEY.registerFactory(Donkey::new);
+        CAMEL.registerFactory(Camel::new);
+        CAMEL_HUSK.registerFactory(CamelHusk::new);
         SNOW_RABBIT.registerFactory(Rabbit::snow);
         GOAT.registerFactory(Goat::new);
         POLAR_BEAR.registerFactory(PolarBear::new);

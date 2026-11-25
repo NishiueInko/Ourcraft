@@ -156,7 +156,7 @@ final class MobGoalChecks {
         }
         require(mob.destinationX == 103.5f, "Mob phải chọn mái lá gần hơn");
         mob.setPosition(103.5f, 20f, 100.5f);
-        require(shelter.shouldContinue(world, mob), "Mob ở dưới mái phải giữ chỗ trú khi trời còn nắng");
+        require(!shelter.shouldContinue(world, mob), "Goal trú nắng phải nhả kênh ngay dưới mái");
     }
 
     /** Phát lỗi theo thông báo cụ thể của hồi quy. */

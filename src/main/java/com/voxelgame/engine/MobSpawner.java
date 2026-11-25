@@ -4,6 +4,10 @@ import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector3;
 import com.voxelgame.entity.Block;
 import com.voxelgame.entity.Player;
+import com.voxelgame.entity.mob.CamelHusk;
+import com.voxelgame.entity.mob.Donkey;
+import com.voxelgame.entity.mob.Horse;
+import com.voxelgame.entity.mob.Husk;
 import com.voxelgame.entity.mob.MobCategory;
 import com.voxelgame.entity.mob.MobEntity;
 import com.voxelgame.entity.mob.MobType;
@@ -42,6 +46,8 @@ public final class MobSpawner {
     private final Random despawnRandom;
     /** Bộ đệm vị trí người chơi dùng lại trên luồng World. */
     private final Vector3 playerPosition = new Vector3();
+    /** Bộ đệm tính từng điểm ngồi trước khi đăng ký bộ kỵ sĩ. */
+    private final Vector3 jockeySeat = new Vector3();
     private int populationCursor;
     private float spawnElapsed;
 
@@ -195,8 +201,14 @@ public final class MobSpawner {
         if (feet < 0 || !matchesSnowZone(world, zone, x, feet, z)) {
             return 0;
         }
+        // Lạc đà ưu tiên cát phẳng nhưng vẫn có thể xuất hiện trên nền cát gồ ghề.
+        if (type == MobType.CAMEL && !flatSand(world, x, MathUtils.floor(feet - EPSILON), z)
+                && spawnRandom.nextInt(4) != 0) {
+            return 0;
+        }
         int desired = entry.minPackSize() + spawnRandom.nextInt(entry.maxPackSize() - entry.minPackSize() + 1);
-        int first = spawnMember(world, type, x + 0.5f, feet, z + 0.5f, room, false);
+        MobAppearance coat = type == MobType.HORSE ? Horse.randomCoat(spawnRandom) : null;
+        int first = spawnMember(world, time, type, x + 0.5f, feet, z + 0.5f, room, false, coat);
         int created = first;
         int members = first == 0 ? 0 : 1;
         for (int attempt = 0; attempt < PACK_ATTEMPTS && members < desired && created < room; attempt++) {
@@ -211,7 +223,8 @@ public final class MobSpawner {
                 continue;
             }
             boolean bearCub = type == MobType.POLAR_BEAR && members == 1;
-            int added = spawnMember(world, type, packX + 0.5f, packFeet, packZ + 0.5f, room - created, bearCub);
+            int added = spawnMember(world, time, type, packX + 0.5f, packFeet, packZ + 0.5f,
+                    room - created, bearCub, coat);
             if (added > 0) {
                 created += added;
                 members++;
@@ -257,9 +270,11 @@ public final class MobSpawner {
     }
 
     /** Ghi một cá thể hoặc ba thành viên kỵ sĩ sau khi kiểm tra khoảng trống và hạn mức. */
-    private int spawnMember(World world, MobType type, float x, float y, float z, int room, boolean bearCub) {
+    private int spawnMember(World world, WorldTime time, MobType type, float x, float y, float z, int room,
+                            boolean bearCub, MobAppearance coat) {
         if (type == MobType.HUSK && room >= 3 && MobType.CAMEL_HUSK.implemented()
-                && MobType.PARCHED.implemented() && spawnRandom.nextInt(10) == 0
+                && MobType.PARCHED.implemented() && isDesertSurfaceAtNight(world, time, x, y, z)
+                && spawnRandom.nextInt(10) == 0
                 && hasClearance(world, x, y, z, MobType.CAMEL_HUSK.width(), JOCKEY_HEIGHT)
                 && spawnJockey(world, x, y, z)) {
             return 3;
@@ -272,6 +287,12 @@ public final class MobSpawner {
         MobEntity mob = bearCub ? new PolarBear(x, y, z, true) : type.create(x, y, z);
         if (mob == null) {
             return 0;
+        }
+        if (mob instanceof Horse horse) {
+            horse.mobVisualState().setAppearance(coat);
+        }
+        if (mob instanceof Horse || mob instanceof Donkey) {
+            mob.setBaby(spawnRandom.nextInt(5) == 0);
         }
         world.addEntity(mob);
         return 1;
@@ -305,14 +326,16 @@ public final class MobSpawner {
     }
 
     /** Dựng bộ kỵ sĩ đồng thời, chỉ đăng ký vào World khi cả hai ghế đã gắn thành công. */
-    private static boolean spawnJockey(World world, float x, float y, float z) {
+    private boolean spawnJockey(World world, float x, float y, float z) {
         MobEntity mount = MobType.CAMEL_HUSK.create(x, y, z);
         if (mount == null || mount.getSeatCount() < 2) {
             return false;
         }
-        float seatY = y + MobType.CAMEL_HUSK.height();
-        MobEntity front = MobType.HUSK.create(x, seatY, z);
-        MobEntity back = MobType.PARCHED.create(x, seatY, z);
+        mount.copySeatPosition(0, jockeySeat);
+        MobEntity front = mount instanceof CamelHusk ? new Husk(jockeySeat.x, jockeySeat.y, jockeySeat.z, true)
+                : MobType.HUSK.create(jockeySeat.x, jockeySeat.y, jockeySeat.z);
+        mount.copySeatPosition(1, jockeySeat);
+        MobEntity back = MobType.PARCHED.create(jockeySeat.x, jockeySeat.y, jockeySeat.z);
         if (front == null || back == null || !front.tryMount(mount, 0) || !back.tryMount(mount, 1)) {
             return false;
         }
@@ -320,6 +343,26 @@ public final class MobSpawner {
         world.addEntity(front);
         world.addEntity(back);
         return true;
+    }
+
+    /** Một lượt Husk chỉ có thể đổi thành bộ kỵ sĩ ở mặt thoáng của Desert vào đêm. */
+    private static boolean isDesertSurfaceAtNight(World world, WorldTime time, float x, float y, float z) {
+        int bx = MathUtils.floor(x);
+        int bz = MathUtils.floor(z);
+        return isNightDark(time) && world.getBiome(bx, bz) == BiomeType.DESERT
+                && Math.abs(world.getPrecipitationSurface(bx, bz) - y) < EPSILON;
+    }
+
+    /** Nền phẳng có cát đỡ bốn phía và cao bằng ô trung tâm. */
+    private static boolean flatSand(World world, int x, int y, int z) {
+        return flatSandColumn(world, x - 1, y, z) && flatSandColumn(world, x + 1, y, z)
+                && flatSandColumn(world, x, y, z - 1) && flatSandColumn(world, x, y, z + 1);
+    }
+
+    /** So cao độ bề mặt của cột cát kề bên. */
+    private static boolean flatSandColumn(World world, int x, int y, int z) {
+        return world.getBlock(x, y, z) == Block.SAND.getId()
+                && Math.abs(world.getPrecipitationSurface(x, z) - y - 1f) < EPSILON;
     }
 
     /** Kiểm tra khoảng cách, ánh sáng, nền và hộp va chạm ở vị trí chân được đề xuất. */
@@ -370,6 +413,9 @@ public final class MobSpawner {
     private static boolean allowsCreatureGround(MobType type, Block ground, World world, int x, int y, int z,
                                                 WorldTime time) {
         BiomeType biome = world.getBiome(x, z);
+        if (type == MobType.CAMEL) {
+            return biome == BiomeType.DESERT && ground == Block.SAND;
+        }
         if (biome == BiomeType.PLAINS) {
             return ground == Block.GRASS && isDaylight(time);
         }

@@ -18,8 +18,10 @@ public final class VoxelRegressionChecks {
         MobSpawnerChecks.run();
         HostileMobChecks.run();
         PassiveAndNeutralMobChecks.run();
+        MountAndCamelHuskChecks.run();
         checkBlockRegistry();
         checkBlockUpdates();
+        checkGrassRegrowth();
         checkFallingBlocks();
         checkRaycast();
         checkPlayerSurfaces();
@@ -28,6 +30,28 @@ public final class VoxelRegressionChecks {
         TerrainGenerationChecks.run();
         EnvironmentChecks.run();
         System.out.println("Các kiểm tra hồi quy voxel đã qua.");
+    }
+
+    /** Kiểm tra cỏ lan qua biên chunk và tàn dưới nước qua vòng cập nhật thật. */
+    private static void checkGrassRegrowth() {
+        World world = World.empty();
+        try {
+            world.registerPlayer(new Player(15.5f, 11f, 8.5f));
+            for (int x = 8; x < 16; x++) {
+                for (int z = 0; z < 16; z++) {
+                    world.setBlockInternal(x, 10, z, Block.GRASS.getId(), 0);
+                }
+            }
+            world.setBlockInternal(16, 10, 8, Block.DIRT.getId(), 0);
+            world.setBlockInternal(15, 11, 8, Block.WATER.getId(), 0);
+            for (int i = 0; i < 12000; i++) {
+                world.updateEntities(0.05f);
+            }
+            require(world.getBlock(16, 10, 8) == Block.GRASS.getId(), "Cỏ phải lan qua biên chunk");
+            require(world.getBlock(15, 10, 8) == Block.DIRT.getId(), "Cỏ dưới nước phải tàn");
+        } finally {
+            world.dispose();
+        }
     }
 
     /** Kiểm tra phản hồi và chuyển động của Player qua điểm vào cập nhật thật. */

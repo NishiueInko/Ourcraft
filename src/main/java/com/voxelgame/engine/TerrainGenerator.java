@@ -167,12 +167,18 @@ final class TerrainGenerator {
                 Block surface = desert ? Block.SANDSTONE : Block.STONE;
                 int topDepth = 1;
                 int liningDepth = desert ? 3 + (int) ((layers >>> 3) & 1) : 0;
-                if (beach && (layers & 3) != 0) {
+                // Vách Desert giữ sandstone, còn nền thoải và bờ sông dùng cát có lớp đệm.
+                if (desert) {
+                    if (beach || slope <= 1) {
+                        surface = Block.SAND;
+                        topDepth = 3 + (int) ((layers >>> 1) & 3) % 3;
+                    }
+                } else if (beach && (layers & 3) != 0) {
                     surface = (layers & 1) == 0 ? Block.GRAVEL : Block.SAND;
                     liningDepth = surface == Block.SAND ? 2 : 0;
                 } else if (slope <= 1) {
-                    surface = desert ? Block.SAND : Block.DIRT;
-                    topDepth = desert ? 3 + (int) ((layers >>> 1) & 3) % 3 : 3 + (int) (layers & 1);
+                    surface = Block.DIRT;
+                    topDepth = 3 + (int) (layers & 1);
                 } else if (slope == 2) {
                     surface = (layers & 1) == 0 ? Block.STONE : Block.GRAVEL;
                     liningDepth = 0;
@@ -277,9 +283,6 @@ final class TerrainGenerator {
     private boolean carveLake(World world, short[] heights, byte[] biomes, DesertPyramid pyramid,
                               int centerX, int centerZ, float radius, int depth, Block liquid) {
         boolean lava = liquid == Block.LAVA;
-        BiomeType centerBiome = biomeAt(biomes, centerX, centerZ);
-        Block lavaShore = centerBiome == BiomeType.DESERT ? Block.SAND : Block.GRASS;
-        Block lavaLining = centerBiome == BiomeType.DESERT ? Block.SANDSTONE : Block.DIRT;
         // Bờ Lava rộng hơn để bao kín cả những chỗ rìa hồ đổi bán kính qua hai ô kề.
         float shoreWidth = lava ? 1.9f : 1.3f;
         float shoreNoise = 1.1f;
@@ -321,10 +324,13 @@ final class TerrainGenerator {
                     continue;
                 }
                 biomes[index] |= LAKE;
+                // Chọn vật liệu theo cột đích để hồ đi qua ranh giới vẫn giữ đúng khí hậu.
+                BiomeType biome = biomeAt(biomes, x, z);
+                Block lavaLining = biome == BiomeType.DESERT ? Block.SANDSTONE : Block.DIRT;
                 if (distance <= edge) {
                     int localDepth = Math.max(1, Math.round(depth * (1f - distance / edge * 0.82f)));
                     int bottomY = level - localDepth;
-                    Block floor = lava ? lavaLining : waterLakeFloor(biomeAt(biomes, x, z), x, z);
+                    Block floor = lava ? lavaLining : waterLakeFloor(biome, x, z);
                     write(world, x, bottomY, z, floor);
                     if (floor == Block.SAND) {
                         write(world, x, bottomY - 1, z, Block.SANDSTONE);
@@ -343,8 +349,7 @@ final class TerrainGenerator {
                     // Hạ từng đoạn bờ ngang mặt nước để tạo nền ẩm cho mía.
                     boolean lowShore = !lava && TerrainNoise.fractal(seed ^ SHORE ^ LAKES, x / 7f, z / 7f) > -0.08f;
                     int shoreY = Math.min(heights[index], lowShore ? level : level + 1);
-                    BiomeType biome = biomeAt(biomes, x, z);
-                    Block shore = lava ? lavaShore : biome == BiomeType.DESERT ? Block.SAND : Block.GRASS;
+                    Block shore = biome == BiomeType.DESERT ? Block.SAND : Block.GRASS;
                     boolean newSand = shore == Block.SAND && world.getBlock(x, shoreY, z) != Block.SAND.getId();
                     write(world, x, shoreY, z, shore);
                     if (newSand) {

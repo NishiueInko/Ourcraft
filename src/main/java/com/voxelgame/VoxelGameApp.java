@@ -306,6 +306,14 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         // =================================================================
         // BƯỚC 4: Xóa bộ đệm màu và bộ đệm chiều sâu
         // =================================================================
+        camera.copyPosition(eyePosition);
+        Camera.LiquidView liquid = camera.liquidView(world);
+        boolean submerged = liquid != Camera.LiquidView.AIR;
+        if (submerged) {
+            Gdx.gl.glClearColor(liquid.red, liquid.green, liquid.blue, 1f);
+        } else {
+            Gdx.gl.glClearColor(SKY_COLOR.x, SKY_COLOR.y, SKY_COLOR.z, 1f);
+        }
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT | GL20.GL_DEPTH_BUFFER_BIT);
 
         // =================================================================
@@ -323,7 +331,9 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         Matrix4 view = camera.getViewMatrix();
         shaderProgram.setUniformMatrix4f("uProjection", projection);
         shaderProgram.setUniformMatrix4f("uView", view);
-        camera.copyPosition(eyePosition);
+        if (submerged) {
+            shaderProgram.enableLiquidFog(eyePosition, liquid);
+        }
 
         // Vòm trời và thiên thể nằm sau mọi hình học; mây và giáng thủy xét độ sâu.
         float stormStrength = weather.skyStrength();
@@ -331,10 +341,16 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
 
         // Kết xuất các chunk giao khung nhìn và toàn bộ thực thể trong thế giới.
         textureAtlas.bind();
-        float terrainDistance = skyRenderer.enableWorldFog(shaderProgram, eyePosition, stormStrength);
+        float terrainDistance = submerged ? liquid.fogEnd
+                : skyRenderer.enableWorldFog(shaderProgram, eyePosition, stormStrength);
         world.render(shaderProgram, projection, view, eyePosition, renderCloudLayer, terrainDistance);
-        shaderProgram.disableDistanceFog();
+        if (!submerged) {
+            shaderProgram.disableDistanceFog();
+        }
         weatherRenderer.render(shaderProgram, world, eyePosition, weather);
+        if (submerged) {
+            shaderProgram.disableDistanceFog();
+        }
         textureAtlas.unbind();
         shaderProgram.setUniformVec3("uWorldLight", 1f, 1f, 1f);
 
@@ -355,7 +371,7 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         // =================================================================
         // BƯỚC 7: Kết xuất Giao diện 2D (Crosshair, Hotbar, Thanh đào, Pause Menu)
         // =================================================================
-        uiRenderer.renderCactusFlash(shaderProgram, camera, screenWidth, screenHeight, player.getCactusFlash());
+        uiRenderer.renderScreenEffects(shaderProgram, camera, screenWidth, screenHeight, liquid, player.getCactusFlash());
         uiRenderer.render2DHUD(
                 shaderProgram,
                 textureAtlas,

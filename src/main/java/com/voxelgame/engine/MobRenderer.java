@@ -24,7 +24,7 @@ public final class MobRenderer implements Disposable {
     private static final float PIXEL_TO_BLOCK = 1f / 16f;
     /** Cỡ bố cục gốc khi ảnh 16 × 16 dự phòng thay cho ảnh có UV chi tiết. */
     private static final int NOMINAL_WIDTH = 128;
-    private static final int NOMINAL_HEIGHT = 64;
+    private static final int NOMINAL_HEIGHT = 128;
     /** Định dạng cần dùng chung với shader và mesh chunk. */
     private static final VertexAttributes FORMAT = new VertexAttributes(
             new VertexAttribute(VertexAttributes.Usage.Position, 3, "aPos"),
@@ -65,6 +65,7 @@ public final class MobRenderer implements Disposable {
         MobAppearance.HorseMarkings[] markingTypes = MobAppearance.HorseMarkings.values();
         MobTextureManager.Skin[] markingSkins = new MobTextureManager.Skin[markingTypes.length];
         try {
+            MobTextureManager.Skin equipment = textures.load(MobTextureManager.HELD_EQUIPMENT);
             MobModel horse = MobAppearance.HORSE_BROWN.model();
             for (MobAppearance.HorseMarkings marking : markingTypes) {
                 markingSkins[marking.ordinal()] = loadLayer(textures, marking.texture(), horse, ModelPart.Layer.OVERLAY);
@@ -76,7 +77,7 @@ public final class MobRenderer implements Disposable {
                 MobTextureManager.Skin eyes = loadLayer(textures, appearance.eyes(), model, ModelPart.Layer.EYES);
                 MobTextureManager.Skin[] optionalMarkings = appearance.name().startsWith("HORSE_")
                         ? markingSkins : null;
-                PreparedPart[] roots = prepareParts(model.roots(), base, overlay, eyes, optionalMarkings, 1);
+                PreparedPart[] roots = prepareParts(model.roots(), base, overlay, eyes, equipment, optionalMarkings, 1);
                 models[appearance.ordinal()] = new PreparedModel(model, roots);
             }
             transforms = new Matrix4[deepestPart];
@@ -105,7 +106,7 @@ public final class MobRenderer implements Disposable {
     /** Chuẩn bị cùng cấu trúc khớp cho một biến thể; tận dụng mesh đã dựng của biến thể trước. */
     private PreparedPart[] prepareParts(ModelPart[] parts, MobTextureManager.Skin base,
                                        MobTextureManager.Skin overlay, MobTextureManager.Skin eyes,
-                                       MobTextureManager.Skin[] markingSkins, int depth) {
+                                       MobTextureManager.Skin equipment, MobTextureManager.Skin[] markingSkins, int depth) {
         PreparedPart[] prepared = new PreparedPart[parts.length];
         if (parts.length > 0) {
             deepestPart = Math.max(deepestPart, depth);
@@ -116,6 +117,7 @@ public final class MobRenderer implements Disposable {
                 case BASE -> prepareMaterial(part, base);
                 case OVERLAY -> prepareMaterial(part, overlay);
                 case EYES -> prepareMaterial(part, eyes);
+                case EQUIPMENT -> prepareMaterial(part, equipment);
             };
             Material[] markings = null;
             if (part.layer() == ModelPart.Layer.OVERLAY && markingSkins != null) {
@@ -124,7 +126,7 @@ public final class MobRenderer implements Disposable {
                     markings[mark] = prepareMaterial(part, markingSkins[mark]);
                 }
             }
-            PreparedPart[] children = prepareParts(part.children(), base, overlay, eyes, markingSkins, depth + 1);
+            PreparedPart[] children = prepareParts(part.children(), base, overlay, eyes, equipment, markingSkins, depth + 1);
             prepared[i] = new PreparedPart(part, material, markings, children);
         }
         return prepared;

@@ -134,7 +134,10 @@ public final class SimpleGridNavigator {
                 for (int blockZ = minZ; blockZ <= maxZ; blockZ++) {
                     byte id = world.getBlock(blockX, y, blockZ);
                     if (id == Block.WATER.getId()) {
-                        top = Math.max(top, y + 0.87f);
+                        // Mặt nước là điểm điều hướng của mob bơi, thú cưỡi cần nền thật.
+                        if (!(mob instanceof MountableMob)) {
+                            top = Math.max(top, y + 0.87f);
+                        }
                     } else if (id != Block.AIR.getId() && id != Block.CACTUS.getId() && id != Block.LAVA.getId()) {
                         Block.Bounds bounds = world.getCollisionBounds(blockX, y, blockZ);
                         if (bounds != null && x + radius > blockX + bounds.minX()
@@ -155,12 +158,14 @@ public final class SimpleGridNavigator {
 
     /** Kiểm tra cả thể tích quét dọc, kể cả trần nằm giữa vị trí đầu và vị trí nâng. */
     boolean canRise(World world, float x, float y, float z, float rise) {
-        return bodyClear(world, x, y, z, y + mob.getHeight() + rise, true);
+        return bodyClear(world, x, y, z, y + mob.getHeight() + rise, true)
+                && (!(mob instanceof MountableMob mount) || mount.seatsClear(world, x, y, z, rise));
     }
 
     /** Kiểm tra toàn thân ở vị trí dự kiến khi đặt chân trên bậc. */
     boolean canOccupy(World world, float x, float y, float z) {
-        return bodyClear(world, x, y, z, y + mob.getHeight(), true);
+        return bodyClear(world, x, y, z, y + mob.getHeight(), true)
+                && (!(mob instanceof MountableMob mount) || mount.seatsClear(world, x, y, z, 0f));
     }
 
     /** Tránh Lava và Cactus ngay cả ở quãng ngang giữa hai lần đáp đất. */

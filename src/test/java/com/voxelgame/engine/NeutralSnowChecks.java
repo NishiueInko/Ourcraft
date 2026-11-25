@@ -3,6 +3,9 @@ package com.voxelgame.engine;
 import com.voxelgame.entity.Block;
 import com.voxelgame.entity.DamageSource;
 import com.voxelgame.entity.Player;
+import com.badlogic.gdx.math.Vector3;
+import com.voxelgame.entity.projectile.ArrowEntity;
+import com.voxelgame.entity.projectile.ArrowType;
 import com.voxelgame.entity.mob.MobEntity;
 import com.voxelgame.entity.mob.MobType;
 import com.voxelgame.entity.mob.PolarBear;
@@ -19,6 +22,7 @@ final class NeutralSnowChecks {
         checkPolarBearProtectsCub();
         checkWolfDefendsPackAndHunts();
         checkWolfChangesEscapedPrey();
+        checkWolfRetaliatesThroughCombat();
         checkWolfTiltAndShake();
     }
 
@@ -159,12 +163,43 @@ final class NeutralSnowChecks {
             }
             require(wolf.target() == skeleton,
                     "Sói phải chuyển sang con mồi gần khi mục tiêu cũ thoát khỏi tầm đuổi");
-            Player player = new Player(36.5f, 1f, 10.5f);
+            Player player = new Player(80.5f, 1f, 10.5f);
             wolf.damage(world, 1f, DamageSource.MELEE, player, 0f, 0f);
             for (int tick = 0; tick < 20; tick++) {
                 wolf.update(world, TICK);
             }
-            require(wolf.target() == player, "Sói giữ mục tiêu trả đũa người chơi khi còn giận");
+            require(wolf.target() != player, "Sói phải bỏ mục tiêu người chơi đã chạy quá xa");
+        } finally {
+            world.dispose();
+        }
+    }
+
+    /** Mũi tên giữ tác nhân và cả đàn có thể đuổi, cắn người chơi đã đánh sói. */
+    private static void checkWolfRetaliatesThroughCombat() {
+        World world = World.empty();
+        try {
+            floor(world);
+            Player player = new Player(7.5f, 1f, 10.5f);
+            world.registerPlayer(player);
+            MobEntity wolf = create(MobType.WOLF, 9.5f, 1f, 10.5f);
+            MobEntity ally = create(MobType.WOLF, 11.5f, 1f, 10.5f);
+            world.addLivingEntity(wolf);
+            world.addLivingEntity(ally);
+            player.attack(world, wolf, Vector3.X);
+            require(wolf.lastAttacker() == player && wolf.target() == player && ally.target() == player,
+                    "Đòn tay không phải kích động cả đàn");
+            wolf.setPosition(9.5f, 1f, 10.5f);
+            for (int tick = 0; tick < 24; tick++) {
+                wolf.update(world, TICK);
+            }
+            require(player.getHealth() < player.getMaxHealth(), "Sói phải đuổi và cắn người chơi");
+            wolf.setPosition(9.5f, 1f, 10.5f);
+            ArrowEntity arrow = new ArrowEntity(player, 8.5f, 1.5f, 10.5f,
+                    24f, 0f, 0f, ArrowType.NORMAL, 1f);
+            float beforeArrow = wolf.getHealth();
+            arrow.update(world, TICK);
+            require(wolf.getHealth() < beforeArrow && wolf.lastAttacker() == player && wolf.angerTimer() >= 20f && wolf.angerTimer() < 40f,
+                    "Tên của người chơi phải làm mới thời gian giận");
         } finally {
             world.dispose();
         }

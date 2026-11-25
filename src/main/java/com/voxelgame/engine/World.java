@@ -13,6 +13,7 @@ import com.voxelgame.entity.DamageSource;
 import com.voxelgame.entity.Entity;
 import com.voxelgame.entity.FallingBlockEntity;
 import com.voxelgame.entity.Hotbar;
+import com.voxelgame.entity.GrassBlock;
 import com.voxelgame.entity.ItemEntity;
 import com.voxelgame.entity.LivingEntity;
 import com.voxelgame.entity.Player;
@@ -22,6 +23,7 @@ import com.voxelgame.entity.projectile.ProjectileEntity;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Random;
 
 /**
  * Quản lý toàn bộ thế giới Voxel, thuật toán Sinh Địa Hình Tự Nhiên (Procedural World Generation)
@@ -71,6 +73,13 @@ public class World implements Disposable {
 
     // Một ô null biểu thị chunk chỉ chứa không khí, chưa cần mảng block hay mesh.
     private final Chunk[][][] chunks = new Chunk[WORLD_CHUNKS_X][WORLD_CHUNKS_Y][WORLD_CHUNKS_Z];
+    /** Lấy ba mẫu mỗi 50 ms trong bán kính mô phỏng 128 block. */
+    private static final float RANDOM_TICK_SECONDS = 0.05f;
+    private static final int RANDOM_TICK_RADIUS = 128 / Chunk.SIZE;
+    private static final int RANDOM_TICK_SAMPLES = 3;
+    private final Random blockRandom = new Random(WORLD_SEED);
+    private final Vector3 randomTickPlayerPosition = new Vector3();
+    private float randomTickElapsed;
     private final TerrainGenerator terrain = new TerrainGenerator(WORLD_SEED);
 
     // Tham chiếu tới thực thể người chơi và danh sách đa hình chứa mọi Entity hoạt động trong thế giới
@@ -465,6 +474,11 @@ public class World implements Disposable {
                 i--;
             }
         }
+        if (player != null && player.getMount() != null) {
+            player.syncMountedPosition();
+            syncMobListener();
+        }
+        updateRandomBlocks(deltaTime);
         mobSpawner.update(this, worldTime, deltaTime);
     }
 
@@ -627,6 +641,58 @@ public class World implements Disposable {
 
     public boolean isSolidBlock(int worldX, int worldY, int worldZ) {
         return getCollisionBounds(worldX, worldY, worldZ) != null;
+    }
+
+    /** Lấy mẫu đều trong mỗi section đã có dữ liệu, độc lập với cache mesh và tốc độ khung hình. */
+    private void updateRandomBlocks(float deltaTime) {
+        if (player == null) {
+            return;
+        }
+        randomTickElapsed += deltaTime;
+        while (randomTickElapsed >= RANDOM_TICK_SECONDS) {
+            randomTickElapsed -= RANDOM_TICK_SECONDS;
+            player.copyPosition(randomTickPlayerPosition);
+            int centerX = Math.floorDiv((int) Math.floor(randomTickPlayerPosition.x), Chunk.SIZE);
+            int centerZ = Math.floorDiv((int) Math.floor(randomTickPlayerPosition.z), Chunk.SIZE);
+            for (int dx = -RANDOM_TICK_RADIUS; dx <= RANDOM_TICK_RADIUS; dx++) {
+                int cx = centerX + dx;
+                if (cx < 0 || cx >= WORLD_CHUNKS_X) {
+                    continue;
+                }
+                for (int dz = -RANDOM_TICK_RADIUS; dz <= RANDOM_TICK_RADIUS; dz++) {
+                    int cz = centerZ + dz;
+                    if (cz < 0 || cz >= WORLD_CHUNKS_Z
+                            || dx * dx + dz * dz > RANDOM_TICK_RADIUS * RANDOM_TICK_RADIUS) {
+                        continue;
+                    }
+                    for (int cy = 0; cy < WORLD_CHUNKS_Y; cy++) {
+                        Chunk chunk = chunks[cx][cy][cz];
+                        if (chunk == null) {
+                            continue;
+                        }
+                        for (int sample = 0; sample < RANDOM_TICK_SAMPLES; sample++) {
+                            int x = blockRandom.nextInt(Chunk.SIZE);
+                            int y = blockRandom.nextInt(Chunk.SIZE);
+                            int z = blockRandom.nextInt(Chunk.SIZE);
+                            if (chunk.getBlockLocal(x, y, z) == Block.GRASS.getId()) {
+                                ((GrassBlock) Block.GRASS).randomTick(this, cx * Chunk.SIZE + x,
+                                        cy * Chunk.SIZE + y, cz * Chunk.SIZE + z, blockRandom);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /** Trả chất lỏng chứa điểm thế giới, xét đúng mặt thoáng của voxel. */
+    public Block liquidAt(float x, float y, float z) {
+        int blockX = (int) Math.floor(x);
+        int blockY = (int) Math.floor(y);
+        int blockZ = (int) Math.floor(z);
+        Block block = Block.fromId(getBlock(blockX, blockY, blockZ));
+        return block.isLiquid() && y < blockY + block.getTopHeight(this, blockX, blockY, blockZ)
+                ? block : Block.AIR;
     }
 
     /** Trả độ cao bề mặt chặn giáng thủy, kể cả mặt chất lỏng và lớp tuyết thấp. */
