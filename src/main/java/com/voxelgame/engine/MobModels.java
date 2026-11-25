@@ -1,5 +1,6 @@
 package com.voxelgame.engine;
 
+import com.badlogic.gdx.math.MathUtils;
 import com.voxelgame.entity.LivingEntity;
 
 /**
@@ -582,6 +583,12 @@ public final class MobModels {
             this.kind = kind;
         }
 
+        /** Khối ngậm theo khớp đầu khi cáo nhìn hoặc cuộn mình ngủ. */
+        @Override
+        ModelPart heldBlockPart() {
+            return kind == AnimalKind.FOX ? head : null;
+        }
+
         /** Hòa chuyển động nhìn, bước, đuôi và tư thế riêng của các loài bốn chân. */
         @Override
         public void setupAnimation(LivingEntity entity, float limbSwing, float limbSwingAmount,
@@ -626,11 +633,28 @@ public final class MobModels {
                         legs[1].setRotation(52 * amount, 0, 0);
                         legs[2].setRotation(-36 * amount, 0, 0);
                         legs[3].setRotation(-36 * amount, 0, 0);
+                    } else if (kind == AnimalKind.GOAT) {
+                        if (entity.isOnGround()) {
+                            body.setTranslation(0, -1.8f * amount, 0);
+                            head.setRotation(-14f * amount, headYaw, 0);
+                            foldLegs(24f * amount, -32f * amount);
+                        } else {
+                            body.setRotation(12f * amount, 0, 0);
+                            foldLegs(43f * amount, -38f * amount);
+                        }
                     }
                 }
                 case TILT_HEAD -> {
                     if (kind == AnimalKind.WOLF) {
                         head.setRotation(headPitch, headYaw, 32 * amount);
+                    }
+                }
+                case SHAKE -> {
+                    if (kind == AnimalKind.WOLF) {
+                        float roll = MathUtils.sin(ageInTicks * 1.9f) * 18f * amount;
+                        body.setRotation(0, 0, roll);
+                        head.setRotation(headPitch, headYaw, -roll * 1.4f);
+                        tail.setRotation(8, 0, roll);
                     }
                 }
                 case ANGRY -> {
@@ -645,6 +669,22 @@ public final class MobModels {
                         body.setTranslation(0, 2 * amount, 0);
                         foldLegs(59 * amount, -63 * amount);
                         tail.setRotation(-34 * amount, 0, 0);
+                    }
+                }
+                case CROUCH -> {
+                    if (kind == AnimalKind.FOX) {
+                        body.setTranslation(0, -2 * amount, 0);
+                        foldLegs(42 * amount, -48 * amount);
+                        tail.setRotation(11 * amount, MathUtils.sin(ageInTicks * 0.8f) * 24 * amount, 0);
+                    }
+                }
+                case FACEPLANT -> {
+                    if (kind == AnimalKind.FOX) {
+                        body.setRotation(-35 * amount, 0, 0);
+                        body.setTranslation(0, -2 * amount, 0);
+                        head.setRotation(-52 * amount, 0, 0);
+                        foldLegs(78 * amount, -24 * amount);
+                        tail.setRotation(-60 * amount, 0, 0);
                     }
                 }
                 case SLEEP -> {

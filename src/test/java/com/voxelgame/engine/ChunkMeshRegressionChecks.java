@@ -1,5 +1,7 @@
 package com.voxelgame.engine;
 
+import com.badlogic.gdx.math.Frustum;
+import com.badlogic.gdx.math.Plane;
 import com.badlogic.gdx.utils.FloatArray;
 import com.voxelgame.entity.Block;
 
@@ -7,6 +9,7 @@ import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Random;
 
 /** Kiểm tra trạng thái chunk và thứ tự kết xuất mà không khởi tạo OpenGL. */
 public final class ChunkMeshRegressionChecks {
@@ -18,6 +21,7 @@ public final class ChunkMeshRegressionChecks {
     /** Chạy nhóm kiểm tra được gọi bởi chương trình hồi quy chung. */
     public static void run() {
         checkChunkMetadata();
+        checkFrustumCorners();
         checkTranslucentSort();
         checkLiquidFacesAtChunkBoundary();
         checkLeafAndCactusFaces();
@@ -25,6 +29,26 @@ public final class ChunkMeshRegressionChecks {
         checkCrossPlantAndSnowFaces();
         checkAmbientOcclusionAtChunkCorner();
         checkIndexedQuadPacking();
+    }
+
+    /** So kết quả góc xa nhất với cách thử đủ tám góc, kể cả khi mặt phẳng tiếp xúc hộp. */
+    private static void checkFrustumCorners() {
+        Chunk chunk = new Chunk(92, 4, 51);
+        float half = Chunk.SIZE * 0.5f;
+        float centerX = 92 * Chunk.SIZE + half;
+        float centerY = 4 * Chunk.SIZE + half;
+        float centerZ = 51 * Chunk.SIZE + half;
+        Frustum frustum = new Frustum();
+        Random random = new Random(412);
+        for (int sample = 0; sample < 1_000; sample++) {
+            for (Plane plane : frustum.planes) {
+                plane.normal.set(random.nextInt(3) - 1, random.nextInt(3) - 1, random.nextInt(3) - 1);
+                plane.d = -plane.normal.dot(centerX, centerY, centerZ) + random.nextInt(49) - 24;
+            }
+            require(chunk.intersectsFrustum(frustum) == frustum.boundsInFrustum(
+                    centerX, centerY, centerZ, half, half, half),
+                    "Culling giữ cả chunk tiếp xúc mặt phẳng và loại đúng chunk bên ngoài");
+        }
     }
 
     /** Mô phỏng lọc Nearest trên UV thật của sáu mặt, bằng chính PNG xương rồng đóng gói. */

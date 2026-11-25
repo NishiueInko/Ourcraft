@@ -17,6 +17,7 @@ public final class VoxelRegressionChecks {
         MobAssetAndModelChecks.run();
         MobSpawnerChecks.run();
         HostileMobChecks.run();
+        PassiveAndNeutralMobChecks.run();
         checkBlockRegistry();
         checkBlockUpdates();
         checkFallingBlocks();

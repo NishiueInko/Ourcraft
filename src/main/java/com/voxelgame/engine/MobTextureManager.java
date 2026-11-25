@@ -21,6 +21,11 @@ public final class MobTextureManager implements Disposable {
 
     /** Ảnh đơn sắc dùng khi tệp thiếu hoặc không giải mã được. */
     private static final int FALLBACK_SIZE = 16;
+    /** Tọa độ hai mắt trên mặt trước của đầu thỏ màu trắng. */
+    private static final int RABBIT_EYE_Y = 7;
+    private static final int RABBIT_LEFT_EYE_X = 6;
+    private static final int RABBIT_RIGHT_EYE_X = 8;
+    private static final int RABBIT_EYE_RED_RGBA = 0xc83c4aff;
     private final Map<MobTextureKey, Skin> skins = new HashMap<>();
     private final Map<MobTextureKey, Skin> layoutFallbacks = new HashMap<>();
     private boolean disposed;
@@ -53,7 +58,8 @@ public final class MobTextureManager implements Disposable {
             if (!file.exists()) {
                 throw new IllegalArgumentException("Thiếu tệp PNG");
             }
-            texture = new Texture(file, false);
+            texture = key.group().equals("rabbit") && key.name().equals("white")
+                    ? createWhiteRabbitSkin(file) : new Texture(file, false);
             configure(texture);
             return new Skin(texture, texture.getWidth(), texture.getHeight(), false);
         } catch (RuntimeException error) {
@@ -62,6 +68,20 @@ public final class MobTextureManager implements Disposable {
             }
             Gdx.app.error("MobTextureManager", "Dùng ảnh dự phòng cho " + path + ": " + error.getMessage());
             return createFallback(key.fallbackRgb());
+        }
+    }
+
+    /** Đặt sắc đỏ ở hai mắt thỏ trắng ngay lúc tải, rồi trả Pixmap ngoài heap. */
+    private static Texture createWhiteRabbitSkin(FileHandle file) {
+        Pixmap image = new Pixmap(file);
+        try {
+            if (image.getWidth() > RABBIT_RIGHT_EYE_X && image.getHeight() > RABBIT_EYE_Y) {
+                image.drawPixel(RABBIT_LEFT_EYE_X, RABBIT_EYE_Y, RABBIT_EYE_RED_RGBA);
+                image.drawPixel(RABBIT_RIGHT_EYE_X, RABBIT_EYE_Y, RABBIT_EYE_RED_RGBA);
+            }
+            return new Texture(image, false);
+        } finally {
+            image.dispose();
         }
     }
 

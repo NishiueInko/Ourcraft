@@ -6,6 +6,7 @@ import com.badlogic.gdx.graphics.VertexAttribute;
 import com.badlogic.gdx.graphics.VertexAttributes;
 import com.badlogic.gdx.graphics.VertexAttributes.Usage;
 import com.badlogic.gdx.math.Frustum;
+import com.badlogic.gdx.math.Plane;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Disposable;
 import com.badlogic.gdx.utils.FloatArray;
@@ -153,10 +154,18 @@ public class Chunk implements Disposable {
         return blockCount == 0;
     }
 
-    /** Giữ cả chunk cắt qua rìa khung nhìn để tránh làm mất mặt block đang thấy. */
+    /** Với mỗi mặt phẳng, thử đúng góc hộp xa nhất về phía trong của khung nhìn. */
     boolean intersectsFrustum(Frustum frustum) {
-        return frustum.boundsInFrustum(baseWorldX + HALF_SIZE, baseWorldY + HALF_SIZE, baseWorldZ + HALF_SIZE,
-                HALF_SIZE, HALF_SIZE, HALF_SIZE);
+        for (Plane plane : frustum.planes) {
+            Vector3 normal = plane.normal;
+            int x = normal.x >= 0f ? baseWorldX + SIZE : baseWorldX;
+            int y = normal.y >= 0f ? baseWorldY + SIZE : baseWorldY;
+            int z = normal.z >= 0f ? baseWorldZ + SIZE : baseWorldZ;
+            if (plane.testPoint(x, y, z) == Plane.PlaneSide.Back) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** Tính khoảng cách bình phương đến hộp bao để ưu tiên dựng các chunk gần. */

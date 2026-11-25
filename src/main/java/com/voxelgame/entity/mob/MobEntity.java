@@ -204,7 +204,7 @@ public class MobEntity extends LivingEntity implements MobVisual {
             wishX = leapX;
             wishZ = leapZ;
         }
-        float speedScale = getMovementSpeedMultiplier() * (inWater ? 0.67f : 1f);
+        float speedScale = getMovementSpeedMultiplier() * (inWater ? waterSpeedMultiplier() : 1f);
         float blend = Math.min(1f, dt * 18f);
         velocity.x = wishX == 0f ? 0f : MathUtils.lerp(velocity.x, wishX * speedScale, blend);
         velocity.z = wishZ == 0f ? 0f : MathUtils.lerp(velocity.z, wishZ * speedScale, blend);
@@ -224,7 +224,7 @@ public class MobEntity extends LivingEntity implements MobVisual {
             velocity.y = rise ? Math.max(velocity.y, FLOAT_SPEED)
                     : Math.max(WATER_FALL_SPEED, velocity.y + WATER_GRAVITY * dt);
         } else {
-            velocity.y = Math.max(MAX_FALL_SPEED, velocity.y + GRAVITY * dt);
+            velocity.y = Math.max(terminalFallSpeed(), velocity.y + GRAVITY * dt);
         }
         Block hit = moveAxis(world, 1, velocity.y * dt);
         onGround = hit != null && velocity.y < 0f;
@@ -291,13 +291,38 @@ public class MobEntity extends LivingEntity implements MobVisual {
 
     /** Nhận một cú vồ ngắn với vận tốc ngang được giữ qua nhiều khung hình. */
     protected final void queueLeap(float vx, float vy, float vz) {
+        queueLeap(vx, vy, vz, 0.46f);
+    }
+
+    /** Giữ động lượng ngang đến khi hết nhịp phóng hoặc chân chạm nền. */
+    protected final void queueLeap(float vx, float vy, float vz, float seconds) {
         if (onGround && !inWater && vy > 0f) {
             leapX = vx;
             leapZ = vz;
-            leapRemaining = 0.46f;
+            leapRemaining = seconds;
             velocity.y = vy;
             onGround = false;
         }
+    }
+
+    /** Hướng cú lao theo tọa độ đích, vẫn qua quét va chạm và kiểm tra nguy hiểm. */
+    protected final void steerDirect(float x, float z, float speed) {
+        float dx = x - position.x;
+        float dz = z - position.z;
+        float length = (float) Math.sqrt(dx * dx + dz * dz);
+        if (length > CONTACT_EPSILON) {
+            steer(dx / length, dz / length, speed);
+        }
+    }
+
+    /** Giới hạn vận tốc rơi trong không khí, mặc định dùng vật lý chung của mob. */
+    protected float terminalFallSpeed() {
+        return MAX_FALL_SPEED;
+    }
+
+    /** Hệ số tốc độ ngang trong nước, có thể tăng cho loài bơi khỏe. */
+    protected float waterSpeedMultiplier() {
+        return 0.67f;
     }
 
     /** Tiếp tục ép nhẹ vào mặt vật cản để loài biết leo có tiếp xúc ngang với tường. */

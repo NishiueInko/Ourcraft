@@ -1,6 +1,7 @@
 package com.voxelgame.engine;
 
 import com.badlogic.gdx.math.MathUtils;
+import com.voxelgame.entity.Block;
 
 import java.util.Objects;
 
@@ -8,7 +9,8 @@ import java.util.Objects;
 public final class MobVisualState {
     /** Tư thế do hành vi của cá thể chọn trước khi vẽ. */
     public enum Pose {
-        IDLE, UNDEAD, AIM_BOW, THRUST, GRAZE, RAM, REAR, FLAP, HOP, TILT_HEAD, POUNCE, SLEEP, SIT, ANGRY, DRINK
+        IDLE, UNDEAD, AIM_BOW, THRUST, GRAZE, RAM, REAR, FLAP, HOP, TILT_HEAD, POUNCE, SLEEP, SIT, ANGRY, DRINK,
+        SHAKE, CROUCH, FACEPLANT
     }
 
     private MobAppearance appearance;
@@ -24,6 +26,8 @@ public final class MobVisualState {
     private float ageInTicks;
     private float scale = 1f;
     private float fuseProgress;
+    private int sheepWoolColor = 0xffffff;
+    private Block heldBlock;
 
     /** Tạo một trạng thái tái sử dụng cho cá thể với ngoại hình ban đầu. */
     public MobVisualState(MobAppearance appearance) {
@@ -74,6 +78,21 @@ public final class MobVisualState {
     public void setFuseProgress(float progress) {
         fuseProgress = MathUtils.clamp(progress, 0f, 1f);
     }
+
+    /** Nhuộm duy nhất lớp len, dùng giá trị RGB đóng gói để không tạo vật liệu mới. */
+    public void setSheepWoolColor(int rgb) {
+        sheepWoolColor = rgb & 0xffffff;
+    }
+
+    /** Đặt khối ngậm ở miệng cáo, hoặc null khi miệng trống. */
+    public void setHeldBlock(Block block) {
+        heldBlock = block;
+    }
+
+    /** Trả màu RGB của lớp len. */
+    public int sheepWoolColor() { return sheepWoolColor; }
+    /** Trả vật đang ngậm để gắn lưới dùng chung vào khớp đầu. */
+    public Block heldBlock() { return heldBlock; }
 
     /** Đọc mẫu và biến thể vật liệu đang dùng. */
     public MobAppearance appearance() { return appearance; }

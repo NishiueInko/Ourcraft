@@ -39,6 +39,11 @@ public abstract class MobModel {
         return roots;
     }
 
+    /** Trả phần đầu có điểm ngậm vật, nếu mẫu có hỗ trợ. */
+    ModelPart heldBlockPart() {
+        return null;
+    }
+
     /** Đặt lại mẫu trước khi áp dụng góc khớp của cá thể mới. */
     final void resetPose() {
         for (ModelPart root : roots) {

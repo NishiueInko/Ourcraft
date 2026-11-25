@@ -7,6 +7,7 @@ import com.voxelgame.entity.Player;
 import com.voxelgame.entity.mob.MobCategory;
 import com.voxelgame.entity.mob.MobEntity;
 import com.voxelgame.entity.mob.MobType;
+import com.voxelgame.entity.mob.PolarBear;
 
 import java.util.Random;
 
@@ -157,7 +158,7 @@ public final class MobSpawner {
     }
 
     /** Chọn loài một lần và thử sinh các thành viên gần điểm gốc cùng biome và phân vùng. */
-    private int spawnPack(World world, WorldTime time, MobCategory category, int x, int z, int room) {
+    int spawnPack(World world, WorldTime time, MobCategory category, int x, int z, int room) {
         if (!world.isInsideWorld(x, 0, z)) {
             return 0;
         }
@@ -195,7 +196,7 @@ public final class MobSpawner {
             return 0;
         }
         int desired = entry.minPackSize() + spawnRandom.nextInt(entry.maxPackSize() - entry.minPackSize() + 1);
-        int first = spawnMember(world, type, x + 0.5f, feet, z + 0.5f, room);
+        int first = spawnMember(world, type, x + 0.5f, feet, z + 0.5f, room, false);
         int created = first;
         int members = first == 0 ? 0 : 1;
         for (int attempt = 0; attempt < PACK_ATTEMPTS && members < desired && created < room; attempt++) {
@@ -209,7 +210,8 @@ public final class MobSpawner {
             if (packFeet < 0 || !matchesSnowZone(world, zone, packX, packFeet, packZ)) {
                 continue;
             }
-            int added = spawnMember(world, type, packX + 0.5f, packFeet, packZ + 0.5f, room - created);
+            boolean bearCub = type == MobType.POLAR_BEAR && members == 1;
+            int added = spawnMember(world, type, packX + 0.5f, packFeet, packZ + 0.5f, room - created, bearCub);
             if (added > 0) {
                 created += added;
                 members++;
@@ -255,7 +257,7 @@ public final class MobSpawner {
     }
 
     /** Ghi một cá thể hoặc ba thành viên kỵ sĩ sau khi kiểm tra khoảng trống và hạn mức. */
-    private int spawnMember(World world, MobType type, float x, float y, float z, int room) {
+    private int spawnMember(World world, MobType type, float x, float y, float z, int room, boolean bearCub) {
         if (type == MobType.HUSK && room >= 3 && MobType.CAMEL_HUSK.implemented()
                 && MobType.PARCHED.implemented() && spawnRandom.nextInt(10) == 0
                 && hasClearance(world, x, y, z, MobType.CAMEL_HUSK.width(), JOCKEY_HEIGHT)
@@ -266,7 +268,8 @@ public final class MobSpawner {
                 && spawnSpiderJockey(world, x, y, z)) {
             return 2;
         }
-        MobEntity mob = type.create(x, y, z);
+        // Chỉ con thứ hai trong bầy gấu là con non, với hộp va chạm bằng nửa con trưởng thành.
+        MobEntity mob = bearCub ? new PolarBear(x, y, z, true) : type.create(x, y, z);
         if (mob == null) {
             return 0;
         }

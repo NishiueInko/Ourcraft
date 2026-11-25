@@ -62,6 +62,16 @@ public enum MobType {
         HUSK.registerFactory(Husk::new);
         PARCHED.registerFactory(Parched::new);
         STRAY.registerFactory(Stray::new);
+        COW.registerFactory(Cow::new);
+        SHEEP.registerFactory(Sheep::new);
+        PIG.registerFactory(Pig::new);
+        CHICKEN.registerFactory(Chicken::new);
+        RABBIT.registerFactory(Rabbit::new);
+        SNOW_RABBIT.registerFactory(Rabbit::snow);
+        GOAT.registerFactory(Goat::new);
+        POLAR_BEAR.registerFactory(PolarBear::new);
+        WOLF.registerFactory(Wolf::new);
+        SNOW_FOX.registerFactory(SnowFox::new);
     }
 
     /** Ghi khóa âm thanh, kích thước người lớn và các thuộc tính nền. */

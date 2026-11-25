@@ -90,6 +90,8 @@ public class World implements Disposable {
     private final Vector3 blastTarget = new Vector3();
     /** Tọa độ tạm khi kiểm tra thực thể chiếm chỗ trong một vùng. */
     private final Vector3 occupiedPosition = new Vector3();
+    /** Bộ đệm tìm vật phẩm cho thực thể trên luồng cập nhật. */
+    private final Vector3 droppedItemPosition = new Vector3();
     // Các luật có thể ghi thêm ô trong lúc hàng đợi đang được xử lý.
     private final BlockUpdateQueue blockUpdates = new BlockUpdateQueue();
     private boolean drainingBlockUpdates;
@@ -339,6 +341,22 @@ public class World implements Disposable {
     /** Đọc một thực thể mà không công khai danh sách có thể sửa. */
     public Entity entityAt(int index) {
         return entities.get(index);
+    }
+
+    /** Trao khối rơi gần nhất cho mob một lần, giữ nguyên chỉ số trong lượt cập nhật đang chạy. */
+    public Block takeNearbyDroppedBlock(float x, float y, float z, float radius) {
+        float bestDistance = radius * radius;
+        ItemEntity closest = null;
+        for (int i = 0; i < entities.size(); i++) {
+            if (entities.get(i) instanceof ItemEntity item && !item.isCollected() && item.getBlock() != Block.AIR) {
+                float distance = item.copyPosition(droppedItemPosition).dst2(x, y, z);
+                if (distance <= bestDistance) {
+                    closest = item;
+                    bestDistance = distance;
+                }
+            }
+        }
+        return closest == null ? null : closest.collectForMob();
     }
 
     /** Kiểm tra hộp hành lang sinh hoặc dịch chuyển có bị một thực thể sống khác chiếm hay không. */
@@ -1074,7 +1092,9 @@ public class World implements Disposable {
             for (int cy = 0; cy < WORLD_CHUNKS_Y; cy++) {
                 for (int cz = firstZ; cz <= lastZ; cz++) {
                     Chunk chunk = chunks[cx][cy][cz];
-                    if (chunk != null && chunk.distanceSquaredTo(eye) <= rangeSquared && chunk.intersectsFrustum(frustum)) {
+                    // Chunk sạch từng dựng mà không có mặt lộ chỉ cần xét lại khi được đánh dấu bẩn.
+                    if (chunk != null && (chunk.isDirty() || chunk.hasMesh())
+                            && chunk.distanceSquaredTo(eye) <= rangeSquared && chunk.intersectsFrustum(frustum)) {
                         chunk.lastVisibleFrame = renderFrame;
                         if (chunk.isDirty()) {
                             queueMeshBuild(chunk);

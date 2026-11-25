@@ -9,7 +9,9 @@ import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Disposable;
+import com.voxelgame.entity.Block;
 import com.voxelgame.entity.Entity;
+import com.voxelgame.entity.ItemEntity;
 import com.voxelgame.entity.LivingEntity;
 
 import java.util.HashMap;
@@ -43,9 +45,15 @@ public final class MobRenderer implements Disposable {
     private final PreparedModel[] models;
     private final Matrix4[] transforms;
     private final Matrix4 rootTransform = new Matrix4();
+    /** Ma trận của vật được giữ ở miệng, dùng lại giữa các lần vẽ. */
+    private final Matrix4 heldBlockTransform = new Matrix4();
     private final Vector3 center = new Vector3();
     private MobTextureManager.Skin boundSkin;
     private int tintMode;
+    private int appliedTint;
+    private int woolColor;
+    private Block heldBlock;
+    private ModelPart heldBlockPart;
     private int deepestPart;
     private boolean disposed;
 
@@ -152,6 +160,7 @@ public final class MobRenderer implements Disposable {
         }
         boundSkin = null;
         tintMode = -1;
+        appliedTint = -1;
         try {
             for (int i = 0; i < entities.size(); i++) {
                 Entity entity = entities.get(i);
@@ -209,16 +218,17 @@ public final class MobRenderer implements Disposable {
         }
         rootTransform.scale(scale, scale, scale);
 
-        // Giữ các uniform không đổi giữa hai mob có cùng hiệu ứng chớp.
+        // Màu len chỉ áp dụng cho lớp phủ, còn dấu đỏ áp dụng cho cả cá thể.
         boolean hurt = living != null && living.getHurtFlashTimer() > 0f;
         boolean whiteFlash = fuse > 0f && ((int) (12f * fuse * fuse) & 1) == 1;
         int mode = hurt ? 1 : whiteFlash ? 2 : 0;
         if (tintMode != mode) {
             tintMode = mode;
-            float shade = mode == 1 ? 0.45f : 1f;
-            shader.setUniformVec4("uTintColor", 1f, shade, shade, 1f);
             shader.setUniform1f("uMobWhiteFlash", mode == 2 ? 0.85f : 0f);
         }
+        woolColor = state.appearance() == MobAppearance.SHEEP ? state.sheepWoolColor() : 0xffffff;
+        heldBlock = state.heldBlock();
+        heldBlockPart = heldBlock == null ? null : model.model.heldBlockPart();
         MobAppearance.HorseMarkings markings = state.horseMarkings();
         int markingId = markings == null ? -1 : markings.ordinal();
         for (PreparedPart root : model.roots) {
@@ -237,6 +247,7 @@ public final class MobRenderer implements Disposable {
         Material material = prepared.markings != null && markingId >= 0
                 ? prepared.markings[markingId] : prepared.material;
         if (material != null) {
+            applyTint(shader, part.layer() == ModelPart.Layer.OVERLAY ? woolColor : 0xffffff);
             if (boundSkin != material.skin) {
                 boundSkin = material.skin;
                 boundSkin.bind();
@@ -244,9 +255,32 @@ public final class MobRenderer implements Disposable {
             shader.setUniformMatrix4f("uModel", transform);
             material.mesh.render(shader.getGdxShader(), GL20.GL_TRIANGLES);
         }
+        if (part == heldBlockPart) {
+            drawHeldBlock(shader, transform);
+        }
         for (PreparedPart child : prepared.children) {
             renderPart(child, transform, depth + 1, markingId, shader);
         }
+    }
+
+    /** Tái sử dụng uniform khi hai phần có chung màu len và trạng thái sát thương. */
+    private void applyTint(ShaderProgram shader, int rgb) {
+        int encoded = rgb | tintMode << 24;
+        if (appliedTint != encoded) {
+            appliedTint = encoded;
+            float greenBlueScale = (tintMode == 1 ? 0.45f : 1f) / 255f;
+            shader.setUniformVec4("uTintColor", ((rgb >> 16) & 255) / 255f,
+                    ((rgb >> 8) & 255) * greenBlueScale, (rgb & 255) * greenBlueScale, 1f);
+        }
+    }
+
+    /** Vẽ vật thu nhỏ theo điểm xoay của đầu cáo và tiếp tục dùng atlas của khối. */
+    private void drawHeldBlock(ShaderProgram shader, Matrix4 headTransform) {
+        applyTint(shader, 0xffffff);
+        blockAtlas.bind();
+        boundSkin = null;
+        heldBlockTransform.set(headTransform).translate(0f, -2.8f, -7.2f).scale(2.9f, 2.9f, 2.9f);
+        ItemEntity.renderBlockMesh(shader, heldBlock, heldBlockTransform);
     }
 
     /** Giải phóng toàn bộ VAO/VBO, kể cả khi quá trình khởi tạo chỉ hoàn thành một phần. */

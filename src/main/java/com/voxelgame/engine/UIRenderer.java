@@ -75,6 +75,17 @@ public class UIRenderer implements Disposable {
     private static final int VITAL_ICON_COUNT = 10;
     private static final float VITAL_PIXEL = 2f;
     private static final float VITAL_SPACING = 17f;
+    /** Mỗi hàng bitmap có tối đa hai dải pixel; dự trù cả nền và phần màu. */
+    private static final int VITAL_VERTEX_CAPACITY =
+            VITAL_ICON_COUNT * (HEART_ROWS.length + FOOD_ROWS.length) * 2 * 2 * 6;
+    private Mesh vitalMesh;
+    private int vitalWidth = -1;
+    private int vitalHeight = -1;
+    private int vitalHealth = -1;
+    private int vitalFood = -1;
+    private int healthVertex;
+    private int foodVertex;
+    private int vitalVertexCount;
     private WorldTime worldTime;
     private WeatherManager weather;
     static {
@@ -324,27 +335,50 @@ public class UIRenderer implements Disposable {
         Gdx.gl.glEnable(GL20.GL_DEPTH_TEST);
     }
 
-    /** Vẽ hai hàng biểu tượng phía trên tên vật phẩm, dùng chung bộ đệm đỉnh với chữ. */
+    /** Vẽ lại cùng ba dải đỉnh khi kích thước và số điểm hiển thị giữ nguyên. */
     private void renderVitals(Player player, int windowWidth, int windowHeight) {
+        int hp = (int) Math.ceil(player.getHealth());
+        int food = (int) Math.ceil(player.getHunger());
+        if (windowWidth != vitalWidth || windowHeight != vitalHeight || hp != vitalHealth || food != vitalFood) {
+            rebuildVitals(windowWidth, windowHeight, hp, food);
+        }
+        currentShader.setUniform1i("uUseTexture", 0);
+        currentShader.setUniformVec4("uTintColor", 0.15f, 0.12f, 0.17f, 0.95f);
+        vitalMesh.render(currentShader.getGdxShader(), GL20.GL_TRIANGLES, 0, healthVertex);
+        currentShader.setUniformVec4("uTintColor", 0.94f, 0.29f, 0.35f, 1f);
+        if (foodVertex > healthVertex) {
+            vitalMesh.render(currentShader.getGdxShader(), GL20.GL_TRIANGLES, healthVertex, foodVertex - healthVertex);
+        }
+        currentShader.setUniformVec4("uTintColor", 0.97f, 0.64f, 0.30f, 1f);
+        if (vitalVertexCount > foodVertex) {
+            vitalMesh.render(currentShader.getGdxShader(), GL20.GL_TRIANGLES, foodVertex, vitalVertexCount - foodVertex);
+        }
+    }
+
+    /** Ghi nền, tim và thịt vào một bộ đệm khi số điểm hoặc kích thước cửa sổ thay đổi. */
+    private void rebuildVitals(int windowWidth, int windowHeight, int hp, int food) {
         float halfBarWidth = (Hotbar.SLOT_COUNT * HOTBAR_SLOT_SIZE
                 + (Hotbar.SLOT_COUNT + 1) * HOTBAR_SLOT_PADDING) * 0.5f;
         float span = (VITAL_ICON_COUNT - 1) * VITAL_SPACING + 7f * VITAL_PIXEL;
         float inset = Math.max(4f, windowWidth * 0.5f - halfBarWidth);
         float y = windowHeight - HOTBAR_SLOT_SIZE - HOTBAR_SLOT_PADDING * 2f - 58f;
         float foodX = windowWidth - inset - span;
-        currentShader.setUniform1i("uUseTexture", 0);
-
-        currentShader.setUniformVec4("uTintColor", 0.15f, 0.12f, 0.17f, 0.95f);
+        if (vitalMesh == null) {
+            vitalMesh = new Mesh(Mesh.VertexDataType.VertexBufferObjectWithVAO, true, VITAL_VERTEX_CAPACITY,
+                    0, VERTEX_ATTRIBUTES);
+        }
         int length = writeVitalIcons(HEART_ROWS, inset, y, VITAL_ICON_COUNT * 2, 0);
         length = writeVitalIcons(FOOD_ROWS, foodX, y, VITAL_ICON_COUNT * 2, length);
-        uploadAndDrawTriangles(textVertices, length);
-
-        currentShader.setUniformVec4("uTintColor", 0.94f, 0.29f, 0.35f, 1f);
-        int hp = (int) Math.ceil(player.getHealth());
-        uploadAndDrawTriangles(textVertices, writeVitalIcons(HEART_ROWS, inset, y, hp, 0));
-        currentShader.setUniformVec4("uTintColor", 0.97f, 0.64f, 0.30f, 1f);
-        int food = (int) Math.ceil(player.getHunger());
-        uploadAndDrawTriangles(textVertices, writeVitalIcons(FOOD_ROWS, foodX, y, food, 0));
+        healthVertex = length / 6;
+        length = writeVitalIcons(HEART_ROWS, inset, y, hp, length);
+        foodVertex = length / 6;
+        length = writeVitalIcons(FOOD_ROWS, foodX, y, food, length);
+        vitalVertexCount = length / 6;
+        vitalMesh.setVertices(textVertices, 0, length);
+        vitalWidth = windowWidth;
+        vitalHeight = windowHeight;
+        vitalHealth = hp;
+        vitalFood = food;
     }
 
     /** Gộp từng dải pixel liên tiếp thành một quad, cắt nửa biểu tượng khi còn một điểm. */
@@ -913,6 +947,11 @@ public class UIRenderer implements Disposable {
 
     @Override
     public void dispose() {
+        if (vitalMesh != null) {
+            vitalMesh.dispose();
+            vitalMesh = null;
+            vitalWidth = -1;
+        }
         if (uiMesh != null) {
             uiMesh.dispose();
             uiMesh = null;

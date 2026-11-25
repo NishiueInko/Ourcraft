@@ -230,6 +230,11 @@ public abstract class Entity {
         return new Vector3(velocity);
     }
 
+    /** Chép vận tốc vào bộ đệm của AI mà không tạo vector mỗi lượt cập nhật. */
+    public Vector3 copyVelocity(Vector3 target) {
+        return target.set(velocity);
+    }
+
     public float getHalfWidth() {
         return halfWidth;
     }

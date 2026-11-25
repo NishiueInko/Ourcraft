@@ -205,13 +205,22 @@ public class ItemEntity extends Entity {
     }
 
     /** Chia sẻ hình block giữa vật phẩm nhỏ và thực thể trọng lực kích thước thật. */
-    static void renderBlockMesh(ShaderProgram shader, Block block, Matrix4 model) {
+    public static void renderBlockMesh(ShaderProgram shader, Block block, Matrix4 model) {
         shader.setUniformMatrix4f("uModel", model);
         getOrCreateMesh(block).render(shader.getGdxShader(), GL20.GL_TRIANGLES);
     }
 
     public boolean isCollected() {
         return collected;
+    }
+
+    /** Chuyển vật phẩm sang thực thể nhặt và để World dọn ô danh sách theo nhịp cập nhật. */
+    public Block collectForMob() {
+        if (collected || block == Block.AIR) {
+            return null;
+        }
+        collected = true;
+        return block;
     }
 
     public Block getBlock() {
