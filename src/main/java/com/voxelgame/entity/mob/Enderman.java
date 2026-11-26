@@ -230,15 +230,25 @@ public final class Enderman extends MobEntity {
             if (heldBlock == Block.AIR) {
                 if (canCarry(block)) {
                     heldBlock = block;
+                    mobVisualState().setHeldBlock(heldBlock);
                     world.setBlock(tx, ty, tz, Block.AIR.getId());
                     return;
                 }
             } else if (block == Block.AIR && world.isSolidBlock(tx, ty - 1, tz)
                     && !intersectsBlock(tx, ty, tz) && world.tryPlaceBlock(tx, ty, tz, heldBlock, world.getPlayer())) {
                 heldBlock = Block.AIR;
+                mobVisualState().setHeldBlock(null);
                 return;
             }
         }
+    }
+
+    /** Lấy và xóa khối đang cầm để rơi ra ngoài thế giới khi Enderman bị tiêu diệt. */
+    Block takeHeldBlockForLoot() {
+        Block carried = heldBlock;
+        heldBlock = Block.AIR;
+        mobVisualState().setHeldBlock(null);
+        return carried;
     }
 
     /** Chỉ cho phép nhặt các khối tự nhiên được quy định cho loài. */

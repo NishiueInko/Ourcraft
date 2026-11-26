@@ -188,6 +188,14 @@ public abstract class LivingEntity extends Entity {
         return effects[type.ordinal()].duration();
     }
 
+    /** Xóa toàn bộ hiệu ứng trạng thái hiện có (ví dụ khi uống Milk Bucket). */
+    public void clearStatusEffects() {
+        for (int i = 0; i < effects.length; i++) {
+            effects[i].set(0, 0f);
+        }
+        poisonElapsed = 0f;
+    }
+
     /** Thực thể undead miễn nhiễm độc. */
     public boolean isImmuneTo(StatusEffectType type) {
         return undead && type == StatusEffectType.POISON;

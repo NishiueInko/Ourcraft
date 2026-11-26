@@ -362,6 +362,18 @@ public class AudioManager implements Disposable {
         playEffect(materialOf(block).step, sneaking ? 0.10f : 0.28f);
     }
 
+    /** Chọn tiếng chân theo mặt đất và giảm âm lượng theo khoảng cách đến mob. */
+    public void playMobStep(Block ground, float x, float y, float z) {
+        if (!mobListenerReady || ground == Block.AIR || ground.isLiquid()) {
+            return;
+        }
+        float dx = x - listenerX;
+        float dy = y - listenerY;
+        float dz = z - listenerZ;
+        float gain = mobGain(dx * dx + dy * dy + dz * dz, MobSoundEvent.STEP.defaultRange());
+        playSample(materialOf(ground).step, 0.15f * gain, 1f);
+    }
+
     /** Phát tiếng tiếp đất của người chơi hoặc cát/sỏi rơi. */
     public void playLanding(Block block, float gain) {
         playEffect(materialOf(block).step, 0.51f * gain);

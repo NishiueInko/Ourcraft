@@ -13,7 +13,7 @@ import java.util.concurrent.ThreadLocalRandom;
 public class Skeleton extends RangedMob {
     /** Tầm phát hiện và bắn, thời gian giương cung, và tốc độ ngang của mũi tên. */
     private static final float RANGE = 16f;
-    private static final float DRAW_SECONDS = 0.55f;
+    private static final float DRAW_SECONDS = 1f;
     private static final float ARROW_SPEED = 19f;
     /** Khoảng cách lùi và ngưỡng rút ngắn nhịp nạp tên khi đánh gần. */
     private static final float RETREAT_DISTANCE_SQUARED = 4f * 4f;
@@ -65,7 +65,7 @@ public class Skeleton extends RangedMob {
     /** Cung theo hướng đầu trong toàn bộ thời gian đang lên dây. */
     @Override
     void applyAimPose(float progress) {
-        mobVisualState().setPose(progress > 0f ? MobVisualState.Pose.AIM_BOW : MobVisualState.Pose.IDLE, progress);
+        mobVisualState().setPose(MobVisualState.Pose.AIM_BOW, progress);
     }
 
     /** Ở gần, giảm khoảng nghỉ nhưng giữ khác biệt tốc độ giữa các loại cung thủ. */

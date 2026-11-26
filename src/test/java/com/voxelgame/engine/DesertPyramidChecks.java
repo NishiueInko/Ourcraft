@@ -60,17 +60,17 @@ final class DesertPyramidChecks {
     private static void checkPyramid() {
         short[] heights = new short[World.WORLD_SIZE_X * World.WORLD_SIZE_Z];
         byte[] biomes = new byte[heights.length];
-        int zoneX = 2 * World.BIOME_WIDTH + 13;
+        int zoneX = 4 * World.BIOME_WIDTH + 13;
         int zoneZ = World.CENTER_Z;
         for (int x = zoneX - 13; x <= zoneX + 35; x++) {
             int first = x * World.WORLD_SIZE_Z + zoneZ - 24;
             Arrays.fill(heights, first, first + 49, (short) 31);
             Arrays.fill(biomes, first, first + 49, (byte) BiomeType.DESERT.ordinal());
         }
-        // Khép một dải sông trên phần gần Plains để kiểm tra việc chọn dấu chân khô.
+        // Khép một dải sông trên phần gần Flower Forest để kiểm tra việc chọn dấu chân khô.
         int riverX = zoneX - 1;
         for (int z = zoneZ - 24; z <= zoneZ + 24; z++) {
-            biomes[riverX * World.WORLD_SIZE_Z + z] |= 8;
+            biomes[riverX * World.WORLD_SIZE_Z + z] |= TerrainGenerator.RIVER;
         }
         DesertPyramid pyramid = DesertPyramid.select(heights, biomes);
         if (pyramid == null || pyramid.contains(riverX, pyramid.centerZ(), 0)) {

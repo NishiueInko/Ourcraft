@@ -125,11 +125,17 @@ abstract class RangedMob extends MobEntity {
             chargingTarget = target;
             chargeSince = now;
         }
-        float aimProgress = Math.min(1f, (float) (now - chargeSince) / preparationSeconds);
+        float aimProgress = Math.max(0f, Math.min(1f, (float) (now - chargeSince) / preparationSeconds));
         if (now >= shotReadyAt && aimProgress >= 1f) {
             launch(world, target, (float) Math.sqrt(distanceSquared));
             shotReadyAt = now + intervalSeconds(distanceSquared);
-            chargeSince = now;
+            // Cung nhả dây ngay khi phóng tên, rồi bắt đầu kéo đủ 20 tick trước phát kế.
+            if (this instanceof Skeleton) {
+                chargeSince = Math.max(now, shotReadyAt - preparationSeconds);
+                aimProgress = 0f;
+            } else {
+                chargeSince = now;
+            }
         }
         applyAimPose(aimProgress);
     }

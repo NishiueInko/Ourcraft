@@ -32,6 +32,14 @@ public enum MobSoundEvent {
         return assetName;
     }
 
+    /** Các loài dùng mẫu bước của khối dưới chân theo Java 26.3. */
+    public static boolean usesBlockSteps(String mobId) {
+        return switch (mobId) {
+            case "creeper", "enderman", "fox", "witch" -> true;
+            default -> false;
+        };
+    }
+
     /** Trả về khoảng nghe nếu bên gọi không chỉ định bán kính dương. */
     public float defaultRange() {
         return defaultRange;

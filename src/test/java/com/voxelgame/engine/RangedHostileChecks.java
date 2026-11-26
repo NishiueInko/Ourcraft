@@ -53,11 +53,16 @@ final class RangedHostileChecks {
             TestMount mount = new TestMount(100.5f, 20f, 105.5f);
             world.addLivingEntity(mount);
             require(rider.tryMount(mount, 0), "Ghế của nhện thử phải nhận Skeleton");
-            for (int i = 0; i < 26; i++) {
+            for (int i = 0; i < 20; i++) {
                 rider.update(world, 0.05f);
             }
-            require(projectile(world, rider, ArrowEntity.class) != null && rider.getMount() == mount,
-                    "Skeleton ở ghế vẫn phải bắn về phía người chơi");
+            require(projectile(world, rider, ArrowEntity.class) == null
+                            && rider.mobVisualState().poseAmount() >= 0.9f,
+                    "Cung đã căng nhưng chưa bắn khi chưa đủ 20 tick kể từ lúc bắt đầu kéo");
+            rider.update(world, 0.05f);
+            require(projectile(world, rider, ArrowEntity.class) != null && rider.getMount() == mount
+                            && rider.mobVisualState().poseAmount() == 0f,
+                    "Skeleton cưỡi nhện phải nhả dây đúng tick tạo tên");
         } finally {
             world.dispose();
         }

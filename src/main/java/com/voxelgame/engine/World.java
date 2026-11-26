@@ -42,21 +42,21 @@ import java.util.Random;
  */
 public class World implements Disposable {
 
-    // Ba biome rộng 1.000 block theo trục X; chunk cuối chỉ chứa tám cột hợp lệ.
-    static final int BIOME_WIDTH = 1_000;
-    public static final int WORLD_SIZE_X = 3 * BIOME_WIDTH;
+    // Năm biome rộng 800 block theo trục X (`SNOWY_PLAINS`, `FOREST`, `PLAINS`, `FLOWER_FOREST`, `DESERT`).
+    static final int BIOME_WIDTH = 800;
+    public static final int WORLD_SIZE_X = 5 * BIOME_WIDTH;
     public static final int WORLD_CHUNKS_X = (WORLD_SIZE_X + Chunk.SIZE - 1) / Chunk.SIZE;
     public static final int WORLD_CHUNKS_Y = 16;
-    public static final int WORLD_CHUNKS_Z = 112;
+    public static final int WORLD_CHUNKS_Z = 128;
 
     public static final int WORLD_SIZE_Y = WORLD_CHUNKS_Y * Chunk.SIZE;
     public static final int WORLD_SIZE_Z = WORLD_CHUNKS_Z * Chunk.SIZE;
 
-    // Tâm hình học dùng cho lần xuất phát đầu tiên và tọa độ hồi sinh ưu tiên.
+    // Tâm hình học nằm giữa Plains dùng cho lần xuất phát đầu tiên và tọa độ hồi sinh ưu tiên.
     public static final int CENTER_X = WORLD_SIZE_X / 2;
     public static final int CENTER_Z = WORLD_SIZE_Z / 2;
-    static final int RESPAWN_X = 1500;
-    static final int RESPAWN_Z = 1500;
+    static final int RESPAWN_X = CENTER_X;
+    static final int RESPAWN_Z = 1600;
     /** Số block tối đa tìm quanh tâm biome để tránh cột ngập nước hoặc bị che kín. */
     private static final int BIOME_LANDING_RADIUS = 32;
     // Dựng sẵn khu vực 5 × 5 cột chunk quanh spawn.
@@ -87,8 +87,10 @@ public class World implements Disposable {
     private final List<Entity> entities = new ArrayList<>();
     /** Hệ thống âm thanh do ứng dụng sở hữu và vị trí nghe dùng lại khi tính độ xa. */
     private AudioManager audio;
-    /** Lượt vẽ mob do ứng dụng cung cấp khi có ngữ cảnh OpenGL. */
+    /** Lượt vẽ mob và atlas vật phẩm do ứng dụng cung cấp khi có ngữ cảnh OpenGL. */
     private MobRenderer mobRenderer;
+    private Texture blockAtlas;
+    private ItemTextureAtlas itemAtlas;
     /** Thời tiết dùng chung với bộ kết xuất để dập lửa ngoài trời. */
     private WeatherManager weather;
     /** Đồng hồ và bộ sinh dùng chung trên luồng cập nhật thực thể. */
@@ -131,6 +133,7 @@ public class World implements Disposable {
     // Theo dõi riêng các chunk có mesh để thu hồi tài nguyên mà không quét cả lưới lần nữa.
     private final Array<Chunk> residentMeshes = new Array<>(false, WORLD_CHUNKS_X * WORLD_CHUNKS_Z);
     private long renderFrame;
+    private final DesertPyramid desertPyramid;
     private final int spawnY;
 
     /** Sinh địa hình và dựng trước mesh quanh điểm xuất phát. */
@@ -146,10 +149,11 @@ public class World implements Disposable {
     /** Tách sinh địa hình và khởi tạo mesh khỏi đường tạo bản đồ trống. */
     private World(boolean generate) {
         if (!generate) {
+            desertPyramid = null;
             spawnY = 1;
             return;
         }
-        terrain.generate(this);
+        desertPyramid = terrain.generate(this);
         // Tâm nằm trên giao điểm bốn cột block. Lấy cột cao nhất dưới chân người chơi.
         int groundY = 0;
         for (int x = CENTER_X - 1; x <= CENTER_X; x++) {
@@ -173,6 +177,11 @@ public class World implements Disposable {
         }
     }
 
+    /** Trả dấu chân kim tự tháp sa mạc đã dựng khi khởi tạo thế giới (null nếu thế giới trống). */
+    DesertPyramid desertPyramid() {
+        return desertPyramid;
+    }
+
     /** Trả về vị trí chân người chơi ở tâm bản đồ, ngay trên mặt đất khi tạo thế giới. */
     public Vector3 getSpawnPosition() {
         return new Vector3(CENTER_X, spawnY, CENTER_Z);
@@ -181,9 +190,11 @@ public class World implements Disposable {
     /** Tìm điểm đứng khô theo từng vành vuông quanh tâm biome. Chỉ ghi vị trí khi có nền hợp lệ. */
     public boolean setBiomeCenterPosition(Vector3 position, BiomeType biome) {
         int centerX = switch (biome) {
-            case SNOWY_PLAINS -> CENTER_X - BIOME_WIDTH;
-            case PLAINS -> CENTER_X;
-            case DESERT -> CENTER_X + BIOME_WIDTH;
+            case SNOWY_PLAINS -> BIOME_WIDTH / 2;
+            case FOREST -> BIOME_WIDTH + BIOME_WIDTH / 2;
+            case PLAINS -> 2 * BIOME_WIDTH + BIOME_WIDTH / 2;
+            case FLOWER_FOREST -> 3 * BIOME_WIDTH + BIOME_WIDTH / 2;
+            case DESERT -> 4 * BIOME_WIDTH + BIOME_WIDTH / 2;
         };
         for (int radius = 0; radius <= BIOME_LANDING_RADIUS; radius++) {
             for (int dx = -radius; dx <= radius; dx++) {
@@ -406,7 +417,7 @@ public class World implements Disposable {
         }
         int blockX = (int) Math.floor(x);
         int blockZ = (int) Math.floor(z);
-        return getBiome(blockX, blockZ) == BiomeType.PLAINS && !hasWeatherRoof(blockX, y, blockZ);
+        return getBiome(blockX, blockZ).hasRain() && !hasWeatherRoof(blockX, y, blockZ);
     }
 
     /**
@@ -506,6 +517,12 @@ public class World implements Disposable {
     /** Gắn bộ vẽ ngoại hình do ứng dụng sở hữu. */
     public void setMobRenderer(MobRenderer mobRenderer) {
         this.mobRenderer = mobRenderer;
+    }
+
+    /** Gắn hai tấm atlas khối và vật phẩm để chuyển đổi sạch khi vẽ ItemEntity độc lập. */
+    public void setAtlases(Texture blockAtlas, ItemTextureAtlas itemAtlas) {
+        this.blockAtlas = blockAtlas;
+        this.itemAtlas = itemAtlas;
     }
 
     /** Cho thực thể phát âm thanh tại điểm xảy ra tương tác gameplay. */
@@ -680,6 +697,14 @@ public class World implements Disposable {
                             }
                         }
                     }
+                    // Chuẩn Minecraft: khi đang giáng thủy, mỗi cột chunk có xác suất 1/16 mỗi tick để đóng băng hoặc phủ 1 lớp tuyết.
+                    if (weather != null && weather.strength() > 0.5f && blockRandom.nextInt(16) == 0) {
+                        int sampleX = cx * Chunk.SIZE + blockRandom.nextInt(Chunk.SIZE);
+                        int sampleZ = cz * Chunk.SIZE + blockRandom.nextInt(Chunk.SIZE);
+                        if (sampleX < WORLD_SIZE_X) {
+                            accumulateSnow(sampleX, sampleZ, player, false);
+                        }
+                    }
                 }
             }
         }
@@ -739,9 +764,9 @@ public class World implements Disposable {
         return -1;
     }
 
-    /** Thử đóng băng hoặc tích tuyết trên bề mặt lộ thiên, qua đường cập nhật block thông thường. */
+    /** Thử đóng băng hoặc phủ 1 lớp tuyết trên bề mặt lộ thiên theo chuẩn snowAccumulationHeight = 1. */
     void accumulateSnow(int x, int z, Player player, boolean thicken) {
-        if (!isInsideWorld(x, 0, z) || getBiome(x, z) != BiomeType.SNOWY_PLAINS) {
+        if (!isInsideWorld(x, 0, z) || !getBiome(x, z).hasSnow()) {
             return;
         }
         int y = findWeatherSurface(x, z, true);
@@ -754,11 +779,7 @@ public class World implements Disposable {
                     && !intersectsPlayer(player, Block.ICE, 0, x, y, z)) {
                 setBlock(x, y, z, Block.ICE.getId());
             }
-        } else if (top == Block.SNOW_LAYER) {
-            if (thicken && !hasLavaNear(x, y, z)) {
-                tryStackSnow(x, y, z, player);
-            }
-        } else if (top != Block.SNOW_BLOCK && !hasLavaNear(x, y + 1, z)) {
+        } else if (top != Block.SNOW_LAYER && top != Block.SNOW_BLOCK && !hasLavaNear(x, y + 1, z)) {
             tryPlaceBlock(x, y + 1, z, Block.SNOW_LAYER, player);
         }
     }
@@ -1092,13 +1113,29 @@ public class World implements Disposable {
         Arrays.fill(visibleChunks, 0, visibleChunkCount, null);
         // Thực thể đục phải ghi chiều sâu trước khi vẽ nước và băng.
         boolean hasVisualMob = false;
+        boolean boundItemAtlas = false;
         for (int i = 0; i < entities.size(); i++) {
             Entity entity = entities.get(i);
             if (mobRenderer != null && entity instanceof MobVisual) {
                 hasVisualMob = true;
+            } else if (entity instanceof ItemEntity itemEntity && itemEntity.isStandaloneItem()) {
+                if (itemAtlas != null) {
+                    if (!boundItemAtlas) {
+                        itemAtlas.bind();
+                        boundItemAtlas = true;
+                    }
+                    itemEntity.render(shader);
+                }
             } else {
+                if (boundItemAtlas && blockAtlas != null) {
+                    blockAtlas.bind();
+                    boundItemAtlas = false;
+                }
                 entity.render(shader);
             }
+        }
+        if (boundItemAtlas && blockAtlas != null) {
+            blockAtlas.bind();
         }
         if (hasVisualMob) {
             mobRenderer.render(entities, shader, frustum, eye, drawDistance);

@@ -135,7 +135,7 @@ public final class MobSpawner {
                 continue;
             }
             BiomeType biome = world.getBiome(centerX, centerZ);
-            if (!MobSpawnTable.anyImplementedCreatures(biome) || biome == BiomeType.PLAINS && !isDaylight(time)) {
+            if (!MobSpawnTable.anyImplementedCreatures(biome) || biome.hasRain() && !isDaylight(time)) {
                 continue;
             }
             populated[index] |= mask;
@@ -175,7 +175,7 @@ public final class MobSpawner {
             return 0;
         }
         BiomeType biome = world.getBiome(x, z);
-        if (category == MobCategory.CREATURE && biome == BiomeType.PLAINS && !isDaylight(time)) {
+        if (category == MobCategory.CREATURE && biome.hasRain() && !isDaylight(time)) {
             return 0;
         }
         float surface = world.getPrecipitationSurface(x, z);
@@ -305,7 +305,7 @@ public final class MobSpawner {
         MobType riderType = MobType.SKELETON;
         if (!world.hasWeatherRoof(bx, y + 1f, bz)) {
             riderType = switch (world.getBiome(bx, bz)) {
-                case PLAINS -> MobType.SKELETON;
+                case PLAINS, FOREST, FLOWER_FOREST -> MobType.SKELETON;
                 case DESERT -> MobType.PARCHED;
                 case SNOWY_PLAINS -> MobType.STRAY;
             };
@@ -416,7 +416,7 @@ public final class MobSpawner {
         if (type == MobType.CAMEL) {
             return biome == BiomeType.DESERT && ground == Block.SAND;
         }
-        if (biome == BiomeType.PLAINS) {
+        if (biome.hasRain()) {
             return ground == Block.GRASS && isDaylight(time);
         }
         if (biome == BiomeType.DESERT) {

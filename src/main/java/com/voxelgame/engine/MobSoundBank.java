@@ -10,12 +10,13 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
-/** Nạp và sở hữu các bộ đệm WAV mob, tra nhóm mẫu bằng ID và loại sự kiện. */
+/** Nạp và sở hữu các bộ đệm WAV và OGG của mob, tra mẫu theo ID và sự kiện. */
 final class MobSoundBank implements Disposable {
-    /** Vị trí cố định và số biến thể đóng gói cho từng nhóm mẫu. */
+    /** Vị trí cố định, số biến thể bắt buộc và số biến thể tối đa cho từng nhóm mẫu. */
     private static final String ROOT = "audio/sfx/mob/";
     private static final String SHARED = "shared";
-    private static final int VARIANT_COUNT = 2;
+    private static final int REQUIRED_VARIANTS = 2;
+    private static final int MAX_VARIANTS = 4;
 
     /** Danh mục cố định đọc được cả khi tài nguyên nằm bên trong JAR. */
     private static final String[] MOB_IDS = {
@@ -40,7 +41,9 @@ final class MobSoundBank implements Disposable {
             Sound[][] events = new Sound[EVENT_COUNT][];
             samplesByMob.put(mobId, events);
             for (MobSoundEvent event : COMMON_EVENTS) {
-                events[event.ordinal()] = loadVariants(mobId, event);
+                if (hasSpeciesSample(mobId, event)) {
+                    events[event.ordinal()] = loadVariants(mobId, event);
+                }
             }
         }
         loadSpecial("creeper", MobSoundEvent.CREEPER_PRIMED);
@@ -55,8 +58,15 @@ final class MobSoundBank implements Disposable {
         loadSpecial("goat", MobSoundEvent.GOAT_SCREAM);
         loadSpecial("wolf", MobSoundEvent.WOLF_GROWL);
         loadSpecial("camel", MobSoundEvent.CAMEL_DASH);
+        loadSpecial("camel_husk", MobSoundEvent.CAMEL_DASH);
         loadSpecial("husk", MobSoundEvent.HUSK_CONVERT);
         loadSpecial(SHARED, MobSoundEvent.SPEAR_CHARGE);
+    }
+
+    /** Creeper im lặng lúc chờ. Bốn loài không có mẫu bước riêng dùng âm của khối dưới chân. */
+    static boolean hasSpeciesSample(String id, MobSoundEvent event) {
+        if (event == MobSoundEvent.AMBIENT) return !id.equals("creeper");
+        return event != MobSoundEvent.STEP || !MobSoundEvent.usesBlockSteps(id);
     }
 
     /** Lưu nhóm đặc thù đúng một nơi, kể cả hiệu ứng nhiều loài dùng chung. */
@@ -65,15 +75,19 @@ final class MobSoundBank implements Disposable {
         events[event.ordinal()] = loadVariants(folder, event);
     }
 
-    /** Bỏ qua mẫu thiếu hoặc lỗi và giữ liền các phần tử đã nạp để chọn đồng đều. */
+    /** Bỏ qua mẫu thiếu hoặc lỗi và giữ liền các phần tử đã nạp để chọn đồng đều (hỗ trợ 2–4 biến thể). */
     private static Sound[] loadVariants(String folder, MobSoundEvent event) {
-        Sound[] variants = new Sound[VARIANT_COUNT];
+        boolean originalOgg = event == MobSoundEvent.BOW_SHOOT || event == MobSoundEvent.SPEAR_CHARGE;
+        int limit = originalOgg ? 1 : MAX_VARIANTS;
+        Sound[] variants = new Sound[limit];
         int loaded = 0;
-        for (int variant = 1; variant <= VARIANT_COUNT; variant++) {
-            String path = ROOT + folder + "/" + event.assetName() + variant + ".wav";
+        for (int variant = 1; variant <= limit; variant++) {
+            String path = ROOT + folder + "/" + event.assetName() + (originalOgg ? ".ogg" : variant + ".wav");
             FileHandle file = AudioManager.findAsset(path);
             if (file == null) {
-                System.err.println("[AudioManager] Thiếu mẫu âm thanh " + path);
+                if (variant <= REQUIRED_VARIANTS) {
+                    System.err.println("[AudioManager] Thiếu mẫu âm thanh " + path);
+                }
                 continue;
             }
             try {

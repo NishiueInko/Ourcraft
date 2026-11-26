@@ -85,7 +85,7 @@ final class HostileMobChecks {
     private static void checkSpiderJockey() {
         World world = World.empty();
         MobSpawner spawner = new MobSpawner(31);
-        int[] x = {500, 1500, 2500};
+        int[] x = {500, 2000, 3500};
         MobType[] riders = {MobType.STRAY, MobType.SKELETON, MobType.PARCHED};
         try {
             for (int i = 0; i < x.length; i++) {
@@ -100,8 +100,8 @@ final class HostileMobChecks {
             require(spawner.spawnSpiderJockey(world, 510.5f, 31, 800.5f)
                     && ((MobEntity) world.entityAt(7)).type() == MobType.SKELETON,
                     "Cặp nhện trong phòng kín vùng tuyết dùng Skeleton thường");
-            world.setBlockInternal(2510, 32, 800, Block.STONE.getId(), 0);
-            require(!spawner.spawnSpiderJockey(world, 2510.5f, 31, 800.5f) && world.entityCount() == 8,
+            world.setBlockInternal(3510, 32, 800, Block.STONE.getId(), 0);
+            require(!spawner.spawnSpiderJockey(world, 3510.5f, 31, 800.5f) && world.entityCount() == 8,
                     "Trần thấp từ chối cả cặp nhện và cung thủ");
         } finally {
             world.dispose();

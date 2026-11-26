@@ -43,9 +43,14 @@ final class TerrainGenerationChecks {
     /** Kiểm tra ranh giới uốn lượn, thứ tự biome, độ liên tục và tính tất định. */
     private static void checkClimate(TerrainGenerator generator, TerrainGenerator repeat) {
         TerrainGenerator otherSeed = new TerrainGenerator(WORLD_SEED + 1);
-        BiomeType[] expected = {BiomeType.SNOWY_PLAINS, BiomeType.PLAINS, BiomeType.DESERT};
-        int[] lowestBoundary = {World.WORLD_SIZE_X, World.WORLD_SIZE_X};
-        int[] highestBoundary = new int[2];
+        BiomeType[] expected = {
+                BiomeType.SNOWY_PLAINS, BiomeType.FOREST, BiomeType.PLAINS,
+                BiomeType.FLOWER_FOREST, BiomeType.DESERT
+        };
+        int[] lowestBoundary = {
+                World.WORLD_SIZE_X, World.WORLD_SIZE_X, World.WORLD_SIZE_X, World.WORLD_SIZE_X
+        };
+        int[] highestBoundary = new int[4];
         boolean changedSeed = false;
         for (int z = 0; z < World.WORLD_SIZE_Z; z += Chunk.SIZE) {
             int band = 0;
@@ -57,7 +62,8 @@ final class TerrainGenerationChecks {
                 if (biome == expected[band]) {
                     continue;
                 }
-                if (band >= 2 || biome != expected[band + 1] || Math.abs(x - (band + 1) * 1000) > 80) {
+                if (band >= 4 || biome != expected[band + 1]
+                        || Math.abs(x - (band + 1) * World.BIOME_WIDTH) > 105) {
                     throw new AssertionError("Sai thứ tự hoặc phạm vi biome tại X=" + x + ", Z=" + z);
                 }
                 lowestBoundary[band] = Math.min(lowestBoundary[band], x);
@@ -70,13 +76,14 @@ final class TerrainGenerationChecks {
                 checkTransition(generator, x - 1, z, x, z, expected[band], generator.getSurfaceY(x - 1, z));
                 band++;
             }
-            if (band != 2) {
+            if (band != 4) {
                 throw new AssertionError("Thiếu biome tại Z=" + z);
             }
         }
-        if (!changedSeed || highestBoundary[0] - lowestBoundary[0] < 8
-                || highestBoundary[1] - lowestBoundary[1] < 8) {
-            throw new AssertionError("Ranh giới phải uốn lượn và thay đổi theo seed");
+        for (int i = 0; i < 4; i++) {
+            if (!changedSeed || highestBoundary[i] - lowestBoundary[i] < 8) {
+                throw new AssertionError("Ranh giới thứ " + i + " phải uốn lượn và thay đổi theo seed");
+            }
         }
     }
 
@@ -98,7 +105,7 @@ final class TerrainGenerationChecks {
             int[] count = new int[256];
             boolean frozenWater = false;
             boolean canopySnow = false;
-            int bandWidth = World.WORLD_SIZE_X / 3;
+            int bandWidth = World.BIOME_WIDTH;
             for (int centerX = bandWidth / 2; centerX < World.WORLD_SIZE_X; centerX += bandWidth) {
                 for (int x = centerX - 144; x <= centerX + 144; x++) {
                     for (int z = World.CENTER_Z - 144; z <= World.CENTER_Z + 144; z++) {
@@ -148,14 +155,24 @@ final class TerrainGenerationChecks {
 
     /** Kiểm tra vách sandstone và bảo vệ vật liệu sa mạc tới ranh giới uốn lượn. */
     private static void checkDesertSlope(World world, TerrainGenerator generator) {
-        int x = 2350;
-        int z = 1086;
-        int y = generator.getSurfaceY(x, z);
-        Block surface = Block.fromId(world.getBlock(x, y, z));
-        if (surface != Block.SANDSTONE || world.getBlock(x, y - 3, z) != Block.SANDSTONE.getId()) {
+        boolean foundSandstoneSlope = false;
+        int desertStart = 4 * World.BIOME_WIDTH;
+        for (int x = desertStart + 64; x < World.WORLD_SIZE_X - 64 && !foundSandstoneSlope; x += 2) {
+            for (int z = 64; z < World.WORLD_SIZE_Z - 64 && !foundSandstoneSlope; z += 2) {
+                if (generator.getBiome(x, z) != BiomeType.DESERT) {
+                    continue;
+                }
+                int y = generator.getSurfaceY(x, z);
+                if (world.getBlock(x, y, z) == Block.SANDSTONE.getId()
+                        && world.getBlock(x, y - 3, z) == Block.SANDSTONE.getId()) {
+                    foundSandstoneSlope = true;
+                }
+            }
+        }
+        if (!foundSandstoneSlope) {
             throw new AssertionError("Dốc vừa ở sa mạc phải có ít nhất bốn khối sandstone");
         }
-        for (int columnX = 1920; columnX < World.WORLD_SIZE_X; columnX += 3) {
+        for (int columnX = desertStart - 110; columnX < World.WORLD_SIZE_X; columnX += 3) {
             for (int columnZ = 0; columnZ < World.WORLD_SIZE_Z; columnZ += 3) {
                 if (generator.getBiome(columnX, columnZ) != BiomeType.DESERT) {
                     continue;
@@ -176,8 +193,9 @@ final class TerrainGenerationChecks {
 
     /** Kiểm tra mực sông và lớp phủ thực tế ở vùng chuyển tiếp đã uốn. */
     private static void checkSurfaceAndRiver(World world, TerrainGenerator generator) {
-        int[] reaches = new int[3];
-        int[] lowland = new int[3];
+        int biomeCount = BiomeType.values().length;
+        int[] reaches = new int[biomeCount];
+        int[] lowland = new int[biomeCount];
         int snowyPeak = 0;
         for (int x = 0; x < World.WORLD_SIZE_X; x += 4) {
             for (int z = 0; z < World.WORLD_SIZE_Z; z += 4) {
@@ -204,9 +222,14 @@ final class TerrainGenerationChecks {
                 }
             }
         }
-        if (snowyPeak < 140 || reaches[0] < 50 || reaches[1] < 50 || reaches[2] < 50
-                || lowland[BiomeType.PLAINS.ordinal()] < 1000 || lowland[BiomeType.DESERT.ordinal()] < 1000) {
-            throw new AssertionError("Thiếu đỉnh, địa hình thấp hoặc đoạn sông đúng cao độ");
+        for (int i = 0; i < biomeCount; i++) {
+            if (reaches[i] < 50) {
+                throw new AssertionError("Thiếu đoạn sông đúng cao độ trong biome " + BiomeType.values()[i]);
+            }
+        }
+        if (snowyPeak < 140 || lowland[BiomeType.PLAINS.ordinal()] < 1000
+                || lowland[BiomeType.DESERT.ordinal()] < 1000) {
+            throw new AssertionError("Thiếu đỉnh hoặc địa hình thấp");
         }
     }
 
@@ -231,7 +254,8 @@ final class TerrainGenerationChecks {
         int[] dx = {-1, 1, 0, 0};
         int[] dz = {0, 0, -1, 1};
         for (int x = 64; x < World.WORLD_SIZE_X - 64; x++) {
-            if (x % 1000 < 64 || x % 1000 >= 936) {
+            int inBand = x % World.BIOME_WIDTH;
+            if (inBand < 64 || inBand >= World.BIOME_WIDTH - 64) {
                 continue;
             }
             for (int z = World.CENTER_Z - 320; z <= World.CENTER_Z + 320; z++) {

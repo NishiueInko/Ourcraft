@@ -131,9 +131,9 @@ final class MobPhysicsChecks {
                 "Mob không được tự bước vào dung nham");
     }
 
-    /** Đúng loài bốc cháy khi nắng, còn bóng râm, nước, mưa và đêm thì bảo vệ. */
+    /** Đúng loài bốc cháy khi nắng, còn bóng râm, nước, mưa (ở Plains/Forest/Flower Forest) và đêm thì bảo vệ. */
     private static void checkSunlight(World world) {
-        final int plainsX = 1500;
+        final int plainsX = 2000;
         fill(world, plainsX, plainsX + 7, 60, 60, 11, Block.STONE);
         world.setBlockInternal(plainsX + 2, 15, 60, Block.OAK_LEAVES.getId(), 0);
         world.setBlockInternal(plainsX + 4, 12, 60, Block.WATER.getId(), 0);
@@ -156,10 +156,19 @@ final class MobPhysicsChecks {
         rain.update(world, 0.05f);
         require(rain.getFireTimer() == 0f, "Mưa tại cột Plains phải ngăn cháy nắng");
 
-        fill(world, 2500, 2500, 60, 60, 11, Block.STONE);
-        Fixture desert = new Fixture(MobType.ZOMBIE, 2500.5f, 12f, 60.5f);
+        fill(world, 1200, 1200, 60, 60, 11, Block.STONE);
+        fill(world, 2800, 2800, 60, 60, 11, Block.STONE);
+        Fixture forestRain = new Fixture(MobType.ZOMBIE, 1200.5f, 12f, 60.5f);
+        Fixture flowerForestRain = new Fixture(MobType.ZOMBIE, 2800.5f, 12f, 60.5f);
+        forestRain.update(world, 0.05f);
+        flowerForestRain.update(world, 0.05f);
+        require(forestRain.getFireTimer() == 0f && flowerForestRain.getFireTimer() == 0f,
+                "Mưa ở Forest và Flower Forest cũng phải ngăn cháy nắng");
+
+        fill(world, 3500, 3500, 60, 60, 11, Block.STONE);
+        Fixture desert = new Fixture(MobType.ZOMBIE, 3500.5f, 12f, 60.5f);
         desert.update(world, 0.05f);
-        require(world.getBiome(2500, 60) == BiomeType.DESERT && desert.getFireTimer() > 1.9f,
+        require(world.getBiome(3500, 60) == BiomeType.DESERT && desert.getFireTimer() > 1.9f,
                 "Mưa ở nơi khác không bảo vệ mob tại cột Desert");
 
         world.setWeather(null);

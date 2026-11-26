@@ -5,13 +5,16 @@ import com.badlogic.gdx.math.Vector3;
 
 import java.util.Objects;
 
-/** Hộp pixel trong cây khớp, với mặt trước theo -Z và trục đứng theo +Y. */
+/** Hộp pixel hoặc mặt phẳng trang bị trong cây khớp, với mặt trước theo -Z và trục đứng theo +Y. */
 public final class ModelPart {
     /** Chọn vật liệu của bộ phận trong mỗi lượt vẽ mô hình. */
     public enum Layer { BASE, OVERLAY, EYES, EQUIPMENT }
 
-    /** Chiều trải ảnh gốc của hộp, kể cả thân nằm ngang và chi trái đối xứng. */
-    enum UvOrientation { OURCRAFT, MINECRAFT, HORIZONTAL, MIRRORED }
+    /** Chiều trải ảnh gốc của hộp, kể cả thân nằm ngang, chi trái đối xứng và sprite phẳng. */
+    enum UvOrientation { OURCRAFT, MINECRAFT, HORIZONTAL, MIRRORED, FLAT_SPRITE }
+
+    /** Dạng hình học dựng lưới đỉnh của bộ phận. */
+    enum Shape { BOX, FLAT_SPRITE, CROSSED_POTION, CROSSED_ARROW }
 
     /** Kích thước hình trải tính theo ảnh nguồn, độc lập với tỉ lệ hộp khi vẽ. */
     record CuboidUv(int u, int v, int width, int height, int depth, UvOrientation orientation) {
@@ -27,7 +30,8 @@ public final class ModelPart {
     static final int VERTEX_COUNT = 36;
 
     /** Thông số bất biến để chia sẻ mesh giữa các bộ phận có cùng hình học và UV. */
-    record Geometry(float x, float y, float z, int width, int height, int depth, float inflate, CuboidUv uv) {
+    record Geometry(float x, float y, float z, int width, int height, int depth,
+                    float inflate, CuboidUv uv, Shape shape) {
     }
 
     private final float pivotX;
@@ -35,6 +39,9 @@ public final class ModelPart {
     private final float pivotZ;
     private final Geometry geometry;
     private final ModelPart[] children;
+    private float baseRotationX;
+    private float baseRotationY;
+    private float baseRotationZ;
     private float rotationX;
     private float rotationY;
     private float rotationZ;
@@ -42,21 +49,29 @@ public final class ModelPart {
     private float translationY;
     private float translationZ;
     private boolean visible = true;
+    private boolean doubleSided;
     private Layer layer = Layer.BASE;
 
-    /** Lưu điểm xoay, kích thước hộp và tọa độ pixel của sơ đồ trải UV. */
+    /** Lưu điểm xoay, kích thước hộp và tọa độ pixel của sơ đồ trải UV theo bố cục Ourcraft. */
     public ModelPart(float pivotX, float pivotY, float pivotZ, float offsetX, float offsetY, float offsetZ,
                      int sizeX, int sizeY, int sizeZ, int texU, int texV, float inflate, ModelPart... children) {
         this(pivotX, pivotY, pivotZ, offsetX, offsetY, offsetZ, sizeX, sizeY, sizeZ, inflate,
-                new CuboidUv(texU, texV, sizeX, sizeY, sizeZ, UvOrientation.OURCRAFT), children);
+                new CuboidUv(texU, texV, sizeX, sizeY, sizeZ, UvOrientation.OURCRAFT), Shape.BOX, children);
     }
 
     /** Lưu hộp hiển thị cùng kích thước và chiều trải UV của ảnh nguồn. */
     ModelPart(float pivotX, float pivotY, float pivotZ, float offsetX, float offsetY, float offsetZ,
               int sizeX, int sizeY, int sizeZ, float inflate, CuboidUv uv, ModelPart... children) {
+        this(pivotX, pivotY, pivotZ, offsetX, offsetY, offsetZ, sizeX, sizeY, sizeZ, inflate,
+                uv, Shape.BOX, children);
+    }
+
+    /** Lưu bộ phận với dạng hình học chỉ định (hộp, sprite phẳng hoặc chữ thập đạn đạo). */
+    ModelPart(float pivotX, float pivotY, float pivotZ, float offsetX, float offsetY, float offsetZ,
+              int sizeX, int sizeY, int sizeZ, float inflate, CuboidUv uv, Shape shape, ModelPart... children) {
         int shortestSide = Math.min(sizeX, Math.min(sizeY, sizeZ));
         float expandedSide = shortestSide + 2 * inflate;
-        // Râu dê và đuôi lạc đà dùng mặt phẳng. Hình học Ourcraft vẫn dùng hộp đặc.
+        // Râu dê, đuôi lạc đà và sprite phẳng dùng mặt có độ dày bằng 0. Hộp Ourcraft vẫn dùng hộp đặc.
         if (sizeX < 0 || sizeY < 0 || sizeZ < 0 || uv.u < 0 || uv.v < 0
                 || uv.width < 0 || uv.height < 0 || uv.depth < 0
                 || !Float.isFinite(inflate) || expandedSide < 0f
@@ -66,7 +81,7 @@ public final class ModelPart {
         this.pivotX = pivotX;
         this.pivotY = pivotY;
         this.pivotZ = pivotZ;
-        geometry = new Geometry(offsetX, offsetY, offsetZ, sizeX, sizeY, sizeZ, inflate, uv);
+        geometry = new Geometry(offsetX, offsetY, offsetZ, sizeX, sizeY, sizeZ, inflate, uv, shape);
         this.children = children.clone();
     }
 
@@ -76,14 +91,31 @@ public final class ModelPart {
         return this;
     }
 
-    /** Đặt góc quay Euler cục bộ theo độ. */
+    /** Đánh dấu bộ phận cần vẽ cả hai mặt (tắt culling) cho mặt phẳng hoặc phần có khe rỗng. */
+    public ModelPart setDoubleSided(boolean doubleSided) {
+        this.doubleSided = doubleSided;
+        return this;
+    }
+
+    /** Đặt góc nghỉ mặc định theo độ để {@link #resetPose()} luôn khôi phục về góc chuẩn của loài. */
+    public ModelPart setBaseRotation(float x, float y, float z) {
+        baseRotationX = x;
+        baseRotationY = y;
+        baseRotationZ = z;
+        rotationX = x;
+        rotationY = y;
+        rotationZ = z;
+        return this;
+    }
+
+    /** Đặt góc quay Euler cục bộ theo độ trong tư thế hiện tại. */
     public void setRotation(float x, float y, float z) {
         rotationX = x;
         rotationY = y;
         rotationZ = z;
     }
 
-    /** Dời điểm xoay theo pixel cục bộ, ví dụ để hạ thân khi ngồi. */
+    /** Dời điểm xoay theo pixel cục bộ, ví dụ để hạ thân khi ngồi hoặc trượt đầu Enderman. */
     public void setTranslation(float x, float y, float z) {
         translationX = x;
         translationY = y;
@@ -95,9 +127,11 @@ public final class ModelPart {
         this.visible = visible;
     }
 
-    /** Dọn tư thế của cá thể trước để mẫu dùng chung có thể vẽ cá thể kế tiếp. */
+    /** Dọn tư thế của cá thể trước về đúng góc nghỉ mặc định để dùng lại cho cá thể kế tiếp. */
     void resetPose() {
-        rotationX = rotationY = rotationZ = 0f;
+        rotationX = baseRotationX;
+        rotationY = baseRotationY;
+        rotationZ = baseRotationZ;
         translationX = translationY = translationZ = 0f;
         visible = true;
         for (ModelPart child : children) {
@@ -119,9 +153,15 @@ public final class ModelPart {
         }
     }
 
-    /** Cho biết footprint pixel có nằm hoàn toàn trong tấm ảnh vật liệu. */
+    /** Cho biết vùng pixel nguồn có nằm hoàn toàn trong tấm ảnh vật liệu hay không. */
     boolean fitsTexture(int width, int height) {
         CuboidUv uv = geometry.uv;
+        if (geometry.shape == Shape.CROSSED_ARROW) {
+            return (long) uv.u + 16L <= width && (long) uv.v + 10L <= height;
+        }
+        if (geometry.shape != Shape.BOX || uv.orientation == UvOrientation.FLAT_SPRITE) {
+            return (long) uv.u + uv.width <= width && (long) uv.v + uv.height <= height;
+        }
         return (long) uv.u + 2L * (uv.width + (long) uv.depth) <= width
                 && (long) uv.v + uv.depth + uv.height <= height;
     }
@@ -151,11 +191,91 @@ public final class ModelPart {
         return reach + (float) Math.sqrt(pivotX * pivotX + pivotY * pivotY + pivotZ * pivotZ);
     }
 
-    /** Ghi sáu mặt đúng chiều pháp tuyến, với dải UV độc lập với độ phồng hình học. */
+    /** Ghi đỉnh của khối hộp, mặt phẳng hoặc chữ thập đạn đạo với UV chuẩn Minecraft. */
     float[] buildVertices(int texWidth, int texHeight) {
         if (!fitsTexture(texWidth, texHeight)) {
             throw new IllegalArgumentException("Texture không đủ kích thước cho bộ phận");
         }
+        return switch (geometry.shape) {
+            case FLAT_SPRITE -> buildFlatSpriteVertices(texWidth, texHeight);
+            case CROSSED_POTION -> buildCrossedPotionVertices(texWidth, texHeight);
+            case CROSSED_ARROW -> buildCrossedArrowVertices(texWidth, texHeight);
+            case BOX -> buildBoxVertices(texWidth, texHeight);
+        };
+    }
+
+    /** Dựng một mặt phẳng 2D đơn sắc theo UV trực tiếp trên tấm sprite trang bị. */
+    private float[] buildFlatSpriteVertices(int texWidth, int texHeight) {
+        CuboidUv uv = geometry.uv;
+        float x0 = geometry.x;
+        float x1 = geometry.x + geometry.width;
+        float y0 = geometry.y;
+        float y1 = geometry.y + geometry.height;
+        float z = geometry.z + geometry.depth * 0.5f;
+        float u0 = (float) uv.u / texWidth;
+        float u1 = (float) (uv.u + uv.width) / texWidth;
+        float v0 = (float) uv.v / texHeight;
+        float v1 = (float) (uv.v + uv.height) / texHeight;
+        float[] vertices = new float[6 * STRIDE];
+        face(vertices, 0, x1, y1, z, x1, y0, z, x0, y0, z, x0, y1, z, u0, v0, u1, v1, SHADE_TOP);
+        return vertices;
+    }
+
+    /** Dựng hai mặt phẳng giao nhau hình chữ X cho lọ thuốc ném chuẩn Minecraft. */
+    private float[] buildCrossedPotionVertices(int texWidth, int texHeight) {
+        CuboidUv uv = geometry.uv;
+        float x0 = geometry.x;
+        float x1 = geometry.x + geometry.width;
+        float y0 = geometry.y;
+        float y1 = geometry.y + geometry.height;
+        float z0 = geometry.z;
+        float z1 = geometry.z + geometry.depth;
+        float u0 = (float) uv.u / texWidth;
+        float u1 = (float) (uv.u + uv.width) / texWidth;
+        float v0 = (float) uv.v / texHeight;
+        float v1 = (float) (uv.v + uv.height) / texHeight;
+        float[] vertices = new float[12 * STRIDE];
+        face(vertices, 0, x0, y1, z0, x0, y0, z0, x1, y0, z1, x1, y1, z1, u0, v0, u1, v1, SHADE_TOP);
+        face(vertices, 1, x1, y1, z0, x1, y0, z0, x0, y0, z1, x0, y1, z1, u0, v0, u1, v1, SHADE_NORTH_SOUTH);
+        return vertices;
+    }
+
+    /** Dựng mũi tên chữ X chuẩn Minecraft từ tấm 32×32 (hai cánh dọc + hai cánh đuôi ngang). */
+    private float[] buildCrossedArrowVertices(int texWidth, int texHeight) {
+        float x0 = geometry.x;
+        float x1 = geometry.x + geometry.width;
+        float y0 = geometry.y;
+        float y1 = geometry.y + geometry.height;
+        float z0 = geometry.z;
+        float z1 = geometry.z + geometry.depth;
+        float tailZ = z1 - 1.5f;
+
+        // Thân tên nằm ngang từ (0, 0) đến (16, 5) trong tấm 32x32, đầu tên tại u=16, đuôi tại u=0.
+        float bodyU0 = 0f / texWidth;
+        float bodyU1 = 16f / texWidth;
+        float bodyV0 = 0f / texHeight;
+        float bodyV1 = 5f / texHeight;
+        // Chữ thập lông đuôi tại (0, 5) kích thước 5x5.
+        float tailU0 = 0f / texWidth;
+        float tailU1 = 5f / texWidth;
+        float tailV0 = 5f / texHeight;
+        float tailV1 = 10f / texHeight;
+
+        float[] vertices = new float[18 * STRIDE];
+        // Cánh chéo 1 (+X/+Y nối -X/-Y) dọc theo trục Z, đầu nhọn quay về -Z.
+        face(vertices, 0, x1, y1, z0, x0, y0, z0, x0, y0, z1, x1, y1, z1,
+                bodyU1, bodyV0, bodyU0, bodyV1, SHADE_TOP);
+        // Cánh chéo 2 (-X/+Y nối +X/-Y) dọc theo trục Z.
+        face(vertices, 1, x0, y1, z0, x1, y0, z0, x1, y0, z1, x0, y1, z1,
+                bodyU1, bodyV0, bodyU0, bodyV1, SHADE_NORTH_SOUTH);
+        // Hai mặt lông đuôi vuông góc tại cuối mũi tên.
+        face(vertices, 2, x1, y1, tailZ, x1, y0, tailZ, x0, y0, tailZ, x0, y1, tailZ,
+                tailU0, tailV0, tailU1, tailV1, SHADE_EAST_WEST);
+        return vertices;
+    }
+
+    /** Ghi sáu mặt đúng chiều pháp tuyến và đúng chiều UV Minecraft (không lật gương). */
+    private float[] buildBoxVertices(int texWidth, int texHeight) {
         float x0 = geometry.x - geometry.inflate;
         float x1 = geometry.x + geometry.width + geometry.inflate;
         float y0 = geometry.y - geometry.inflate;
@@ -186,18 +306,34 @@ public final class ModelPart {
             z1 = top;
         }
 
-        face(vertices, 0, x0, y1, z0, x0, y0, z0, x0, y0, z1, x0, y1, z1,
-                vanilla ? u1 : u0, v1, vanilla ? u0 : u1, v2, SHADE_EAST_WEST);
-        face(vertices, 1, x1, y1, z0, x1, y0, z0, x0, y0, z0, x0, y1, z0,
-                vanilla ? u2 : u1, v1, vanilla ? u1 : u2, v2, horizontal ? SHADE_BOTTOM : SHADE_NORTH_SOUTH);
-        face(vertices, 2, x1, y1, z1, x1, y0, z1, x1, y0, z0, x1, y1, z0,
-                vanilla ? u3 : u2, v1, vanilla ? u2 : u3, v2, SHADE_EAST_WEST);
-        face(vertices, 3, x0, y1, z1, x0, y0, z1, x1, y0, z1, x1, y1, z1,
-                vanilla ? u4 : u3, v1, vanilla ? u3 : u4, v2, horizontal ? SHADE_TOP : SHADE_NORTH_SOUTH);
-        face(vertices, 4, x0, y1, z0, x0, y1, z1, x1, y1, z1, x1, y1, z0,
-                u1, vanilla ? v1 : v0, u2, vanilla ? v0 : v1, horizontal ? SHADE_NORTH_SOUTH : SHADE_TOP);
-        face(vertices, 5, x0, y0, z1, x0, y0, z0, x1, y0, z0, x1, y0, z1,
-                u2, v0, bottomU, v1, horizontal ? SHADE_NORTH_SOUTH : SHADE_BOTTOM);
+        if (vanilla) {
+            // Hệ trục VoxelGame: -Z là mặt trước, +X là bên phải của mob (trái màn hình khi nhìn trực diện), +Y lên trên.
+            face(vertices, 0, x0, y1, z0, x0, y0, z0, x0, y0, z1, x0, y1, z1,
+                    u2, v1, u3, v2, SHADE_EAST_WEST);
+            face(vertices, 1, x1, y1, z0, x1, y0, z0, x0, y0, z0, x0, y1, z0,
+                    u1, v1, u2, v2, horizontal ? SHADE_BOTTOM : SHADE_NORTH_SOUTH);
+            face(vertices, 2, x1, y1, z1, x1, y0, z1, x1, y0, z0, x1, y1, z0,
+                    u0, v1, u1, v2, SHADE_EAST_WEST);
+            face(vertices, 3, x0, y1, z1, x0, y0, z1, x1, y0, z1, x1, y1, z1,
+                    u3, v1, u4, v2, horizontal ? SHADE_TOP : SHADE_NORTH_SOUTH);
+            face(vertices, 4, x1, y1, z1, x1, y1, z0, x0, y1, z0, x0, y1, z1,
+                    u1, v0, u2, v1, horizontal ? SHADE_NORTH_SOUTH : SHADE_TOP);
+            face(vertices, 5, x1, y0, z0, x1, y0, z1, x0, y0, z1, x0, y0, z0,
+                    u2, v1, bottomU, v0, horizontal ? SHADE_NORTH_SOUTH : SHADE_BOTTOM);
+        } else {
+            face(vertices, 0, x0, y1, z0, x0, y0, z0, x0, y0, z1, x0, y1, z1,
+                    u0, v1, u1, v2, SHADE_EAST_WEST);
+            face(vertices, 1, x1, y1, z0, x1, y0, z0, x0, y0, z0, x0, y1, z0,
+                    u1, v1, u2, v2, horizontal ? SHADE_BOTTOM : SHADE_NORTH_SOUTH);
+            face(vertices, 2, x1, y1, z1, x1, y0, z1, x1, y0, z0, x1, y1, z0,
+                    u2, v1, u3, v2, SHADE_EAST_WEST);
+            face(vertices, 3, x0, y1, z1, x0, y0, z1, x1, y0, z1, x1, y1, z1,
+                    u3, v1, u4, v2, horizontal ? SHADE_TOP : SHADE_NORTH_SOUTH);
+            face(vertices, 4, x0, y1, z0, x0, y1, z1, x1, y1, z1, x1, y1, z0,
+                    u1, v0, u2, v1, horizontal ? SHADE_NORTH_SOUTH : SHADE_TOP);
+            face(vertices, 5, x0, y0, z1, x0, y0, z0, x1, y0, z0, x1, y0, z1,
+                    u2, v0, bottomU, v1, horizontal ? SHADE_NORTH_SOUTH : SHADE_BOTTOM);
+        }
 
         if (uv.orientation == UvOrientation.MIRRORED) {
             // Phản chiếu vị trí đi kèm UV và đảo thứ tự đỉnh để mặt vẫn quay ra ngoài.
@@ -251,4 +387,6 @@ public final class ModelPart {
     Layer layer() { return layer; }
     /** Báo bộ phận có mặt trong tư thế hiện tại. */
     boolean isVisible() { return visible; }
+    /** Báo bộ phận có cần vẽ hai mặt không bị face culling hay không. */
+    boolean isDoubleSided() { return doubleSided; }
 }

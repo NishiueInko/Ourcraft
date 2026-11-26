@@ -10,6 +10,7 @@ import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.utils.Disposable;
 import com.voxelgame.entity.Block;
 import com.voxelgame.entity.Hotbar;
+import com.voxelgame.entity.Item;
 import com.voxelgame.entity.Player;
 import com.voxelgame.entity.StatusEffectType;
 import com.voxelgame.entity.mob.MountableMob;
@@ -58,13 +59,16 @@ public class UIRenderer implements Disposable {
     private static final float HOTBAR_SLOT_PADDING = 4.0f;
     /** Một nền, một viền, tối đa sáu lượt mỗi ô và hai lượt tên khối. */
     private static final int HOTBAR_STYLES = 4 + Hotbar.SLOT_COUNT * 6;
-    /** Dự trù cả nhãn khối dài, bóng chữ và số lượng hai chữ số ở mọi ô. */
+    /** Dự trù cả nhãn khối/vật phẩm dài, bóng chữ và số lượng hai chữ số ở mọi ô. */
     private static final int HOTBAR_VERTEX_CAPACITY = 4096 * 6;
+    private static final byte TEXTURE_NONE = 0;
+    private static final byte TEXTURE_BLOCK_ATLAS = 1;
+    private static final byte TEXTURE_ITEM_ATLAS = 2;
     private final float[] hotbarVertices = new float[HOTBAR_VERTEX_CAPACITY * 6];
     private final float[] hotbarTints = new float[HOTBAR_STYLES * 4];
-    private final boolean[] hotbarTexture = new boolean[HOTBAR_STYLES];
+    private final byte[] hotbarTextureSource = new byte[HOTBAR_STYLES];
     private final int[] hotbarEnd = new int[HOTBAR_STYLES];
-    private final Block[] hotbarBlocks = new Block[Hotbar.SLOT_COUNT];
+    private final Item[] hotbarItems = new Item[Hotbar.SLOT_COUNT];
     private final int[] hotbarCounts = new int[Hotbar.SLOT_COUNT];
     private Mesh hotbarMesh;
     private int hotbarStyleCount;
@@ -281,10 +285,30 @@ public class UIRenderer implements Disposable {
             double mouseX,
             double mouseY
     ) {
+        render2DHUD(shader, textureAtlas, null, camera, player, audioManager,
+                windowWidth, windowHeight, miningProgress, isPaused, mouseX, mouseY);
+    }
+
+    /** Nạp chồng nhận cả atlas khối lẫn atlas vật phẩm để vẽ đầy đủ mọi ô Hotbar. */
+    public void render2DHUD(
+            ShaderProgram shader,
+            Texture textureAtlas,
+            ItemTextureAtlas itemAtlas,
+            Camera camera,
+            Player player,
+            AudioManager audioManager,
+            int windowWidth,
+            int windowHeight,
+            float miningProgress,
+            boolean isPaused,
+            double mouseX,
+            double mouseY
+    ) {
         Hotbar hotbar = (player != null) ? player.getHotbar() : null;
         render2DHUD(
                 shader,
                 textureAtlas,
+                itemAtlas,
                 camera,
                 hotbar,
                 audioManager,
@@ -314,14 +338,15 @@ public class UIRenderer implements Disposable {
             double mouseX,
             double mouseY
     ) {
-        render2DHUD(shader, textureAtlas, camera, hotbar, audioManager, windowWidth, windowHeight,
+        render2DHUD(shader, textureAtlas, null, camera, hotbar, audioManager, windowWidth, windowHeight,
                 miningProgress, isPaused, mouseX, mouseY, null);
     }
 
     /** Kết xuất HUD dùng chung và vẽ chỉ số sinh tồn khi có người chơi. */
-    private void render2DHUD(ShaderProgram shader, Texture textureAtlas, Camera camera, Hotbar hotbar,
-                             AudioManager audioManager, int windowWidth, int windowHeight, float miningProgress,
-                             boolean isPaused, double mouseX, double mouseY, Player player) {
+    private void render2DHUD(ShaderProgram shader, Texture textureAtlas, ItemTextureAtlas itemAtlas,
+                             Camera camera, Hotbar hotbar, AudioManager audioManager, int windowWidth,
+                             int windowHeight, float miningProgress, boolean isPaused, double mouseX,
+                             double mouseY, Player player) {
         this.currentShader = shader;
 
         Gdx.gl.glDisable(GL20.GL_DEPTH_TEST);
@@ -333,7 +358,7 @@ public class UIRenderer implements Disposable {
 
         // 1. Luôn vẽ thanh 9 ô Hotbar ở cạnh dưới màn hình
         if (hotbar != null) {
-            renderHotbar(shader, textureAtlas, hotbar, windowWidth, windowHeight);
+            renderHotbar(shader, textureAtlas, itemAtlas, hotbar, windowWidth, windowHeight);
         }
         if (player != null) {
             renderVitals(player, windowWidth, windowHeight);
@@ -489,9 +514,11 @@ public class UIRenderer implements Disposable {
     /** Vẽ hai dòng góc trên trái bằng font 5 × 7 có sẵn. */
     private void renderEnvironment() {
         String biomeName = switch (weather.biome()) {
-            case PLAINS -> "PLAINS";
-            case DESERT -> "DESERT";
             case SNOWY_PLAINS -> "SNOWY PLAINS";
+            case FOREST -> "FOREST";
+            case PLAINS -> "PLAINS";
+            case FLOWER_FOREST -> "FLOWER FOREST";
+            case DESERT -> "DESERT";
         };
         environmentLabel.setLength(0);
         environmentLabel.append(biomeName).append(" - ").append(weather.label());
@@ -550,11 +577,12 @@ public class UIRenderer implements Disposable {
     }
 
     /**
-     * Vẽ giao diện 9 ô Thanh Công Cụ Nhanh (Hotbar) ở cạnh dưới màn hình sử dụng lớp {@link Block}.
+     * Vẽ giao diện 9 ô Thanh Công Cụ Nhanh (Hotbar) ở cạnh dưới màn hình cho cả {@link Block} và {@link Item}.
      */
     private void renderHotbar(
             ShaderProgram shader,
             Texture textureAtlas,
+            ItemTextureAtlas itemAtlas,
             Hotbar hotbar,
             int windowWidth,
             int windowHeight
@@ -562,10 +590,10 @@ public class UIRenderer implements Disposable {
         boolean changed = windowWidth != hotbarWidth || windowHeight != hotbarHeight
                 || hotbar.getSelectedSlot() != hotbarSelection;
         for (int i = 0; i < Hotbar.SLOT_COUNT; i++) {
-            Block block = hotbar.getSlotBlock(i);
+            Item item = hotbar.getSlotItem(i);
             int count = hotbar.getSlotCount(i);
-            changed |= block != hotbarBlocks[i] || count != hotbarCounts[i];
-            hotbarBlocks[i] = block;
+            changed |= item != hotbarItems[i] || count != hotbarCounts[i];
+            hotbarItems[i] = item;
             hotbarCounts[i] = count;
         }
         if (changed) {
@@ -583,25 +611,38 @@ public class UIRenderer implements Disposable {
             }
             hotbarMesh.setVertices(hotbarVertices, 0, hotbarLength);
         }
-        // Giữ thứ tự vẽ của các lớp trong suốt và bind một lần cho toàn bộ thanh.
+        // Chuyển đổi atlas chỉ khi loại texture thay đổi để giữ chi phí draw call tối thiểu.
         var program = shader.getGdxShader();
         int start = 0;
-        textureAtlas.bind();
+        byte boundSource = TEXTURE_NONE;
         hotbarMesh.bind(program);
         for (int i = 0; i < hotbarStyleCount; i++) {
             int end = hotbarEnd[i];
             if (end <= start) {
                 continue;
             }
+            byte source = hotbarTextureSource[i];
+            if (source == TEXTURE_BLOCK_ATLAS && boundSource != TEXTURE_BLOCK_ATLAS) {
+                textureAtlas.bind();
+                boundSource = TEXTURE_BLOCK_ATLAS;
+            } else if (source == TEXTURE_ITEM_ATLAS && itemAtlas != null && boundSource != TEXTURE_ITEM_ATLAS) {
+                itemAtlas.bind();
+                boundSource = TEXTURE_ITEM_ATLAS;
+            }
             int tint = i * 4;
-            shader.setUniform1i("uUseTexture", hotbarTexture[i] ? 1 : 0);
+            boolean useTexture = source == TEXTURE_BLOCK_ATLAS || (source == TEXTURE_ITEM_ATLAS && itemAtlas != null);
+            shader.setUniform1i("uUseTexture", useTexture ? 1 : 0);
             shader.setUniformVec4("uTintColor", hotbarTints[tint], hotbarTints[tint + 1],
                     hotbarTints[tint + 2], hotbarTints[tint + 3]);
             hotbarMesh.render(program, GL20.GL_TRIANGLES, start, end - start, false);
             start = end;
         }
         hotbarMesh.unbind(program);
-        textureAtlas.unbind();
+        if (boundSource == TEXTURE_ITEM_ATLAS && itemAtlas != null) {
+            itemAtlas.unbind();
+        } else {
+            textureAtlas.unbind();
+        }
     }
 
     /** Ghi lại chiều hình học của các ô, biểu tượng và nhãn khi dữ liệu hiển thị thay đổi. */
@@ -612,7 +653,7 @@ public class UIRenderer implements Disposable {
         float startY = windowHeight - barHeight - 16.0f;
 
         // 1. Vẽ tấm nền tổng của thanh Hotbar
-        beginHotbarStyle(false, 0.10f, 0.11f, 0.14f, 0.82f);
+        beginHotbarStyle(TEXTURE_NONE, 0.10f, 0.11f, 0.14f, 0.82f);
         drawRect2D(startX - 4.0f, startY - 4.0f, totalWidth + 8.0f, barHeight + 8.0f);
 
         // 2. Vẽ từng ô từ 0 đến 8 (tương ứng phím 1 đến 9)
@@ -623,39 +664,48 @@ public class UIRenderer implements Disposable {
             boolean isSelected = (i == hotbar.getSelectedSlot());
 
             if (isSelected) {
-                beginHotbarStyle(false, 1.0f, 0.92f, 0.32f, 1.0f);
+                beginHotbarStyle(TEXTURE_NONE, 1.0f, 0.92f, 0.32f, 1.0f);
                 drawRect2D(slotX - 3.0f, slotY - 3.0f, HOTBAR_SLOT_SIZE + 6.0f, HOTBAR_SLOT_SIZE + 6.0f);
             }
 
             if (isSelected) {
-                beginHotbarStyle(false, 0.28f, 0.30f, 0.35f, 0.95f);
+                beginHotbarStyle(TEXTURE_NONE, 0.28f, 0.30f, 0.35f, 0.95f);
             } else {
-                beginHotbarStyle(false, 0.18f, 0.19f, 0.23f, 0.90f);
+                beginHotbarStyle(TEXTURE_NONE, 0.18f, 0.19f, 0.23f, 0.90f);
             }
             drawRect2D(slotX, slotY, HOTBAR_SLOT_SIZE, HOTBAR_SLOT_SIZE);
 
             // Số thứ tự phím (1..9) nhỏ ở góc trái-trên của ô
-            beginHotbarStyle(false, 0.72f, 0.74f, 0.78f, 0.85f);
+            beginHotbarStyle(TEXTURE_NONE, 0.72f, 0.74f, 0.78f, 0.85f);
             drawPixelText(NUMBER_LABELS[i + 1], slotX + 4.0f, slotY + 4.0f, 1.5f);
 
-            Block itemBlock = hotbar.getSlotBlock(i);
+            Item item = hotbar.getSlotItem(i);
             int count = hotbar.getSlotCount(i);
 
-            if (itemBlock != Block.AIR && count > 0) {
+            if (!item.isNone() && count > 0) {
                 float iconSize = 28.0f;
                 float iconWidth = iconSize;
                 float iconHeight = iconSize;
-                if (itemBlock.getGeometryType() == Block.GeometryType.CACTUS) {
-                    Block.Bounds shape = itemBlock.getSelectionBounds(0);
-                    iconWidth *= shape.maxX() - shape.minX();
-                } else if (itemBlock.getGeometryType() == Block.GeometryType.SNOW_LAYER) {
-                    iconHeight *= itemBlock.getSelectionBounds(0).maxY();
+                float[] uv;
+                byte texSource;
+                if (item.isBlock()) {
+                    Block itemBlock = item.getBlock();
+                    if (itemBlock.getGeometryType() == Block.GeometryType.CACTUS) {
+                        Block.Bounds shape = itemBlock.getSelectionBounds(0);
+                        iconWidth *= shape.maxX() - shape.minX();
+                    } else if (itemBlock.getGeometryType() == Block.GeometryType.SNOW_LAYER) {
+                        iconHeight *= itemBlock.getSelectionBounds(0).maxY();
+                    }
+                    uv = Chunk.tileUv(itemBlock.getTileIndex(Block.Face.SOUTH));
+                    texSource = TEXTURE_BLOCK_ATLAS;
+                } else {
+                    uv = item.getTileUV();
+                    texSource = TEXTURE_ITEM_ATLAS;
                 }
                 float iconX = slotX + (HOTBAR_SLOT_SIZE - iconWidth) * 0.5f;
                 float iconY = slotY + (HOTBAR_SLOT_SIZE - iconHeight) * 0.5f;
 
-                float[] uv = Chunk.tileUv(itemBlock.getTileIndex(Block.Face.SOUTH));
-                beginHotbarStyle(true, 1.0f, 1.0f, 1.0f, 1.0f);
+                beginHotbarStyle(texSource, 1.0f, 1.0f, 1.0f, 1.0f);
                 drawTexturedRect2D(iconX, iconY, iconWidth, iconHeight, uv[0], uv[1], uv[2], uv[3]);
 
                 // Vẽ số lượng item hiện có ở góc phải-dưới của ô
@@ -665,35 +715,35 @@ public class UIRenderer implements Disposable {
                 float tx = slotX + HOTBAR_SLOT_SIZE - textW - 3.0f;
                 float ty = slotY + HOTBAR_SLOT_SIZE - 7.0f * textScale - 3.0f;
 
-                beginHotbarStyle(false, 0.05f, 0.05f, 0.05f, 0.95f);
+                beginHotbarStyle(TEXTURE_NONE, 0.05f, 0.05f, 0.05f, 0.95f);
                 drawPixelText(countStr, tx + 1.5f, ty + 1.5f, textScale);
 
-                beginHotbarStyle(false, 1.0f, 1.0f, 1.0f, 1.0f);
+                beginHotbarStyle(TEXTURE_NONE, 1.0f, 1.0f, 1.0f, 1.0f);
                 drawPixelText(countStr, tx, ty, textScale);
             }
         }
 
-        // Hiển thị tên loại Block đang cầm ngay phía trên thanh Hotbar
-        Block selectedBlock = hotbar.getSelectedBlock();
-        if (selectedBlock != Block.AIR && hotbar.getSelectedCount() > 0) {
-            String label = selectedBlock.getDisplayName();
+        // Hiển thị tên loại Block/Item đang cầm ngay phía trên thanh Hotbar
+        Item selectedItem = hotbar.getSelectedItem();
+        if (!selectedItem.isNone() && hotbar.getSelectedCount() > 0) {
+            String label = selectedItem.getDisplayName();
             float scale = 2.0f;
             float labelW = label.length() * 6.0f * scale;
             float lx = (windowWidth - labelW) * 0.5f;
             float ly = startY - 24.0f;
 
-            beginHotbarStyle(false, 0.0f, 0.0f, 0.0f, 0.75f);
+            beginHotbarStyle(TEXTURE_NONE, 0.0f, 0.0f, 0.0f, 0.75f);
             drawPixelText(label, lx + 2.0f, ly + 2.0f, scale);
-            beginHotbarStyle(false, 1.0f, 0.96f, 0.72f, 1.0f);
+            beginHotbarStyle(TEXTURE_NONE, 1.0f, 0.96f, 0.72f, 1.0f);
             drawPixelText(label, lx, ly, scale);
         }
     }
 
-    /** Lưu màu và cờ atlas cho một khoảng đỉnh liên tiếp. */
-    private void beginHotbarStyle(boolean textured, float r, float g, float b, float a) {
+    /** Lưu màu và nguồn texture cho một khoảng đỉnh liên tiếp. */
+    private void beginHotbarStyle(byte textureSource, float r, float g, float b, float a) {
         int style = hotbarStyleCount++;
         int tint = style * 4;
-        hotbarTexture[style] = textured;
+        hotbarTextureSource[style] = textureSource;
         hotbarTints[tint] = r;
         hotbarTints[tint + 1] = g;
         hotbarTints[tint + 2] = b;

@@ -89,6 +89,19 @@ public enum MobAppearance {
         return model;
     }
 
+    /** Giữ tỉ lệ dọc 1:1 theo texel chuẩn Minecraft, không kéo giãn làm méo pixel. */
+    float heightScale() {
+        return 1f;
+    }
+
+    /** Hệ số tỉ lệ đồng nhất cả 3 trục theo chuẩn Minecraft (Thỏ thu nhỏ 0,6 lần). */
+    float modelScale() {
+        return switch (this) {
+            case RABBIT_GOLD, RABBIT_WHITE, RABBIT_WHITE_SPLOTCHED -> 0.6f;
+            default -> 1f;
+        };
+    }
+
     /** Trả về khóa tấm ảnh nền. */
     public MobTextureKey texture() {
         return texture;

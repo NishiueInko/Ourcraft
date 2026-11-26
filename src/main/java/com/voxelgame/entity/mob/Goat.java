@@ -2,11 +2,17 @@ package com.voxelgame.entity.mob;
 
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector3;
+import com.voxelgame.engine.AudioManager;
 import com.voxelgame.engine.MobSoundEvent;
 import com.voxelgame.engine.MobVisualState;
 import com.voxelgame.engine.World;
+import com.voxelgame.entity.Block;
 import com.voxelgame.entity.DamageSource;
+import com.voxelgame.entity.Hotbar;
+import com.voxelgame.entity.Item;
+import com.voxelgame.entity.ItemEntity;
 import com.voxelgame.entity.LivingEntity;
+import com.voxelgame.entity.Player;
 
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -28,6 +34,7 @@ public final class Goat extends MobEntity {
     }
 
     private final boolean screaming;
+    private int horns = 2;
     private final Vector3 targetCenter = new Vector3();
     private final Vector3 targetVelocity = new Vector3();
     private final Vector3 jumpDestination = new Vector3();
@@ -56,7 +63,7 @@ public final class Goat extends MobEntity {
         scheduleRam();
     }
 
-    /** Cập nhật va chạm của cú húc sau khi vật lý đã quét xong chuyển động ngang. */
+    /** Cập nhật va chạm của cú húc vào mục tiêu hoặc khối cứng (rơi sừng) sau khi vật lý quét xong. */
     @Override
     protected void updateLiving(World world, float dt) {
         float fromX = x();
@@ -65,11 +72,79 @@ public final class Goat extends MobEntity {
         if (action != Action.RAM_CHARGE || !isAlive()) {
             return;
         }
-        if (hitRamTarget(world, fromX, fromZ) || inWater()
+        if (hitRamTarget(world, fromX, fromZ)) {
+            finishAction();
+            return;
+        }
+        if (hitHardBlock(world, fromX, fromZ, dt)) {
+            dropGoatHorn(world);
+            finishAction();
+            return;
+        }
+        if (inWater()
                 || (x() - ramX) * ramDirectionX + (z() - ramZ) * ramDirectionZ >= 0f
                 || actionRemaining <= 0f) {
             finishAction();
         }
+    }
+
+    /** Vắt sữa dê khi người chơi cầm Bucket, hoặc đốt cháy bằng Flint and Steel. */
+    @Override
+    public boolean onPlayerInteract(World world, Player player) {
+        if (super.onPlayerInteract(world, player)) {
+            return true;
+        }
+        if (!isAlive() || isBaby() || player == null || !player.isAlive()) {
+            return false;
+        }
+        Hotbar hotbar = player.getHotbar();
+        if (hotbar != null && hotbar.getSelectedItem() == Item.BUCKET && hotbar.getSelectedCount() > 0) {
+            hotbar.consumeSelectedItemStack();
+            if (!hotbar.addItem(Item.MILK_BUCKET, 1) && world != null) {
+                world.spawnDroppedItem(new ItemEntity(x(), y() + 0.6f, z(), Item.MILK_BUCKET));
+            }
+            AudioManager audio = world == null ? null : world.getAudio();
+            if (audio != null) {
+                audio.playEffect(AudioManager.Effect.PICKUP, 0.35f);
+            }
+            return true;
+        }
+        return false;
+    }
+
+    /** Trả số sừng còn lại trên đầu dê (tối đa 2). */
+    public int hornCount() {
+        return horns;
+    }
+
+    /** Kiểm tra dê đang lao có bị chặn bởi đá, gỗ tự nhiên hoặc băng phía trước không. */
+    private boolean hitHardBlock(World world, float fromX, float fromZ, float dt) {
+        float moved = (x() - fromX) * ramDirectionX + (z() - fromZ) * ramDirectionZ;
+        if (moved > 0.02f) {
+            return false;
+        }
+        float probe = halfWidth + Math.max(0.18f, RAM_SPEED * dt + 0.05f);
+        float probeX = x() + ramDirectionX * probe;
+        float probeZ = z() + ramDirectionZ * probe;
+        int bx = MathUtils.floor(probeX);
+        int bz = MathUtils.floor(probeZ);
+        return isHornDropBlock(Block.fromId(world.getBlock(bx, MathUtils.floor(y() + 0.3f), bz)))
+                || isHornDropBlock(Block.fromId(world.getBlock(bx, MathUtils.floor(y() + 0.9f), bz)));
+    }
+
+    /** Các loại khối tự nhiên làm rơi Goat Horn chuẩn Minecraft khi dê húc vào. */
+    private static boolean isHornDropBlock(Block block) {
+        return block == Block.STONE || block == Block.OAK_LOG || block == Block.SPRUCE_LOG || block == Block.ICE;
+    }
+
+    /** Rơi tối đa 2 sừng dê tại vị trí húc trúng khối cứng. */
+    private void dropGoatHorn(World world) {
+        if (horns <= 0 || isBaby()) {
+            return;
+        }
+        horns--;
+        world.spawnDroppedItem(new ItemEntity(x(), y() + height * 0.7f, z(), Item.GOAT_HORN));
+        playSound(world, MobSoundEvent.HURT);
     }
 
     /** Ưu tiên cú húc đến hạn, sau đó mới thử tìm bãi đáp an toàn để nhảy. */

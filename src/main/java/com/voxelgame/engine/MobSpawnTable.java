@@ -62,7 +62,7 @@ public final class MobSpawnTable {
     public static MobSpawnTable forBiome(BiomeType biome, MobCategory category, SnowSubZone zone) {
         boolean monster = category == MobCategory.MONSTER;
         return switch (biome) {
-            case PLAINS -> monster ? PLAINS_MONSTERS : PLAINS_CREATURES;
+            case PLAINS, FOREST, FLOWER_FOREST -> monster ? PLAINS_MONSTERS : PLAINS_CREATURES;
             case DESERT -> monster ? DESERT_MONSTERS : DESERT_CREATURES;
             case SNOWY_PLAINS -> monster ? SNOW_MONSTERS : switch (zone) {
                 case SNOWY_PLAINS_FLAT -> SNOW_FLAT_CREATURES;
@@ -80,7 +80,7 @@ public final class MobSpawnTable {
     /** Cho biết biome đã có thú hoạt động để tránh đánh dấu khám phá quá sớm. */
     static boolean anyImplementedCreatures(BiomeType biome) {
         return switch (biome) {
-            case PLAINS -> PLAINS_CREATURES.hasImplementedType();
+            case PLAINS, FOREST, FLOWER_FOREST -> PLAINS_CREATURES.hasImplementedType();
             case DESERT -> DESERT_CREATURES.hasImplementedType();
             case SNOWY_PLAINS -> SNOW_FLAT_CREATURES.hasImplementedType()
                     || SNOW_GROVE_CREATURES.hasImplementedType() || SNOW_SLOPE_CREATURES.hasImplementedType();

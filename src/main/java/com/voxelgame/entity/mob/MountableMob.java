@@ -70,9 +70,12 @@ public abstract class MountableMob extends MobEntity {
         }
     }
 
-    /** Chuột phải chọn ghế từ trước ra sau và bắt đầu lượt làm quen nếu cần. */
+    /** Chuột phải xử lý đốt bằng Flint and Steel trước, sau đó chọn ghế từ trước ra sau. */
     @Override
     public boolean onPlayerInteract(World world, Player player) {
+        if (super.onPlayerInteract(world, player)) {
+            return true;
+        }
         if (!canPlayerMount(world, player)) {
             return false;
         }

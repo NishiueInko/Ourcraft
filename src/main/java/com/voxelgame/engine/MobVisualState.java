@@ -17,6 +17,8 @@ public final class MobVisualState {
     private MobAppearance.HorseMarkings horseMarkings;
     private Pose pose = Pose.IDLE;
     private float poseAmount;
+    /** Mức nâng hai vai khi chuyển qua lại giữa bước đi và tư thế ngắm. */
+    private float bowAim;
     private float bodyYaw;
     private float bodyPitch;
     private float headYaw;
@@ -27,6 +29,7 @@ public final class MobVisualState {
     private float scale = 1f;
     private float fuseProgress;
     private int sheepWoolColor = 0xffffff;
+    private boolean sheepSheared;
     private Block heldBlock;
 
     /** Tạo một trạng thái tái sử dụng cho cá thể với ngoại hình ban đầu. */
@@ -91,6 +94,10 @@ public final class MobVisualState {
 
     /** Trả màu RGB của lớp len. */
     public int sheepWoolColor() { return sheepWoolColor; }
+    /** Đánh dấu cừu đã bị cắt lông để ẩn lớp phủ len khi vẽ. */
+    public void setSheepSheared(boolean sheared) { sheepSheared = sheared; }
+    /** Trả trạng thái đã bị cắt lông của cừu. */
+    public boolean isSheepSheared() { return sheepSheared; }
     /** Trả vật đang ngậm để gắn lưới dùng chung vào khớp đầu. */
     public Block heldBlock() { return heldBlock; }
 
@@ -102,6 +109,13 @@ public final class MobVisualState {
     public Pose pose() { return pose; }
     /** Đọc tỷ lệ nội suy của tư thế. */
     public float poseAmount() { return poseAmount; }
+    /** Nâng hoặc hạ vai trong ba tick, độc lập với tiến độ kéo dây. */
+    public void updateBowAim(float dt) {
+        float target = pose == Pose.AIM_BOW ? 1f : 0f;
+        bowAim += MathUtils.clamp(target - bowAim, -dt / 0.15f, dt / 0.15f);
+    }
+    /** Trả mức nâng vai đã làm mượt của riêng cá thể. */
+    public float bowAim() { return bowAim; }
     /** Đọc góc quay của thân theo trục đứng. */
     public float bodyYaw() { return bodyYaw; }
     /** Đọc góc dọc của thân theo độ. */

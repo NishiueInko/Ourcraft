@@ -34,11 +34,13 @@ final class TerrainGenerator {
     /** Vùng xuất phát bằng phẳng và thoáng, dùng cả dấu chân của người chơi và phần mép tán cây. */
     private static final int SPAWN_HEIGHT = 30;
     private static final int SPAWN_CLEARANCE = 8;
+    /** Ba bit thấp trong bộ đệm lưu mã của năm biome (0..4). */
+    static final int BIOME_MASK = 7;
     /** Cờ dùng chung với mã biome trong bộ đệm để chỉ kiểm tra nguồn nhiệt ở vùng có Lava. */
-    private static final int NEAR_LAVA = 4;
+    private static final int NEAR_LAVA = 8;
     /** Cờ nhận diện dải sông và cột đã được lượt hồ sử dụng. */
-    static final int RIVER = 8;
-    private static final int LAKE = 16;
+    static final int RIVER = 16;
+    private static final int LAKE = 32;
     /** Bốn loài hoa có thể chiếm ưu thế trong một cụm thực vật. */
     private static final Block[] FLOWERS = { Block.DANDELION, Block.POPPY, Block.CORNFLOWER, Block.OXEYE_DAISY };
     /** Bảng mã biome, cấp phát một lần để tra nhanh trong các lượt sinh. */
@@ -52,13 +54,19 @@ final class TerrainGenerator {
         this.seed = seed;
     }
 
-    /** Tra cùng biome đã dùng để chọn vật liệu, lớp phủ và thực vật. */
+    /** Tra cùng biome đã dùng để chọn vật liệu, lớp phủ và thực vật cho năm dải khí hậu. */
     BiomeType getBiome(int x, int z) {
         float warpedX = climateX(x, z);
         if (warpedX < BIOME_WIDTH) {
             return BiomeType.SNOWY_PLAINS;
         }
-        return warpedX < 2 * BIOME_WIDTH ? BiomeType.PLAINS : BiomeType.DESERT;
+        if (warpedX < 2 * BIOME_WIDTH) {
+            return BiomeType.FOREST;
+        }
+        if (warpedX < 3 * BIOME_WIDTH) {
+            return BiomeType.PLAINS;
+        }
+        return warpedX < 4 * BIOME_WIDTH ? BiomeType.FLOWER_FOREST : BiomeType.DESERT;
     }
 
     /** Lấy độ cao địa tầng của một cột trước khi tạo hồ và thảm thực vật. */
@@ -100,7 +108,7 @@ final class TerrainGenerator {
         float land = TerrainNoise.fractal(seed ^ HEIGHT, x / 212f, z / 212f);
         float erosion = TerrainNoise.perlin(seed ^ EROSION, x / 134f, z / 134f);
         float cold = 1f - smoothBetween(x, BIOME_WIDTH - 225, BIOME_WIDTH + 25);
-        float desert = smoothBetween(x, 2 * BIOME_WIDTH - 65, 2 * BIOME_WIDTH + 130);
+        float desert = smoothBetween(x, 4 * BIOME_WIDTH - 65, 4 * BIOME_WIDTH + 130);
         float relief = 0.21f + 0.29f * land - 0.18f * erosion;
         if (cold > 0f) {
             float ridge = TerrainNoise.ridged(seed ^ RIDGES, (x + erosion * 21f) / 117f, z / 117f);
@@ -222,8 +230,8 @@ final class TerrainGenerator {
     /** Đặt trước một hồ lạnh và một ốc đảo trong hai biome tương ứng, rồi sinh hồ trên lưới so le. */
     private void generateLakes(World world, short[] heights, byte[] biomes, DesertPyramid pyramid) {
         long lakeSeed = seed ^ LAKES;
-        int coldLakeX = CENTER_X - BIOME_WIDTH;
-        int warmLakeX = CENTER_X + BIOME_WIDTH;
+        int coldLakeX = BIOME_WIDTH / 2;
+        int warmLakeX = 4 * BIOME_WIDTH + BIOME_WIDTH / 2;
         int coldLakeZ = CENTER_Z + sampleInt(lakeSeed, coldLakeX, CENTER_Z, 13) - 6;
         int warmLakeZ = CENTER_Z + sampleInt(lakeSeed, warmLakeX, CENTER_Z, 13) - 6;
         placeLandmarkLake(world, heights, biomes, pyramid, coldLakeX, coldLakeZ, BiomeType.SNOWY_PLAINS);
@@ -477,9 +485,9 @@ final class TerrainGenerator {
         }
     }
 
-    /** Chọn dáng cây thấp dần theo cao độ trong biome tuyết, và đa dạng tuổi sồi ở Plains. */
+    /** Chọn dáng cây thấp dần theo cao độ trong biome tuyết, và đa dạng tuổi sồi ở vùng mưa ôn hòa. */
     private static TreeShape treeShape(BiomeType biome, int y, float variety) {
-        if (biome == BiomeType.PLAINS) {
+        if (biome.hasRain()) {
             return variety < 0.19f ? TreeShape.OAK_BUSH : variety < 0.34f ? TreeShape.OLD_OAK : TreeShape.OAK;
         }
         if (y >= 62) {
@@ -704,7 +712,7 @@ final class TerrainGenerator {
                     } else if (roll < 0.029f) {
                         write(world, x, y, z, Block.DEAD_BUSH);
                     }
-                } else if (biome == BiomeType.PLAINS && grassSoil && roll < 0.32f) {
+                } else if (biome.hasRain() && grassSoil && roll < 0.32f) {
                     plantMeadow(world, x, y, z, roll, plantSeed);
                 }
             }
@@ -760,9 +768,9 @@ final class TerrainGenerator {
         world.setBlockInternal(x, y, z, block.getId(), 0);
     }
 
-    /** Tra mã biome của một cột, bỏ qua cờ phát hiện Lava. */
+    /** Tra mã biome của một cột, bỏ qua cờ phát hiện Lava, sông và hồ. */
     private static BiomeType biomeAt(byte[] biomes, int x, int z) {
-        return BIOMES[biomes[columnIndex(x, z)] & 3];
+        return BIOMES[biomes[columnIndex(x, z)] & BIOME_MASK];
     }
 
     /** Tính vị trí cột trong bộ đệm liên tục theo trục Z. */

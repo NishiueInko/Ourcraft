@@ -15,23 +15,16 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Thực thể Vật phẩm 3D nhỏ rơi ra ngoài thế giới sau khi người chơi đập vỡ một Block, kế thừa từ {@link Entity}.
- *
- * THỂ HIỆN CÁC TÍNH CHẤT OOP:
- * 1. Kế thừa (Inheritance): Kế thừa `position`, `velocity`, `halfWidth`, `height`, `onGround` từ `Entity`.
- * 2. Đa hình lúc biên dịch (Method Overloading): Cung cấp 2 constructor nạp chồng — một tự sinh lực văng
- *    ngẫu nhiên và một nhận vector vận tốc khởi tạo tùy chỉnh.
- * 3. Đa hình lúc chạy (Method Overriding): Ghi đè `update(World, float)` và `render(ShaderProgram)` của `Entity`.
- * 4. Đóng gói & Quản lý bộ nhớ GPU: Sử dụng `Map<Block, Mesh> SHARED_MESHES = new HashMap<>()` để dùng chung
- *    lưới đa giác Mesh cho từng loại `Block` thay vì cấp phát trùng lặp trên VRAM.
+ * Thực thể Vật phẩm 3D nhỏ rơi ra ngoài thế giới sau khi người chơi đập vỡ Block hoặc tiêu diệt/tương tác Mob,
+ * kế thừa từ {@link Entity}.
  */
 public class ItemEntity extends Entity {
 
-    // Kích thước cạnh của khối Item thu nhỏ (0.28 block ~ bằng 1/3 kích thước khối thật)
+    /** Kích thước cạnh của vật phẩm thu nhỏ (0.28 block). */
     private static final float ITEM_SCALE = 0.28f;
     private static final float HALF_SIZE = ITEM_SCALE * 0.5f;
 
-    // Các hằng số vật lý của Item rơi
+    /** Các hằng số vật lý của Item rơi. */
     private static final float ITEM_GRAVITY = -18.0f;
     private static final float PICKUP_DELAY = 0.25f;
     private static final float MAGNET_DISTANCE = 1.85f;
@@ -41,16 +34,17 @@ public class ItemEntity extends Entity {
     /** Bộ đệm cho tâm người chơi và hướng hút vật phẩm. */
     private final Vector3 pullDirection = new Vector3();
 
-    private final Block block;
+    private final Item item;
     private float age = 0.0f;
     private boolean collected = false;
 
     private final Matrix4 modelMatrix = new Matrix4();
 
-    // Bộ nhớ đệm lưu trữ lưới Mesh dùng chung cho từng loại Block
+    /** Bộ nhớ đệm lưu trữ lưới Mesh dùng chung cho từng loại Block và Item độc lập. */
     private static final Map<Block, Mesh> SHARED_MESHES = new HashMap<>();
+    private static final Map<Item, Mesh> SHARED_ITEM_MESHES = new HashMap<>();
 
-    // Thuộc tính đỉnh của Mesh ItemEntity: aPos (3 floats), aTexCoord (2 floats), aShade (1 float)
+    /** Thuộc tính đỉnh của Mesh ItemEntity: aPos (3), aTexCoord (2), aShade (1). */
     private static final VertexAttributes VERTEX_ATTRIBUTES = new VertexAttributes(
             new VertexAttribute(Usage.Position, 3, "aPos"),
             new VertexAttribute(Usage.TextureCoordinates, 2, "aTexCoord"),
@@ -59,13 +53,15 @@ public class ItemEntity extends Entity {
 
     /**
      * Constructor 1: Tự động tạo vận tốc nảy nhẹ ngẫu nhiên khi khối vừa vỡ ra.
-     *
-     * @param startX tọa độ spawn trục X
-     * @param startY tọa độ spawn trục Y
-     * @param startZ tọa độ spawn trục Z
-     * @param block loại khối mà vật phẩm đại diện
      */
     public ItemEntity(float startX, float startY, float startZ, Block block) {
+        this(startX, startY, startZ, Item.of(block));
+    }
+
+    /**
+     * Constructor 2: Tự động tạo vận tốc nảy nhẹ ngẫu nhiên cho một {@link Item} bất kỳ.
+     */
+    public ItemEntity(float startX, float startY, float startZ, Item item) {
         this(
                 startX,
                 startY,
@@ -75,30 +71,30 @@ public class ItemEntity extends Entity {
                         3.2f,
                         (float) ((Math.random() - 0.5) * 1.4)
                 ),
-                block
+                item
         );
     }
 
     /**
-     * Constructor 2 (Overloaded Constructor): Cho phép chỉ định vector vận tốc văng cụ thể.
-     *
-     * @param startX tọa độ spawn trục X
-     * @param startY tọa độ spawn trục Y
-     * @param startZ tọa độ spawn trục Z
-     * @param initialVelocity vector vận tốc văng ban đầu
-     * @param block loại khối mà vật phẩm đại diện
+     * Constructor 3: Cho phép chỉ định vector vận tốc văng cụ thể cho Block.
      */
     public ItemEntity(float startX, float startY, float startZ, Vector3 initialVelocity, Block block) {
+        this(startX, startY, startZ, initialVelocity, Item.of(block));
+    }
+
+    /**
+     * Constructor 4: Cho phép chỉ định vector vận tốc văng cụ thể cho {@link Item}.
+     */
+    public ItemEntity(float startX, float startY, float startZ, Vector3 initialVelocity, Item item) {
         super(startX, startY, startZ, HALF_SIZE, ITEM_SCALE);
         if (initialVelocity != null) {
             this.velocity.set(initialVelocity);
         }
-        this.block = (block != null) ? block : Block.AIR;
+        this.item = (item != null) ? item : Item.NONE;
     }
 
     /**
-     * Ghi đè phương thức trừu tượng `update` của `Entity`:
-     * Cập nhật vật lý rơi, hiệu ứng lực hút nam châm về phía `Player` và tự động cộng vào `Hotbar`.
+     * Cập nhật vật lý rơi, hiệu ứng lực hút nam châm về phía {@link Player} và tự động cộng vào {@link Hotbar}.
      */
     @Override
     public void update(World world, float deltaTime) {
@@ -112,12 +108,7 @@ public class ItemEntity extends Entity {
     }
 
     /**
-     * Phương thức nạp chồng hỗ trợ cập nhật trực tiếp với đối tượng `Player` và `Hotbar`.
-     *
-     * @param world thế giới voxel
-     * @param player người chơi
-     * @param hotbar thanh công cụ của người chơi
-     * @param deltaTime thời gian giữa hai khung hình
+     * Phương thức nạp chồng hỗ trợ cập nhật trực tiếp với đối tượng {@link Player} và {@link Hotbar}.
      */
     public void update(World world, Player player, Hotbar hotbar, float deltaTime) {
         if (collected) {
@@ -137,9 +128,8 @@ public class ItemEntity extends Entity {
 
             if (age >= PICKUP_DELAY && distSq <= MAGNET_DISTANCE * MAGNET_DISTANCE) {
                 if (distSq <= PICKUP_DISTANCE * PICKUP_DISTANCE) {
-                    if (hotbar.addItem(block, 1)) {
+                    if (hotbar.addItem(item, 1)) {
                         collected = true;
-                        // Chỉ phát tiếng nhặt khi Hotbar đã nhận vật phẩm.
                         AudioManager audio = world == null ? null : world.getAudio();
                         if (audio != null) {
                             audio.playEffect(AudioManager.Effect.PICKUP, 0.3f);
@@ -184,24 +174,32 @@ public class ItemEntity extends Entity {
     }
 
     /**
-     * Ghi đè phương thức trừu tượng `render` của `Entity`:
-     * Vẽ khối 3D thu nhỏ của Item tại vị trí hiện tại kèm hiệu ứng tự xoay tròn và nhấp nhô.
+     * Vẽ vật phẩm 3D thu nhỏ tại vị trí hiện tại kèm hiệu ứng tự xoay tròn và nhấp nhô.
      */
     @Override
     public void render(ShaderProgram shader) {
-        if (collected || block == null || block == Block.AIR) {
+        if (collected || item == null || item.isNone()) {
             return;
         }
 
         float bobOffset = (float) Math.sin(age * 3.8f) * 0.07f + 0.08f;
         float rotationDegrees = age * 110.0f;
 
-        modelMatrix.idt()
-                .translate(position.x, position.y + bobOffset, position.z)
-                .rotate(Vector3.Y, rotationDegrees)
-                .scale(ITEM_SCALE, ITEM_SCALE, ITEM_SCALE);
-
-        renderBlockMesh(shader, block, modelMatrix);
+        if (item.isBlock()) {
+            modelMatrix.idt()
+                    .translate(position.x, position.y + bobOffset, position.z)
+                    .rotate(Vector3.Y, rotationDegrees)
+                    .scale(ITEM_SCALE, ITEM_SCALE, ITEM_SCALE);
+            renderBlockMesh(shader, item.getBlock(), modelMatrix);
+        } else {
+            float scale = item.isCubeItem() ? ITEM_SCALE : 0.40f;
+            modelMatrix.idt()
+                    .translate(position.x, position.y + bobOffset, position.z)
+                    .rotate(Vector3.Y, rotationDegrees)
+                    .scale(scale, scale, scale);
+            shader.setUniformMatrix4f("uModel", modelMatrix);
+            getOrCreateItemMesh(item).render(shader.getGdxShader(), GL20.GL_TRIANGLES);
+        }
     }
 
     /** Chia sẻ hình block giữa vật phẩm nhỏ và thực thể trọng lực kích thước thật. */
@@ -214,21 +212,38 @@ public class ItemEntity extends Entity {
         return collected;
     }
 
-    /** Chuyển vật phẩm sang thực thể nhặt và để World dọn ô danh sách theo nhịp cập nhật. */
+    /** Chuyển vật phẩm sang thực thể nhặt nếu đó là một Block, giữ tương thích cho các luật cũ. */
     public Block collectForMob() {
-        if (collected || block == Block.AIR) {
+        if (collected || !item.isBlock()) {
             return null;
         }
         collected = true;
-        return block;
+        return item.getBlock();
+    }
+
+    /** Chuyển vật phẩm bất kỳ (Block hoặc Item độc lập) sang thực thể nhặt. */
+    public Item collectItemForMob() {
+        if (collected || item.isNone()) {
+            return null;
+        }
+        collected = true;
+        return item;
+    }
+
+    public Item getItem() {
+        return item;
+    }
+
+    public boolean isStandaloneItem() {
+        return !item.isNone() && !item.isBlock();
     }
 
     public Block getBlock() {
-        return block;
+        return item.getBlock();
     }
 
     public Block getBlockType() {
-        return block;
+        return item.getBlock();
     }
 
     private static Mesh getOrCreateMesh(Block type) {
@@ -240,50 +255,7 @@ public class ItemEntity extends Entity {
             float[] botUV = t.getFaceUV(Block.Face.BOTTOM);
             float[] sideUV = t.getFaceUV(Block.Face.NORTH);
 
-            float[] vertices = new float[216];
-            int idx = 0;
-
-            // 1. Mặt Trên (+Y)
-            idx = putFace(vertices, idx,
-                    -0.5f,  0.5f,  0.5f, topUV[0], topUV[3],
-                     0.5f,  0.5f,  0.5f, topUV[2], topUV[3],
-                     0.5f,  0.5f, -0.5f, topUV[2], topUV[1],
-                    -0.5f,  0.5f, -0.5f, topUV[0], topUV[1], 1.0f);
-
-            // 2. Mặt Dưới (-Y)
-            idx = putFace(vertices, idx,
-                    -0.5f, -0.5f, -0.5f, botUV[0], botUV[3],
-                     0.5f, -0.5f, -0.5f, botUV[2], botUV[3],
-                     0.5f, -0.5f,  0.5f, botUV[2], botUV[1],
-                    -0.5f, -0.5f,  0.5f, botUV[0], botUV[1], 0.55f);
-
-            // 3. Mặt Trước (+Z)
-            idx = putFace(vertices, idx,
-                    -0.5f, -0.5f,  0.5f, sideUV[0], sideUV[3],
-                     0.5f, -0.5f,  0.5f, sideUV[2], sideUV[3],
-                     0.5f,  0.5f,  0.5f, sideUV[2], sideUV[1],
-                    -0.5f,  0.5f,  0.5f, sideUV[0], sideUV[1], 0.85f);
-
-            // 4. Mặt Sau (-Z)
-            idx = putFace(vertices, idx,
-                     0.5f, -0.5f, -0.5f, sideUV[0], sideUV[3],
-                    -0.5f, -0.5f, -0.5f, sideUV[2], sideUV[3],
-                    -0.5f,  0.5f, -0.5f, sideUV[2], sideUV[1],
-                     0.5f,  0.5f, -0.5f, sideUV[0], sideUV[1], 0.85f);
-
-            // 5. Mặt Phải (+X)
-            idx = putFace(vertices, idx,
-                     0.5f, -0.5f,  0.5f, sideUV[0], sideUV[3],
-                     0.5f, -0.5f, -0.5f, sideUV[2], sideUV[3],
-                     0.5f,  0.5f, -0.5f, sideUV[2], sideUV[1],
-                     0.5f,  0.5f,  0.5f, sideUV[0], sideUV[1], 0.72f);
-
-            // 6. Mặt Trái (-X)
-            putFace(vertices, idx,
-                    -0.5f, -0.5f, -0.5f, sideUV[0], sideUV[3],
-                    -0.5f, -0.5f,  0.5f, sideUV[2], sideUV[3],
-                    -0.5f,  0.5f,  0.5f, sideUV[2], sideUV[1],
-                    -0.5f,  0.5f, -0.5f, sideUV[0], sideUV[1], 0.72f);
+            float[] vertices = createCubeVertices(topUV, botUV, sideUV);
 
             // Giữ mặt cắt của cactus và chiều cao mặc định của một lớp tuyết.
             Block.Bounds shape = t.getSelectionBounds(0);
@@ -298,6 +270,83 @@ public class ItemEntity extends Entity {
             mesh.setVertices(vertices);
             return mesh;
         });
+    }
+
+    /** Dựng lưới dùng chung cho vật phẩm độc lập (khối lập phương mini với len, mặt phẳng 2 mặt với item 2D). */
+    private static Mesh getOrCreateItemMesh(Item standaloneItem) {
+        return SHARED_ITEM_MESHES.computeIfAbsent(standaloneItem, t -> {
+            float[] uv = t.getTileUV();
+            if (t.isCubeItem()) {
+                float[] vertices = createCubeVertices(uv, uv, uv);
+                Mesh mesh = new Mesh(true, 36, 0, VERTEX_ATTRIBUTES);
+                mesh.setVertices(vertices);
+                return mesh;
+            }
+            // Vật phẩm phẳng: hai mặt trước sau để nhìn rõ ở mọi góc xoay
+            float[] vertices = new float[12 * 6];
+            int idx = putFace(vertices, 0,
+                    -0.5f, -0.5f, 0.0f, uv[0], uv[3],
+                     0.5f, -0.5f, 0.0f, uv[2], uv[3],
+                     0.5f,  0.5f, 0.0f, uv[2], uv[1],
+                    -0.5f,  0.5f, 0.0f, uv[0], uv[1], 0.95f);
+            putFace(vertices, idx,
+                     0.5f, -0.5f, 0.0f, uv[0], uv[3],
+                    -0.5f, -0.5f, 0.0f, uv[2], uv[3],
+                    -0.5f,  0.5f, 0.0f, uv[2], uv[1],
+                     0.5f,  0.5f, 0.0f, uv[0], uv[1], 0.85f);
+            Mesh mesh = new Mesh(true, 12, 0, VERTEX_ATTRIBUTES);
+            mesh.setVertices(vertices);
+            return mesh;
+        });
+    }
+
+    private static float[] createCubeVertices(float[] topUV, float[] botUV, float[] sideUV) {
+        float[] vertices = new float[216];
+        int idx = 0;
+
+        // 1. Mặt Trên (+Y)
+        idx = putFace(vertices, idx,
+                -0.5f,  0.5f,  0.5f, topUV[0], topUV[3],
+                 0.5f,  0.5f,  0.5f, topUV[2], topUV[3],
+                 0.5f,  0.5f, -0.5f, topUV[2], topUV[1],
+                -0.5f,  0.5f, -0.5f, topUV[0], topUV[1], 1.0f);
+
+        // 2. Mặt Dưới (-Y)
+        idx = putFace(vertices, idx,
+                -0.5f, -0.5f, -0.5f, botUV[0], botUV[3],
+                 0.5f, -0.5f, -0.5f, botUV[2], botUV[3],
+                 0.5f, -0.5f,  0.5f, botUV[2], botUV[1],
+                -0.5f, -0.5f,  0.5f, botUV[0], botUV[1], 0.55f);
+
+        // 3. Mặt Trước (+Z)
+        idx = putFace(vertices, idx,
+                -0.5f, -0.5f,  0.5f, sideUV[0], sideUV[3],
+                 0.5f, -0.5f,  0.5f, sideUV[2], sideUV[3],
+                 0.5f,  0.5f,  0.5f, sideUV[2], sideUV[1],
+                -0.5f,  0.5f,  0.5f, sideUV[0], sideUV[1], 0.85f);
+
+        // 4. Mặt Sau (-Z)
+        idx = putFace(vertices, idx,
+                 0.5f, -0.5f, -0.5f, sideUV[0], sideUV[3],
+                -0.5f, -0.5f, -0.5f, sideUV[2], sideUV[3],
+                -0.5f,  0.5f, -0.5f, sideUV[2], sideUV[1],
+                 0.5f,  0.5f, -0.5f, sideUV[0], sideUV[1], 0.85f);
+
+        // 5. Mặt Phải (+X)
+        idx = putFace(vertices, idx,
+                 0.5f, -0.5f,  0.5f, sideUV[0], sideUV[3],
+                 0.5f, -0.5f, -0.5f, sideUV[2], sideUV[3],
+                 0.5f,  0.5f, -0.5f, sideUV[2], sideUV[1],
+                 0.5f,  0.5f,  0.5f, sideUV[0], sideUV[1], 0.72f);
+
+        // 6. Mặt Trái (-X)
+        putFace(vertices, idx,
+                -0.5f, -0.5f, -0.5f, sideUV[0], sideUV[3],
+                -0.5f, -0.5f,  0.5f, sideUV[2], sideUV[3],
+                -0.5f,  0.5f,  0.5f, sideUV[2], sideUV[1],
+                -0.5f,  0.5f, -0.5f, sideUV[0], sideUV[1], 0.72f);
+
+        return vertices;
     }
 
     /** Dựng hai mặt chéo với mặt trước và mặt sau để cây hiện ở mọi góc xoay. */
@@ -357,5 +406,11 @@ public class ItemEntity extends Entity {
             }
         }
         SHARED_MESHES.clear();
+        for (Mesh mesh : SHARED_ITEM_MESHES.values()) {
+            if (mesh != null) {
+                mesh.dispose();
+            }
+        }
+        SHARED_ITEM_MESHES.clear();
     }
 }

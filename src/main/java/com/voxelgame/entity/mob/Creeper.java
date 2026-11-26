@@ -85,10 +85,10 @@ public final class Creeper extends MobEntity {
         return targetCenter.dst2(x(), y() + getHeight() * 0.5f, z());
     }
 
-    /** Giữ Creeper im lặng cho tới khi kích mồi hoặc nhận sát thương. */
+    /** Creeper chỉ bỏ tiếng chờ, còn tiếng bước chân phụ thuộc khối dưới chân. */
     @Override
     protected void playSound(World world, MobSoundEvent event) {
-        if (event != MobSoundEvent.AMBIENT && event != MobSoundEvent.STEP) {
+        if (event != MobSoundEvent.AMBIENT) {
             super.playSound(world, event);
         }
     }

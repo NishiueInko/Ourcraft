@@ -10,6 +10,7 @@ import com.badlogic.gdx.math.Vector3;
 import com.voxelgame.engine.AudioManager;
 import com.voxelgame.engine.BiomeType;
 import com.voxelgame.engine.Camera;
+import com.voxelgame.engine.ItemTextureAtlas;
 import com.voxelgame.engine.MobRenderer;
 import com.voxelgame.engine.MobTextureManager;
 import com.voxelgame.engine.Raycast;
@@ -23,6 +24,7 @@ import com.voxelgame.engine.World;
 import com.voxelgame.engine.WorldTime;
 import com.voxelgame.entity.Block;
 import com.voxelgame.entity.Hotbar;
+import com.voxelgame.entity.Item;
 import com.voxelgame.entity.ItemEntity;
 import com.voxelgame.entity.Player;
 
@@ -46,7 +48,9 @@ import com.voxelgame.entity.Player;
 public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
 
     /** Thứ tự ghé thăm các biome theo trục X từ tây sang đông. */
-    private static final BiomeType[] BIOME_TOUR = {BiomeType.SNOWY_PLAINS, BiomeType.PLAINS, BiomeType.DESERT};
+    private static final BiomeType[] BIOME_TOUR = {
+            BiomeType.SNOWY_PLAINS, BiomeType.FOREST, BiomeType.PLAINS, BiomeType.FLOWER_FOREST, BiomeType.DESERT
+    };
     private int nextBiomeIndex;
 
     /** Trạng thái Ctrl theo thứ tự sự kiện trong hàng đợi bàn phím của libGDX. */
@@ -60,8 +64,9 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
     /** Chương trình Shader GLSL 330 Core dùng chung cho cả chế độ 3D (Thế giới) và 2D (UI) */
     private ShaderProgram shaderProgram;
 
-    /** Texture Atlas 64x64 chứa toàn bộ 10 tile (Dirt, Grass, Stone, Bedrock, Log, Leaves, Water, Lava) */
+    /** Texture Atlas khối và vật phẩm độc lập. */
     private Texture textureAtlas;
+    private ItemTextureAtlas itemAtlas;
     /** Texture và mesh phân khớp của mob dùng chung theo biến thể. */
     private MobTextureManager mobTextures;
     private MobRenderer mobRenderer;
@@ -194,14 +199,16 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         // Shader GLSL 330 Core: Biên dịch, liên kết Vertex/Fragment Shader và cache Uniform Locations
         shaderProgram = new ShaderProgram();
 
-        // Texture Atlas 64x64: Nạp ảnh, tách sheet 32x32 Grass, nhuộm Water, sinh Procedural fallback
+        // Texture Atlas khối và Atlas vật phẩm độc lập
         textureAtlas = new Texture();
+        itemAtlas = new ItemTextureAtlas();
 
         // Camera góc nhìn thứ nhất: Quản lý Euler Yaw/Pitch, ma trận View/Projection, Dynamic FOV
         camera = new Camera();
 
         // Sinh địa hình và chuẩn bị mesh quanh tâm bản đồ.
         world = new World();
+        world.setAtlases(textureAtlas, itemAtlas);
         world.setWeather(weather);
         mobTextures = new MobTextureManager();
         try {
@@ -375,6 +382,7 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         uiRenderer.render2DHUD(
                 shaderProgram,
                 textureAtlas,
+                itemAtlas,
                 camera,
                 player,
                 audioManager,
@@ -653,6 +661,21 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
 
         // Lấy Hotbar của Player thông qua Composition
         Hotbar hotbar = player.getHotbar();
+        Item selectedItem = hotbar.getSelectedItem();
+
+        // Uống Milk Bucket: xóa mọi hiệu ứng trạng thái và trả lại Bucket rỗng
+        if (selectedItem == Item.MILK_BUCKET && hotbar.getSelectedCount() > 0) {
+            player.clearStatusEffects();
+            hotbar.consumeSelectedItemStack();
+            if (!hotbar.addItem(Item.BUCKET, 1)) {
+                world.spawnDroppedItem(new ItemEntity(player.getPosition().x,
+                        player.getPosition().y + 1.0f, player.getPosition().z, Item.BUCKET));
+            }
+            if (audioManager != null) {
+                audioManager.playEffect(AudioManager.Effect.PICKUP, 0.35f);
+            }
+            return;
+        }
 
         // Kiểm tra ô đang chọn có block khả dụng không
         Block selectedBlock = hotbar.getSelectedBlock();
@@ -748,6 +771,9 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         }
         if (mobTextures != null) {
             mobTextures.dispose();
+        }
+        if (itemAtlas != null) {
+            itemAtlas.dispose();
         }
         if (textureAtlas != null) {
             textureAtlas.dispose();

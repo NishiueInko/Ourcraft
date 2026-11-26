@@ -7,6 +7,7 @@ import com.voxelgame.engine.MobVisualState;
 import com.voxelgame.engine.World;
 import com.voxelgame.entity.Block;
 import com.voxelgame.entity.Hotbar;
+import com.voxelgame.entity.Item;
 import com.voxelgame.entity.Player;
 
 import java.util.concurrent.ThreadLocalRandom;
@@ -54,14 +55,20 @@ public class Camel extends MountableMob {
         goals().add(new MobGoals.RandomLookAroundGoal(8));
     }
 
-    /** Trao xương rồng trước khi thử lên ghế và chỉ dùng vật phẩm nếu có thể hồi máu. */
+    /** Cho phép đốt bằng Flint and Steel bất kể thái độ, sau đó mới thử cho ăn xương rồng hoặc lên ghế. */
     @Override
     public boolean onPlayerInteract(World world, Player player) {
-        if (attitude() != MobAttitude.PASSIVE || !isAlive() || !player.isAlive()) {
+        if (!isAlive() || player == null || !player.isAlive()) {
             return false;
         }
         Hotbar hotbar = player.getHotbar();
-        if (getHealth() < getMaxHealth() && hotbar.getSelectedBlock() == Block.CACTUS
+        if (hotbar != null && hotbar.getSelectedItem() == Item.FLINT_AND_STEEL && hotbar.getSelectedCount() > 0) {
+            return super.onPlayerInteract(world, player);
+        }
+        if (attitude() != MobAttitude.PASSIVE) {
+            return false;
+        }
+        if (hotbar != null && getHealth() < getMaxHealth() && hotbar.getSelectedBlock() == Block.CACTUS
                 && hotbar.getSelectedCount() > 0) {
             hotbar.consumeSelectedItem();
             heal(CACTUS_HEAL);

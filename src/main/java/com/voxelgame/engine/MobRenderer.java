@@ -1,5 +1,6 @@
 package com.voxelgame.engine;
 
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.Mesh;
 import com.badlogic.gdx.graphics.VertexAttribute;
@@ -45,15 +46,19 @@ public final class MobRenderer implements Disposable {
     private final PreparedModel[] models;
     private final Matrix4[] transforms;
     private final Matrix4 rootTransform = new Matrix4();
-    /** Ma trận của vật được giữ ở miệng, dùng lại giữa các lần vẽ. */
+    /** Ma trận của vật được giữ ở miệng cáo hoặc tay Enderman, dùng lại giữa các lần vẽ. */
     private final Matrix4 heldBlockTransform = new Matrix4();
     private final Vector3 center = new Vector3();
     private MobTextureManager.Skin boundSkin;
     private int tintMode;
     private int appliedTint;
     private int woolColor;
+    private boolean hideOverlay;
     private Block heldBlock;
     private ModelPart heldBlockPart;
+    private MobAppearance currentAppearance;
+    private boolean blendEnabled;
+    private boolean cullDisabled;
     private int deepestPart;
     private boolean disposed;
 
@@ -143,7 +148,8 @@ public final class MobRenderer implements Disposable {
         Mesh mesh = meshes.get(key);
         if (mesh == null) {
             float[] vertices = part.buildVertices(width, height);
-            mesh = new Mesh(Mesh.VertexDataType.VertexBufferObjectWithVAO, true, ModelPart.VERTEX_COUNT, 0, FORMAT);
+            int vertexCount = vertices.length / ModelPart.STRIDE;
+            mesh = new Mesh(Mesh.VertexDataType.VertexBufferObjectWithVAO, true, vertexCount, 0, FORMAT);
             try {
                 mesh.setVertices(vertices);
                 meshes.put(key, mesh);
@@ -155,7 +161,7 @@ public final class MobRenderer implements Disposable {
         return new Material(mesh, skin);
     }
 
-    /** Vẽ các thực thể còn trong khung nhìn, giữ ánh sáng và sương của lượt vẽ địa hình. */
+    /** Vẽ các thực thể còn trong khung nhìn, giữ ánh sáng, sương và trạng thái OpenGL sạch sẽ. */
     void render(List<Entity> entities, ShaderProgram shader, Frustum frustum, Vector3 eye, float drawDistance) {
         if (disposed) {
             return;
@@ -163,6 +169,8 @@ public final class MobRenderer implements Disposable {
         boundSkin = null;
         tintMode = -1;
         appliedTint = -1;
+        blendEnabled = false;
+        cullDisabled = false;
         try {
             for (int i = 0; i < entities.size(); i++) {
                 Entity entity = entities.get(i);
@@ -170,16 +178,21 @@ public final class MobRenderer implements Disposable {
                     continue;
                 }
                 MobVisualState state = visual.mobVisualState();
-                PreparedModel model = models[state.appearance().ordinal()];
+                currentAppearance = state.appearance();
+                PreparedModel model = models[currentAppearance.ordinal()];
                 float fuse = state.fuseProgress();
-                float scale = state.scale() * PIXEL_TO_BLOCK * (1f + 0.25f * fuse * fuse);
+                float scale = state.scale() * currentAppearance.modelScale()
+                        * PIXEL_TO_BLOCK * (1f + 0.25f * fuse * fuse);
                 entity.copyCenterPosition(center);
                 center.y -= entity.getHeight() * 0.5f;
-                if (isInView(model.model.renderRadius() * scale, frustum, eye, drawDistance)) {
+                float radius = model.model.renderRadius() * scale * Math.max(1f, currentAppearance.heightScale());
+                if (isInView(radius, frustum, eye, drawDistance)) {
                     drawMob(shader, entity, state, model, scale, fuse);
                 }
             }
         } finally {
+            setBlend(false);
+            setDoubleSided(false);
             if (tintMode != -1) {
                 shader.setUniformVec4("uTintColor", 1f, 1f, 1f, 1f);
                 shader.setUniform1f("uMobWhiteFlash", 0f);
@@ -188,6 +201,33 @@ public final class MobRenderer implements Disposable {
                 blockAtlas.bind();
                 boundSkin = null;
             }
+        }
+    }
+
+    /** Bật hoặc tắt hòa trộn alpha cho lớp phủ đốm ngựa bán trong suốt. */
+    private void setBlend(boolean enable) {
+        if (blendEnabled == enable) {
+            return;
+        }
+        blendEnabled = enable;
+        if (enable) {
+            Gdx.gl.glEnable(GL20.GL_BLEND);
+            Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        } else {
+            Gdx.gl.glDisable(GL20.GL_BLEND);
+        }
+    }
+
+    /** Tắt hoặc bật face culling cho mặt phẳng hai chiều và các bộ phận hở hai mặt. */
+    private void setDoubleSided(boolean doubleSided) {
+        if (cullDisabled == doubleSided) {
+            return;
+        }
+        cullDisabled = doubleSided;
+        if (doubleSided) {
+            Gdx.gl.glDisable(GL20.GL_CULL_FACE);
+        } else {
+            Gdx.gl.glEnable(GL20.GL_CULL_FACE);
         }
     }
 
@@ -218,7 +258,7 @@ public final class MobRenderer implements Disposable {
             float progress = MathUtils.clamp(1f - living.getDeathTimer(), 0f, 1f);
             rootTransform.rotate(Vector3.Z, progress * 90f);
         }
-        rootTransform.scale(scale, scale, scale);
+        rootTransform.scale(scale, scale * currentAppearance.heightScale(), scale);
 
         // Màu len chỉ áp dụng cho lớp phủ, còn dấu đỏ áp dụng cho cả cá thể.
         boolean hurt = living != null && living.getHurtFlashTimer() > 0f;
@@ -228,7 +268,8 @@ public final class MobRenderer implements Disposable {
             tintMode = mode;
             shader.setUniform1f("uMobWhiteFlash", mode == 2 ? 0.85f : 0f);
         }
-        woolColor = state.appearance() == MobAppearance.SHEEP ? state.sheepWoolColor() : 0xffffff;
+        woolColor = currentAppearance == MobAppearance.SHEEP ? state.sheepWoolColor() : 0xffffff;
+        hideOverlay = currentAppearance == MobAppearance.SHEEP && state.isSheepSheared();
         heldBlock = state.heldBlock();
         heldBlockPart = heldBlock == null ? null : model.model.heldBlockPart();
         MobAppearance.HorseMarkings markings = state.horseMarkings();
@@ -248,7 +289,12 @@ public final class MobRenderer implements Disposable {
         part.writeTransform(parent, transform);
         Material material = prepared.markings != null && markingId >= 0
                 ? prepared.markings[markingId] : prepared.material;
+        if (hideOverlay && part.layer() == ModelPart.Layer.OVERLAY) {
+            material = null;
+        }
         if (material != null) {
+            setBlend(part.layer() == ModelPart.Layer.OVERLAY);
+            setDoubleSided(part.isDoubleSided());
             applyTint(shader, part.layer() == ModelPart.Layer.OVERLAY ? woolColor : 0xffffff);
             if (boundSkin != material.skin) {
                 boundSkin = material.skin;
@@ -276,12 +322,18 @@ public final class MobRenderer implements Disposable {
         }
     }
 
-    /** Vẽ vật thu nhỏ theo điểm xoay của đầu cáo và tiếp tục dùng atlas của khối. */
-    private void drawHeldBlock(ShaderProgram shader, Matrix4 headTransform) {
+    /** Vẽ khối thu nhỏ theo khớp đầu cáo hoặc giữa hai tay Enderman bằng atlas khối. */
+    private void drawHeldBlock(ShaderProgram shader, Matrix4 jointTransform) {
+        setBlend(false);
+        setDoubleSided(false);
         applyTint(shader, 0xffffff);
         blockAtlas.bind();
         boundSkin = null;
-        heldBlockTransform.set(headTransform).translate(0f, -2.8f, -7.2f).scale(2.9f, 2.9f, 2.9f);
+        if (currentAppearance == MobAppearance.ENDERMAN) {
+            heldBlockTransform.set(jointTransform).translate(0f, 16f, -10f).scale(8f, 8f, 8f);
+        } else {
+            heldBlockTransform.set(jointTransform).translate(0f, -2.8f, -7.2f).scale(2.9f, 2.9f, 2.9f);
+        }
         ItemEntity.renderBlockMesh(shader, heldBlock, heldBlockTransform);
     }
 

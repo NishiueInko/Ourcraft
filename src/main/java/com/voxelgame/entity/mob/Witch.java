@@ -6,6 +6,7 @@ import com.voxelgame.engine.World;
 import com.voxelgame.entity.Block;
 import com.voxelgame.entity.DamageSource;
 import com.voxelgame.entity.Entity;
+import com.voxelgame.entity.Item;
 import com.voxelgame.entity.LivingEntity;
 import com.voxelgame.entity.StatusEffectType;
 import com.voxelgame.entity.projectile.PotionType;
@@ -34,12 +35,27 @@ public final class Witch extends RangedMob {
     private static final float HEALING_AMOUNT = 4f;
     private static final float MAGIC_DAMAGE_MULTIPLIER = 0.15f;
     private static final float SWIFTNESS_DISTANCE_SQUARED = 11f * 11f;
+    private final DrinkGoal drinkGoal = new DrinkGoal();
     private double throwPoseUntil;
 
     /** Dựng Witch, ưu tiên hành vi uống hơn việc đuổi và ném thuốc. */
     public Witch(float x, float y, float z) {
         super(MobType.WITCH, x, y, z, DETECTION_RANGE, THROW_RANGE, WINDUP, FLASK_SPEED, ThrownPotionEntity.GRAVITY);
-        goals().add(new DrinkGoal());
+        goals().add(drinkGoal);
+    }
+
+    /** Trả loại thuốc Witch đang uống tại thời điểm chết, hoặc null nếu không uống. */
+    public Item drinkingPotionItem() {
+        Drink potion = drinkGoal.potion;
+        if (potion == null) {
+            return null;
+        }
+        return switch (potion) {
+            case FIRE_RESISTANCE -> Item.POTION_FIRE_RESISTANCE;
+            case WATER_BREATHING -> Item.POTION_WATER_BREATHING;
+            case HEALING -> Item.POTION_HEALING;
+            case SWIFTNESS -> Item.POTION_SWIFTNESS;
+        };
     }
 
     /** Áp dụng mức kháng 85% cho sát thương phép, kể cả nhịp sát thương của Poison. */

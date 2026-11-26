@@ -13,19 +13,78 @@ import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
-/** Kiểm tra hình học và phép biến đổi của mô hình mob trên CPU. */
+/** Kiểm tra hình học, chiều UV, tỷ lệ texel 1:1 và tài nguyên của mô hình mob trên CPU. */
 final class MobAssetAndModelChecks {
     /** Chạy các phép kiểm tra mà không cần ngữ cảnh OpenGL hoặc OpenAL. */
     static void run() {
         checkFaceUvs();
+        checkVanillaUvOrientation();
+        checkTexelAspectRatio();
         checkParentAndChildTransform();
         checkAppearanceAssets();
+        checkStandingHeightAndBow();
         checkAnimatedModelBounds();
         checkAudioAssets();
         checkSpatialAudio();
     }
 
-    /** Sáu mặt có UV hữu hạn, đúng dải pixel và độc lập với kích thước texture. */
+    /** Đo lưới đứng từ chân với heightScale=1 và kiểm tra đúng một ảnh cung hiện ở từng ngưỡng kéo dây. */
+    private static void checkStandingHeightAndBow() {
+        MobAppearance[] appearances = {MobAppearance.ZOMBIE, MobAppearance.SKELETON, MobAppearance.CREEPER,
+                MobAppearance.COW, MobAppearance.CAMEL};
+        float[] expectedHeights = {32f, 32f, 26f, 25f, 44f};
+        for (int i = 0; i < appearances.length; i++) {
+            MobAppearance appearance = appearances[i];
+            near(appearance.heightScale(), 1f, "heightScale phải giữ đúng 1.0 để texel không bị méo");
+            MobModel model = appearance.model();
+            model.resetPose();
+            float top = 0;
+            for (ModelPart root : model.roots()) {
+                top = Math.max(top, highestVertex(root, new Matrix4()));
+            }
+            require(Math.abs(top * appearance.heightScale() - expectedHeights[i]) < 0.001f,
+                    "Sai chiều cao mô hình đứng của " + appearance + " (thực tế " + top + ")");
+        }
+        PreviewMob archer = new PreviewMob(MobAppearance.SKELETON);
+        MobModel model = MobAppearance.SKELETON.model();
+        ModelPart[] frames = model.roots()[0].children()[1].children()[0].children();
+        float[] draws = {0f, 0.1f, 0.649f, 0.65f, 0.899f, 0.9f, 0f};
+        int[] expected = {0, 1, 1, 2, 2, 3, 0};
+        for (int i = 0; i < draws.length; i++) {
+            archer.state.setPose(MobVisualState.Pose.AIM_BOW, draws[i]);
+            archer.state.updateBowAim(0.05f);
+            model.resetPose();
+            model.setupAnimation(archer, 0, 0, 0, 0, 0);
+            for (int frame = 0; frame < frames.length; frame++) {
+                require(frames[frame].isVisible() == (frame == expected[i]), "Sai mức kéo dây cung");
+            }
+        }
+        model.resetPose();
+    }
+
+    /** Đỉnh cao nhất của các hộp thuộc cơ thể, sau phép quay và dịch của toàn bộ khớp cha. */
+    private static float highestVertex(ModelPart part, Matrix4 parent) {
+        if (part.layer() == ModelPart.Layer.EQUIPMENT) {
+            return Float.NEGATIVE_INFINITY;
+        }
+        Matrix4 transform = new Matrix4();
+        part.writeTransform(parent, transform);
+        float highest = Float.NEGATIVE_INFINITY;
+        if (part.geometry().width() > 0 && part.geometry().height() > 0 && part.geometry().depth() > 0) {
+            float[] vertices = part.buildVertices(128, 128);
+            Vector3 point = new Vector3();
+            for (int i = 0; i < vertices.length; i += ModelPart.STRIDE) {
+                point.set(vertices[i], vertices[i + 1], vertices[i + 2]).mul(transform);
+                highest = Math.max(highest, point.y);
+            }
+        }
+        for (ModelPart child : part.children()) {
+            highest = Math.max(highest, highestVertex(child, transform));
+        }
+        return highest;
+    }
+
+    /** Sáu mặt của hộp Ourcraft có UV hữu hạn, đúng dải pixel và chiều pháp tuyến hướng ngoài. */
     private static void checkFaceUvs() {
         ModelPart part = new ModelPart(0, 0, 0, -4, 0, -2, 8, 12, 4, 2, 3, 0.5f);
         for (int[] size : new int[][]{{64, 32}, {64, 64}, {128, 64}}) {
@@ -43,6 +102,53 @@ final class MobAssetAndModelChecks {
         }
     }
 
+    /** Xác nhận chế độ MINECRAFT không lật gương mặt trước (-Z) và giữ đúng chiều tiếp giáp 6 mặt. */
+    private static void checkVanillaUvOrientation() {
+        ModelPart.CuboidUv headUv = new ModelPart.CuboidUv(0, 0, 8, 8, 8, ModelPart.UvOrientation.MINECRAFT);
+        ModelPart part = new ModelPart(0, 0, 0, -4, 0, -4, 8, 8, 8, 0f, headUv);
+        float[] vertices = part.buildVertices(64, 64);
+        checkWinding(vertices);
+        // Mặt 1 (-Z trước): đỉnh 0 ở (x1=+4, y1=8, z0=-4) là trái màn hình -> u1 = 8/64 = 0.125;
+        // đỉnh 2 ở (x0=-4, y0=0, z0=-4) là phải màn hình -> u2 = 16/64 = 0.25.
+        int front = 1 * 6 * ModelPart.STRIDE;
+        near(vertices[front], 4f, "Đỉnh đầu tiên của mặt trước phải nằm ở +X (trái màn hình)");
+        near(vertices[front + 3], 8f / 64f, "Mép trái màn hình mặt trước phải ánh xạ đúng u1");
+        near(vertices[front + 2 * ModelPart.STRIDE], -4f, "Đỉnh đối diện của mặt trước phải nằm ở -X");
+        near(vertices[front + 2 * ModelPart.STRIDE + 3], 16f / 64f, "Mép phải màn hình mặt trước phải ánh xạ đúng u2");
+        // Mặt 0 (-X, hông trái mob) nằm ở [u2..u3] = [16..24], Mặt 2 (+X, hông phải mob) nằm ở [u0..u1] = [0..8].
+        int leftFace = 0;
+        int rightFace = 2 * 6 * ModelPart.STRIDE;
+        near(vertices[leftFace + 3], 16f / 64f, "Hông -X tại mép trước phải khớp u2 của mặt trước");
+        near(vertices[rightFace + 3], 0f, "Hông +X tại mép sau phải bắt đầu từ u0");
+    }
+
+    /** Xác nhận mọi hộp chuẩn Minecraft đều giữ tỉ lệ texel vuông 1:1 (kích thước hộp == kích thước UV). */
+    private static void checkTexelAspectRatio() {
+        for (MobAppearance appearance : MobAppearance.values()) {
+            for (ModelPart root : appearance.model().roots()) {
+                checkPartTexelRatio(root, appearance);
+            }
+        }
+    }
+
+    /** Duyệt đệ quy các hộp của loài để đảm bảo không còn hộp bị bóp méo texel. */
+    private static void checkPartTexelRatio(ModelPart part, MobAppearance appearance) {
+        ModelPart.Geometry geo = part.geometry();
+        ModelPart.CuboidUv uv = geo.uv();
+        if (geo.shape() == ModelPart.Shape.BOX && uv.orientation() != ModelPart.UvOrientation.FLAT_SPRITE
+                && geo.width() > 0 && geo.height() > 0 && geo.depth() > 0) {
+            boolean horizontal = uv.orientation() == ModelPart.UvOrientation.HORIZONTAL;
+            int expectedHeight = horizontal ? uv.depth() : uv.height();
+            int expectedDepth = horizontal ? uv.height() : uv.depth();
+            require(geo.width() == uv.width() && geo.height() == expectedHeight && geo.depth() == expectedDepth,
+                    "Sai tỉ lệ texel 1:1 ở " + appearance + ": box=" + geo.width() + "x" + geo.height() + "x"
+                            + geo.depth() + " vs uv=" + uv.width() + "x" + uv.height() + "x" + uv.depth());
+        }
+        for (ModelPart child : part.children()) {
+            checkPartTexelRatio(child, appearance);
+        }
+    }
+
     /** Các tam giác phải hướng ra sáu phía để hoạt động khi bật culling. */
     private static void checkWinding(float[] vertices) {
         Vector3[] normals = {
@@ -57,7 +163,7 @@ final class MobAssetAndModelChecks {
                     vertices[i + 8] - vertices[i + 2]);
             ac.set(vertices[i + 12] - vertices[i], vertices[i + 13] - vertices[i + 1],
                     vertices[i + 14] - vertices[i + 2]);
-            require(ab.crs(ac).dot(normals[face]) > 0f, "Tam giác phải quay ra ngoài hộp");
+            require(ab.crs(ac).dot(normals[face]) > 0f, "Tam giác phải quay ra ngoài hộp ở mặt " + face);
         }
     }
 
@@ -89,9 +195,15 @@ final class MobAssetAndModelChecks {
         near(point.z, 27f, "Đặt lại tư thế phải giữ điểm xoay đã khai báo");
     }
 
-    /** Kiểm tra hình học từng ngoại hình khớp kích thước thật của ảnh được đóng gói. */
+    /** Kiểm tra hình học từng ngoại hình khớp kích thước thật của ảnh được đóng gói, kể cả 3 tệp đạn/trang bị. */
     private static void checkAppearanceAssets() {
         BufferedImage equipment = readTexture(MobTextureManager.HELD_EQUIPMENT);
+        require(equipment.getWidth() == 128 && equipment.getHeight() == 80, "held.png phải đúng 128x80");
+        BufferedImage arrowImg = readTexture(MobAppearance.ARROW.texture());
+        require(arrowImg.getWidth() == 32 && arrowImg.getHeight() == 32, "arrow.png phải đúng 32x32 chuẩn Minecraft");
+        BufferedImage potionImg = readTexture(MobAppearance.POTION.texture());
+        require(potionImg.getWidth() == 16 && potionImg.getHeight() == 16, "potion.png phải đúng 16x16 chuẩn Minecraft");
+
         for (MobAppearance appearance : MobAppearance.values()) {
             BufferedImage base = readTexture(appearance.texture());
             BufferedImage overlay = readTexture(appearance.overlay());
@@ -127,13 +239,17 @@ final class MobAssetAndModelChecks {
             case EYES -> eyes;
             case EQUIPMENT -> equipment;
         };
-        if (image != null) {
+        ModelPart.Geometry geo = part.geometry();
+        boolean hasDrawableGeometry = geo.shape() != ModelPart.Shape.BOX
+                || (geo.width() > 0 && geo.height() > 0 && geo.depth() > 0)
+                || (geo.width() + geo.height() + geo.depth() > 0 && (geo.width() > 0 || geo.height() > 0));
+        if (image != null && (geo.uv().width() > 0 || geo.uv().height() > 0)) {
             require(part.fitsTexture(image.getWidth(), image.getHeight()), "UV ngoài ảnh của " + appearance);
             require(part.layer() == ModelPart.Layer.BASE || image.getColorModel().hasAlpha(),
                     "Lớp phủ, mắt và trang bị cần kênh alpha ở " + appearance);
-            if (part.layer() != ModelPart.Layer.OVERLAY) {
+            if (part.layer() != ModelPart.Layer.OVERLAY && hasDrawableGeometry) {
                 require(hasTexturePixels(part, image),
-                        "Không có pixel ở " + appearance + " " + part.layer() + " " + part.geometry().uv());
+                        "Không có pixel ở " + appearance + " " + part.layer() + " " + geo.uv());
             }
         }
         for (ModelPart child : part.children()) {
@@ -144,7 +260,8 @@ final class MobAssetAndModelChecks {
     /** Tìm ít nhất một vùng nhìn thấy của lớp trên các nhánh đã gắn hình học. */
     private static boolean hasLayerPixels(ModelPart[] parts, ModelPart.Layer layer, BufferedImage image) {
         for (ModelPart part : parts) {
-            if ((part.layer() == layer && hasTexturePixels(part, image))
+            if ((part.layer() == layer && (part.geometry().uv().width() > 0 || part.geometry().uv().height() > 0)
+                    && hasTexturePixels(part, image))
                     || hasLayerPixels(part.children(), layer, image)) {
                 return true;
             }
@@ -152,7 +269,7 @@ final class MobAssetAndModelChecks {
         return false;
     }
 
-    /** Kiểm tra pixel thật trong sáu mặt UV, bỏ qua vùng trống giữa các mặt trong ảnh. */
+    /** Kiểm tra pixel thật trong các mặt UV, bỏ qua vùng trống giữa các mặt trong ảnh. */
     private static boolean hasTexturePixels(ModelPart part, BufferedImage image) {
         float[] vertices = part.buildVertices(image.getWidth(), image.getHeight());
         int faceStride = 6 * ModelPart.STRIDE;
@@ -205,11 +322,14 @@ final class MobAssetAndModelChecks {
         }
         Matrix4 transform = new Matrix4();
         part.writeTransform(parent, transform);
-        float[] vertices = part.buildVertices(128, 128);
-        for (int i = 0; i < vertices.length; i += ModelPart.STRIDE) {
-            point.set(vertices[i], vertices[i + 1], vertices[i + 2]).mul(transform);
-            if (point.len2() > radius * radius) {
-                throw new AssertionError("Cầu bao phải phủ đỉnh của " + appearance + " ở " + pose);
+        ModelPart.Geometry geo = part.geometry();
+        if (geo.shape() != ModelPart.Shape.BOX || geo.width() > 0 || geo.height() > 0 || geo.depth() > 0) {
+            float[] vertices = part.buildVertices(128, 128);
+            for (int i = 0; i < vertices.length; i += ModelPart.STRIDE) {
+                point.set(vertices[i], vertices[i + 1], vertices[i + 2]).mul(transform);
+                if (point.len2() > radius * radius) {
+                    throw new AssertionError("Cầu bao phải phủ đỉnh của " + appearance + " ở " + pose);
+                }
             }
         }
         for (ModelPart child : part.children()) {
@@ -239,14 +359,17 @@ final class MobAssetAndModelChecks {
         MobSoundEvent[] common = {MobSoundEvent.AMBIENT, MobSoundEvent.HURT, MobSoundEvent.DEATH, MobSoundEvent.STEP};
         for (String mob : mobs) {
             for (MobSoundEvent event : common) {
-                checkSoundVariants(mob, event);
+                if (MobSoundBank.hasSpeciesSample(mob, event)) {
+                    checkSoundVariants(mob, event);
+                }
             }
         }
         for (MobSoundEvent event : MobSoundEvent.values()) {
             String group = switch (event) {
                 case AMBIENT, HURT, DEATH, STEP -> null;
                 case CREEPER_PRIMED -> "creeper";
-                case EXPLODE, BOW_SHOOT, SPEAR_CHARGE -> "shared";
+                case EXPLODE -> "shared";
+                case BOW_SHOOT, SPEAR_CHARGE -> null;
                 case ENDERMAN_STARE, ENDERMAN_TELEPORT, ENDERMAN_SCREAM -> "enderman";
                 case WITCH_THROW, WITCH_DRINK -> "witch";
                 case GOAT_RAM, GOAT_SCREAM -> "goat";
@@ -257,6 +380,19 @@ final class MobAssetAndModelChecks {
             if (group != null) {
                 checkSoundVariants(group, event);
             }
+        }
+        checkSoundVariants("camel_husk", MobSoundEvent.CAMEL_DASH);
+        checkOriginalSound("bow_shoot", "4a6c47aa4f8c2cfe3237b250ed19b8714d611fd2");
+        checkOriginalSound("spear_charge", "1ae7fea3dc9c7b3016ff1b79b5e51bd1c1e1cf50");
+    }
+
+    /** Kiểm tra byte của mẫu OGG đóng gói với mã trong chỉ mục âm thanh Mojang 26.3. */
+    private static void checkOriginalSound(String name, String sha1) {
+        try (InputStream input = openAsset("audio/sfx/mob/shared/" + name + ".ogg")) {
+            byte[] digest = java.security.MessageDigest.getInstance("SHA-1").digest(input.readAllBytes());
+            require(java.util.HexFormat.of().formatHex(digest).equals(sha1), "Sai âm thanh nguồn " + name);
+        } catch (IOException | java.security.NoSuchAlgorithmException error) {
+            throw new AssertionError(name, error);
         }
     }
 

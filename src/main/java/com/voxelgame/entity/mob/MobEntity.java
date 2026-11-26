@@ -10,6 +10,8 @@ import com.voxelgame.engine.World;
 import com.voxelgame.entity.Block;
 import com.voxelgame.entity.DamageSource;
 import com.voxelgame.entity.Entity;
+import com.voxelgame.entity.Hotbar;
+import com.voxelgame.entity.Item;
 import com.voxelgame.entity.LivingEntity;
 import com.voxelgame.entity.Player;
 
@@ -61,6 +63,7 @@ public class MobEntity extends LivingEntity implements MobVisual {
     private float angerTimer;
     private float panicTime;
     private boolean stoppedAfterDeath;
+    private boolean lootDropped;
 
     /** Điều khiển ngắn hạn dùng giữa lượt goal và lượt quét vật lý. */
     private float wishX;
@@ -377,10 +380,13 @@ public class MobEntity extends LivingEntity implements MobVisual {
         }
         headYaw = moveAngle(headYaw, wantHeadYaw, dt * 300f);
         headPitch = moveAngle(headPitch, wantHeadPitch, dt * 240f);
-        limbSwing = (limbSwing + distance * 6f) % MathUtils.PI2;
-        limbSwingAmount = MathUtils.lerp(limbSwingAmount, Math.min(1f, distance / dt * 0.38f),
-                Math.min(1f, dt * 10f));
+        // Mỗi tick 1/20 giây lấy 40% biên độ mới. Quy đổi theo dt để bước đều ở mọi FPS.
+        float ticks = dt * 20f;
+        float targetSwing = Math.min(1f, distance * 4f / ticks);
+        limbSwingAmount = MathUtils.lerp(limbSwingAmount, targetSwing, 1f - (float) Math.pow(0.6, ticks));
+        limbSwing = (limbSwing + limbSwingAmount * ticks * 0.6662f * (baby ? 3f : 1f)) % MathUtils.PI2;
         float ageInTicks = (float) (ageSeconds * 20d);
+        visual.updateBowAim(dt);
         visual.setAnimation(bodyYaw, headYaw, headPitch, limbSwing, limbSwingAmount, ageInTicks);
         if (onGround) {
             stepSoundDistance += distance;
@@ -514,8 +520,31 @@ public class MobEntity extends LivingEntity implements MobVisual {
         } else {
             target = null;
             playSound(world, MobSoundEvent.DEATH);
+            if (!lootDropped) {
+                lootDropped = true;
+                boolean onFire = getFireTimer() > 0f || source == DamageSource.FIRE || source == DamageSource.LAVA;
+                MobLootTable.dropDeathLoot(world, this, onFire, attacker);
+            }
         }
         return true;
+    }
+
+    /** Cho phép dùng Flint and Steel đốt cháy mob (tạo thịt chín khi giết bằng lửa). */
+    @Override
+    public boolean onPlayerInteract(World world, Player player) {
+        if (!isAlive() || player == null || !player.isAlive()) {
+            return false;
+        }
+        Hotbar hotbar = player.getHotbar();
+        if (hotbar != null && hotbar.getSelectedItem() == Item.FLINT_AND_STEEL && hotbar.getSelectedCount() > 0) {
+            ignite(8.0f);
+            AudioManager audio = world == null ? null : world.getAudio();
+            if (audio != null) {
+                audio.playEffect(AudioManager.Effect.CLICK, 0.45f);
+            }
+            return true;
+        }
+        return false;
     }
 
     /** Gây đòn đã qua kiểm tra tầm và hồi chiêu, cho phép loài thêm hiệu ứng sau khi trúng. */
@@ -572,6 +601,12 @@ public class MobEntity extends LivingEntity implements MobVisual {
     protected void playSound(World world, MobSoundEvent event) {
         AudioManager audio = world == null ? null : world.getAudio();
         if (audio != null) {
+            if (event == MobSoundEvent.STEP && MobSoundEvent.usesBlockSteps(type.id())) {
+                Block ground = Block.fromId(world.getBlock(MathUtils.floor(x()), MathUtils.floor(y() - 0.02f),
+                        MathUtils.floor(z())));
+                audio.playMobStep(ground, x(), y(), z());
+                return;
+            }
             audio.playMobSound(type.id(), event, x(), y() + height * 0.5f, z(), 0f, baby ? BABY_PITCH : 1f);
         }
     }

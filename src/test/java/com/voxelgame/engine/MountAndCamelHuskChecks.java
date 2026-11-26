@@ -62,12 +62,12 @@ final class MountAndCamelHuskChecks {
     /** Giữ đường hồi sinh từ đáy thế giới khi không tìm được mặt đất để xuống thú. */
     private static void checkMountedVoidRecovery() {
         World world = World.empty();
-        Player player = new Player(1500.5f, 35f, 500.5f);
-        Camel camel = new Camel(1500.5f, 35f, 500.5f);
+        Player player = new Player(2000.5f, 35f, 500.5f);
+        Camel camel = new Camel(2000.5f, 35f, 500.5f);
         world.registerPlayer(player);
         try {
             require(player.tryMount(camel, 0), "Phải gắn ghế trước khi mô phỏng thú rơi");
-            camel.setPosition(1500.5f, -30f, 500.5f);
+            camel.setPosition(2000.5f, -30f, 500.5f);
             player.update(world, 0.05f);
             require(player.getMount() == null && camel.getPassenger(0) == null && player.getPosition().y >= 0f,
                     "Rơi ngoài bản đồ khi cưỡi phải tháo liên kết ghế và đưa người chơi lên lại");
@@ -79,7 +79,7 @@ final class MountAndCamelHuskChecks {
     /** Ép kết quả chọn bầy ngựa trên cỏ, kiểm tra quy mô bầy và màu lông chung. */
     private static void checkHorsePack() {
         World world = World.empty();
-        world.registerPlayer(new Player(1500.5f, 31f, 500.5f));
+        world.registerPlayer(new Player(2000.5f, 31f, 500.5f));
         WorldTime day = new WorldTime();
         day.update(300);
         MobSpawnTable table = MobSpawnTable.forBiome(BiomeType.PLAINS, MobCategory.CREATURE, null);
@@ -88,13 +88,13 @@ final class MountAndCamelHuskChecks {
             seed++;
         }
         try {
-            for (int x = 1530; x <= 1550; x++) {
+            for (int x = 2030; x <= 2050; x++) {
                 for (int z = 490; z <= 510; z++) {
                     world.setBlockInternal(x, 30, z, Block.GRASS.getId(), 0);
                 }
             }
-            require(world.getBiome(1540, 500) == BiomeType.PLAINS, "Nền kiểm thử ngựa phải thuộc Plains");
-            int created = new MobSpawner(seed).spawnPack(world, day, MobCategory.CREATURE, 1540, 500, 6);
+            require(world.getBiome(2040, 500) == BiomeType.PLAINS, "Nền kiểm thử ngựa phải thuộc Plains");
+            int created = new MobSpawner(seed).spawnPack(world, day, MobCategory.CREATURE, 2040, 500, 6);
             require(created >= 2 && created <= 6, "Bầy ngựa trên cỏ phải có từ 2 đến 6 con");
             MobAppearance coat = ((Horse) world.entityAt(1)).mobVisualState().appearance();
             for (int i = 1; i <= created; i++) {
@@ -110,12 +110,12 @@ final class MountAndCamelHuskChecks {
     /** Đi qua lượt sinh tự nhiên với factory thật để xác nhận trang bị và ghế của cả bộ. */
     private static void checkNaturalCamelHusk() {
         World world = World.empty();
-        world.registerPlayer(new Player(2500.5f, 31f, 800.5f));
+        world.registerPlayer(new Player(3500.5f, 31f, 800.5f));
         WorldTime night = new WorldTime();
         night.update(850);
         MobSpawnTable table = MobSpawnTable.forBiome(BiomeType.DESERT, MobCategory.MONSTER, null);
         try {
-            for (int x = 2530; x <= 2550; x++) {
+            for (int x = 3530; x <= 3550; x++) {
                 for (int z = 790; z <= 810; z++) {
                     world.setBlockInternal(x, 30, z, Block.SAND.getId(), 0);
                 }
@@ -133,7 +133,7 @@ final class MountAndCamelHuskChecks {
                 if (random.nextInt(10) != 0) {
                     continue;
                 }
-                int created = new MobSpawner(seed).spawnPack(world, night, MobCategory.MONSTER, 2540, 800, 3);
+                int created = new MobSpawner(seed).spawnPack(world, night, MobCategory.MONSTER, 3540, 800, 3);
                 require(created == 3 && world.entityAt(1) instanceof CamelHusk camel
                                 && camel.getPassenger(0) instanceof Husk front && front.hasIronSpear()
                                 && camel.getPassenger(1) instanceof Parched,

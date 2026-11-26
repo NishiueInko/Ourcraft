@@ -60,12 +60,12 @@ public final class WeatherRenderer implements Disposable {
                     continue;
                 }
                 BiomeType biome = world.getBiome(x, z);
-                if (biome == BiomeType.DESERT) {
+                if (biome.isDry()) {
                     continue;
                 }
                 int hash = x * 374761393 + z * 668265263;
                 hash = (hash ^ (hash >>> 13)) * 1274126177;
-                boolean flakes = biome == BiomeType.SNOWY_PLAINS;
+                boolean flakes = biome.hasSnow();
                 float density = flakes ? SNOW_DENSITY : RAIN_DENSITY;
                 // Các cột xuất hiện theo thứ tự cố định khi cường độ tăng.
                 if (((hash >>> 12) & 255) / 256f >= density * strength) {

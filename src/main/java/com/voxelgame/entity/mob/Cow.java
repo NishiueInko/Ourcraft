@@ -1,15 +1,44 @@
 package com.voxelgame.entity.mob;
 
+import com.voxelgame.engine.AudioManager;
 import com.voxelgame.engine.World;
 import com.voxelgame.entity.Entity;
+import com.voxelgame.entity.Hotbar;
+import com.voxelgame.entity.Item;
+import com.voxelgame.entity.ItemEntity;
+import com.voxelgame.entity.Player;
 
-/** Bò đồng bằng tự đi lang thang và quay lại gần đàn nếu bị tách nhóm. */
+/** Bò đồng bằng tự đi lang thang, quay lại gần đàn và cho vắt sữa bằng Bucket. */
 public final class Cow extends MobEntity {
     /** Lấy chỉ số và nhóm âm thanh của bò, cùng các goal hiền lành dùng chung. */
     public Cow(float x, float y, float z) {
         super(MobType.COW, x, y, z);
         setMoveSpeed(2f);
         goals().add(new HerdGoal());
+    }
+
+    /** Vắt sữa khi người chơi cầm Bucket, hoặc đốt cháy khi cầm Flint and Steel. */
+    @Override
+    public boolean onPlayerInteract(World world, Player player) {
+        if (super.onPlayerInteract(world, player)) {
+            return true;
+        }
+        if (!isAlive() || isBaby() || player == null || !player.isAlive()) {
+            return false;
+        }
+        Hotbar hotbar = player.getHotbar();
+        if (hotbar != null && hotbar.getSelectedItem() == Item.BUCKET && hotbar.getSelectedCount() > 0) {
+            hotbar.consumeSelectedItemStack();
+            if (!hotbar.addItem(Item.MILK_BUCKET, 1) && world != null) {
+                world.spawnDroppedItem(new ItemEntity(x(), y() + 0.6f, z(), Item.MILK_BUCKET));
+            }
+            AudioManager audio = world == null ? null : world.getAudio();
+            if (audio != null) {
+                audio.playEffect(AudioManager.Effect.PICKUP, 0.35f);
+            }
+            return true;
+        }
+        return false;
     }
 
     /** Dẫn bò về phía đồng loại trong tầm gần, nhường khi hoảng hoặc khi đã nhập đàn. */

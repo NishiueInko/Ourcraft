@@ -25,31 +25,31 @@ final class MobSpawnerChecks {
         World world = World.empty();
         WorldTime time = new WorldTime();
         MobSpawner spawner = new MobSpawner(17);
-        Player player = new Player(2300.5f, 31f, 600.5f);
+        Player player = new Player(3500.5f, 31f, 600.5f);
         world.registerPlayer(player);
         try {
-            for (int x = 2323; x <= 2326; x++) {
+            for (int x = 3523; x <= 3526; x++) {
                 world.setBlockInternal(x, 30, 600, Block.SAND.getId(), 0);
             }
-            require(!spawner.canSpawn(world, MobType.ZOMBIE, 2324.5f, 31, 600.5f, time),
+            require(!spawner.canSpawn(world, MobType.ZOMBIE, 3524.5f, 31, 600.5f, time),
                     "Quái không được sinh dưới ánh nắng");
-            world.setBlockInternal(2324, 34, 600, Block.STONE.getId(), 0);
-            require(spawner.canSpawn(world, MobType.ZOMBIE, 2324.5f, 31, 600.5f, time),
+            world.setBlockInternal(3524, 34, 600, Block.STONE.getId(), 0);
+            require(spawner.canSpawn(world, MobType.ZOMBIE, 3524.5f, 31, 600.5f, time),
                     "Quái thường được sinh dưới mái che vào ban ngày");
             for (MobType type : new MobType[]{MobType.HUSK, MobType.PARCHED, MobType.STRAY, MobType.CAMEL_HUSK}) {
-                require(!spawner.canSpawn(world, type, 2324.5f, 31, 600.5f, time),
+                require(!spawner.canSpawn(world, type, 3524.5f, 31, 600.5f, time),
                         type + " phải lộ thiên");
             }
             time.update(850);
-            require(spawner.canSpawn(world, MobType.HUSK, 2325.5f, 31, 600.5f, time),
+            require(spawner.canSpawn(world, MobType.HUSK, 3525.5f, 31, 600.5f, time),
                     "Husk được sinh lộ thiên lúc nửa đêm");
-            require(!spawner.canSpawn(world, MobType.ZOMBIE, 2323.5f, 31, 600.5f, time),
+            require(!spawner.canSpawn(world, MobType.ZOMBIE, 3523.5f, 31, 600.5f, time),
                     "Cấm sinh gần hơn 24 block");
-            world.setBlockInternal(2325, 32, 600, Block.STONE.getId(), 0);
-            require(!spawner.canSpawn(world, MobType.ZOMBIE, 2325.5f, 31, 600.5f, time),
+            world.setBlockInternal(3525, 32, 600, Block.STONE.getId(), 0);
+            require(!spawner.canSpawn(world, MobType.ZOMBIE, 3525.5f, 31, 600.5f, time),
                     "Hộp va chạm cao phải đụng trần thấp");
-            world.setBlockInternal(2326, 30, 600, Block.BEDROCK.getId(), 0);
-            require(!spawner.canSpawn(world, MobType.ZOMBIE, 2326.5f, 31, 600.5f, time),
+            world.setBlockInternal(3526, 30, 600, Block.BEDROCK.getId(), 0);
+            require(!spawner.canSpawn(world, MobType.ZOMBIE, 3526.5f, 31, 600.5f, time),
                     "Bedrock không phải nền spawn");
         } finally {
             world.dispose();
@@ -61,7 +61,7 @@ final class MobSpawnerChecks {
         World world = World.empty();
         WorldTime time = new WorldTime();
         MobSpawner spawner = new MobSpawner(17);
-        Player player = new Player(1500.5f, 220f, 800.5f);
+        Player player = new Player(2000.5f, 220f, 800.5f);
         world.registerPlayer(player);
         MobType[] types = MobType.values();
         MobType.Factory[] previousFactories = new MobType.Factory[types.length];
@@ -69,7 +69,7 @@ final class MobSpawnerChecks {
             previousFactories[type.ordinal()] = type.registerFactory((x, y, z) -> new MobEntity(type, x, y, z));
         }
         try {
-            for (int x = 1370; x <= 1630; x++) {
+            for (int x = 1870; x <= 2130; x++) {
                 for (int z = 670; z <= 930; z++) {
                     world.setBlockInternal(x, 30, z, Block.GRASS.getId(), 0);
                 }
@@ -78,7 +78,7 @@ final class MobSpawnerChecks {
                 spawner.update(world, time, 0.25f);
             }
             require(count(world, MobCategory.CREATURE) == 0, "Bay qua quá cao không sinh thú");
-            player.setPosition(1500.5f, 31f, 800.5f);
+            player.setPosition(2000.5f, 31f, 800.5f);
             for (int i = 0; i < 200; i++) {
                 spawner.update(world, time, 0.25f);
             }
@@ -106,25 +106,25 @@ final class MobSpawnerChecks {
     /** Kiểm tra ngưỡng tức thì, bảo vệ persistent và đặt lại đồng hồ khi mob đến gần. */
     private static void checkDespawn() {
         World world = World.empty();
-        Player player = new Player(1500.5f, 31f, 800.5f);
+        Player player = new Player(2000.5f, 31f, 800.5f);
         world.registerPlayer(player);
         MobSpawner spawner = new MobSpawner(17);
-        MobEntity zombie = new MobEntity(MobType.ZOMBIE, 1629.5f, 31, 800.5f);
-        MobEntity cow = new MobEntity(MobType.COW, 1629.5f, 31, 800.5f);
+        MobEntity zombie = new MobEntity(MobType.ZOMBIE, 2129.5f, 31, 800.5f);
+        MobEntity cow = new MobEntity(MobType.COW, 2129.5f, 31, 800.5f);
         try {
             require(despawn(spawner, zombie, player), "Quái xa hơn 128 block phải biến mất");
             require(!despawn(spawner, cow, player), "Thú thường được giữ lại");
             zombie.setPersistent(true);
             require(!despawn(spawner, zombie, player), "Quái persistent được giữ lại");
             zombie.setPersistent(false);
-            zombie.setPosition(1550.5f, 31, 800.5f);
+            zombie.setPosition(2050.5f, 31, 800.5f);
             for (int i = 0; i < 599; i++) {
                 require(!despawn(spawner, zombie, player), "Chưa đủ 30 giây để biến mất");
             }
-            zombie.setPosition(1531.5f, 31, 800.5f);
+            zombie.setPosition(2031.5f, 31, 800.5f);
             require(!despawn(spawner, zombie, player) && zombie.noActionTime() == 0,
                     "Vào trong bán kính 32 block phải đặt lại đồng hồ");
-            zombie.setPosition(1550.5f, 31, 800.5f);
+            zombie.setPosition(2050.5f, 31, 800.5f);
             boolean removed = false;
             for (int i = 0; i < 20_000 && !removed; i++) {
                 removed = despawn(spawner, zombie, player);
@@ -146,7 +146,7 @@ final class MobSpawnerChecks {
         WorldTime time = new WorldTime();
         MobSpawner spawner = new MobSpawner(13);
         time.update(850);
-        world.registerPlayer(new Player(2500.5f, 31f, 800.5f));
+        world.registerPlayer(new Player(3500.5f, 31f, 800.5f));
         MobType[] types = MobType.values();
         MobType.Factory[] previous = new MobType.Factory[types.length];
         for (MobType type : types) {
@@ -158,7 +158,7 @@ final class MobSpawnerChecks {
         MobType.CAMEL_HUSK.registerFactory(
                 (x, y, z) -> new MobEntity(MobType.CAMEL_HUSK, x, y, z, 2) { });
         try {
-            for (int x = 2372; x <= 2628; x++) {
+            for (int x = 3372; x <= 3628; x++) {
                 for (int z = 672; z <= 928; z++) {
                     world.setBlockInternal(x, 30, z, Block.SAND.getId(), 0);
                 }
@@ -188,12 +188,12 @@ final class MobSpawnerChecks {
     /** Thu hồi cả lạc đà xác sống và hai kỵ sĩ dù thứ tự thực thể bị đảo. */
     private static void checkMountedDespawn() {
         World world = World.empty();
-        Player player = new Player(1500.5f, 31f, 800.5f);
+        Player player = new Player(2000.5f, 31f, 800.5f);
         world.registerPlayer(player);
-        MobEntity camel = new MobEntity(MobType.CAMEL_HUSK, 1630.5f, 31, 800.5f, 2) { };
-        MobEntity front = new MobEntity(MobType.HUSK, 1630.5f, 34, 800.5f);
-        MobEntity back = new MobEntity(MobType.PARCHED, 1630.5f, 34, 800.5f);
-        MobEntity cow = new MobEntity(MobType.COW, 1630.5f, 31, 800.5f);
+        MobEntity camel = new MobEntity(MobType.CAMEL_HUSK, 2130.5f, 31, 800.5f, 2) { };
+        MobEntity front = new MobEntity(MobType.HUSK, 2130.5f, 34, 800.5f);
+        MobEntity back = new MobEntity(MobType.PARCHED, 2130.5f, 34, 800.5f);
+        MobEntity cow = new MobEntity(MobType.COW, 2130.5f, 31, 800.5f);
         try {
             require(front.tryMount(camel, 0) && back.tryMount(camel, 1), "Gắn bộ kỵ sĩ trước lượt cập nhật");
             world.addEntity(front);

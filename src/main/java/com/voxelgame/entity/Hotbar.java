@@ -2,36 +2,37 @@ package com.voxelgame.entity;
 
 /**
  * Quản lý hệ thống 9 ô Thanh Công Cụ Nhanh (Hotbar HUD) thuộc sở hữu của {@link Player} (Composition).
- *
- * THỂ HIỆN TÍNH ĐÓNG GÓI (ENCAPSULATION):
- * - Toàn bộ mảng lưu trữ loại khối (`slotTypes`) và số lượng (`slotCounts`) được khai báo `private final`,
- *   ngăn chặn mọi truy cập hoặc chỉnh sửa trực tiếp từ bên ngoài làm sai lệch giới hạn cộng dồn (64 item/ô).
+ * Hỗ trợ đồng thời cả khối ({@link Block}) lẫn vật phẩm độc lập ({@link Item}) với đầy đủ giới hạn cộng dồn.
  */
 public class Hotbar {
 
-    // Tổng số ô trên thanh Hotbar
+    /** Tổng số ô trên thanh Hotbar. */
     public static final int SLOT_COUNT = 9;
-    // Số lượng cộng dồn tối đa trong 1 ô (64 blocks/stack chuẩn Minecraft)
+    /** Số lượng cộng dồn tối đa mặc định trong 1 ô (64 items/stack chuẩn Minecraft). */
     public static final int MAX_STACK_SIZE = 64;
 
-    private final Block[] slotTypes = new Block[SLOT_COUNT];
+    private final Item[] slotItems = new Item[SLOT_COUNT];
     private final int[] slotCounts = new int[SLOT_COUNT];
 
-    // Chỉ số ô đang được người chơi chọn hiện tại (0..8, tương ứng phím 1..9)
+    /** Chỉ số ô đang được người chơi chọn hiện tại (0..8, tương ứng phím 1..9). */
     private int selectedSlot = 0;
 
     public Hotbar() {
         for (int i = 0; i < SLOT_COUNT; i++) {
-            slotTypes[i] = Block.AIR;
+            slotItems[i] = Item.NONE;
             slotCounts[i] = 0;
         }
 
-        // Trang bị sẵn 5 loại Block cơ bản ở 5 ô đầu để người chơi thử nghiệm ngay khi vào thế giới
+        // Trang bị sẵn 5 loại Block cơ bản ở 5 ô đầu (giữ nguyên hành vi cũ)
         setSlot(0, Block.DIRT, 16);
         setSlot(1, Block.GRASS, 16);
         setSlot(2, Block.STONE, 16);
         setSlot(3, Block.OAK_LOG, 12);
         setSlot(4, Block.OAK_LEAVES, 16);
+        // Ô 6 (chỉ số 5) để trống; các ô 7–9 trang bị công cụ tương tác mob
+        setSlot(6, Item.SHEARS, 1);
+        setSlot(7, Item.FLINT_AND_STEEL, 1);
+        setSlot(8, Item.BUCKET, 1);
     }
 
     /**
@@ -42,15 +43,26 @@ public class Hotbar {
      * @param count số lượng (tối đa 64)
      */
     public void setSlot(int slotIndex, Block type, int count) {
+        setSlot(slotIndex, Item.of(type), count);
+    }
+
+    /**
+     * Thiết lập trực tiếp vật phẩm {@link Item} và số lượng cho một ô cụ thể.
+     *
+     * @param slotIndex chỉ số ô (0..8)
+     * @param item vật phẩm cần đặt
+     * @param count số lượng (giới hạn theo maxStackSize của vật phẩm)
+     */
+    public void setSlot(int slotIndex, Item item, int count) {
         if (slotIndex < 0 || slotIndex >= SLOT_COUNT) {
             return;
         }
-        if (type == null || type == Block.AIR || count <= 0) {
-            slotTypes[slotIndex] = Block.AIR;
+        if (item == null || item.isNone() || count <= 0) {
+            slotItems[slotIndex] = Item.NONE;
             slotCounts[slotIndex] = 0;
         } else {
-            slotTypes[slotIndex] = type;
-            slotCounts[slotIndex] = Math.min(MAX_STACK_SIZE, count);
+            slotItems[slotIndex] = item;
+            slotCounts[slotIndex] = Math.min(item.getMaxStackSize(), count);
         }
     }
 
@@ -79,24 +91,36 @@ public class Hotbar {
     }
 
     /**
-     * Thêm một số lượng Block vừa nhặt được (từ ItemEntity rơi ra trên mặt đất) vào thanh Hotbar.
-     * Ưu tiên gộp vào các ô cùng loại chưa đầy 64, sau đó mới xếp vào ô trống đầu tiên.
+     * Thêm một số lượng Block vừa nhặt được vào thanh Hotbar.
      *
      * @param type loại Block nhặt được
      * @param amount số lượng cần thêm
      * @return true nếu đã thêm được ít nhất 1 item vào Hotbar
      */
     public boolean addItem(Block type, int amount) {
-        if (type == null || type == Block.AIR || amount <= 0) {
+        return addItem(Item.of(type), amount);
+    }
+
+    /**
+     * Thêm một số lượng vật phẩm {@link Item} vừa nhặt được vào thanh Hotbar.
+     * Ưu tiên gộp vào các ô cùng loại chưa đầy giới hạn stack, sau đó mới xếp vào ô trống đầu tiên.
+     *
+     * @param item vật phẩm nhặt được
+     * @param amount số lượng cần thêm
+     * @return true nếu đã thêm được ít nhất 1 vật phẩm vào Hotbar
+     */
+    public boolean addItem(Item item, int amount) {
+        if (item == null || item.isNone() || amount <= 0) {
             return false;
         }
 
+        int maxStack = item.getMaxStackSize();
         int remaining = amount;
 
-        // Bước 1: Ưu tiên cộng dồn vào các ô đang chứa sẵn cùng loại Block và chưa đầy 64
+        // Bước 1: Ưu tiên cộng dồn vào các ô đang chứa sẵn cùng loại vật phẩm và chưa đầy stack
         for (int i = 0; i < SLOT_COUNT; i++) {
-            if (slotTypes[i] == type && slotCounts[i] < MAX_STACK_SIZE) {
-                int spaceLeft = MAX_STACK_SIZE - slotCounts[i];
+            if (slotItems[i] == item && slotCounts[i] < maxStack) {
+                int spaceLeft = maxStack - slotCounts[i];
                 int toAdd = Math.min(spaceLeft, remaining);
                 slotCounts[i] += toAdd;
                 remaining -= toAdd;
@@ -108,9 +132,9 @@ public class Hotbar {
 
         // Bước 2: Nếu vẫn còn dư, đặt vào ô trống đầu tiên từ trái sang phải
         for (int i = 0; i < SLOT_COUNT; i++) {
-            if (slotTypes[i] == Block.AIR || slotCounts[i] <= 0) {
-                slotTypes[i] = type;
-                int toAdd = Math.min(MAX_STACK_SIZE, remaining);
+            if (slotItems[i].isNone() || slotCounts[i] <= 0) {
+                slotItems[i] = item;
+                int toAdd = Math.min(maxStack, remaining);
                 slotCounts[i] = toAdd;
                 remaining -= toAdd;
                 if (remaining == 0) {
@@ -125,46 +149,68 @@ public class Hotbar {
     /**
      * Tiêu thụ 1 Block ở ô đang chọn khi người chơi click chuột phải để đặt Block.
      *
-     * @return loại Block vừa tiêu thụ, hoặc Block.AIR nếu ô trống
+     * @return loại Block vừa tiêu thụ, hoặc Block.AIR nếu ô trống hoặc đang cầm vật phẩm không phải Block
      */
     public Block consumeSelectedItem() {
-        Block currentType = slotTypes[selectedSlot];
+        Item selected = slotItems[selectedSlot];
+        if (!selected.isBlock() || slotCounts[selectedSlot] <= 0) {
+            return Block.AIR;
+        }
+        consumeSelectedItemStack();
+        return selected.getBlock();
+    }
+
+    /**
+     * Tiêu thụ 1 đơn vị vật phẩm bất kỳ ở ô đang chọn (dùng cho cả Block lẫn Item độc lập).
+     *
+     * @return {@link Item} vừa tiêu thụ, hoặc {@link Item#NONE} nếu ô trống
+     */
+    public Item consumeSelectedItemStack() {
+        Item current = slotItems[selectedSlot];
         int currentCount = slotCounts[selectedSlot];
 
-        if (currentType == Block.AIR || currentCount <= 0) {
-            return Block.AIR;
+        if (current.isNone() || currentCount <= 0) {
+            return Item.NONE;
         }
 
         slotCounts[selectedSlot] = currentCount - 1;
         if (slotCounts[selectedSlot] <= 0) {
             slotCounts[selectedSlot] = 0;
-            slotTypes[selectedSlot] = Block.AIR;
+            slotItems[selectedSlot] = Item.NONE;
         }
 
-        return currentType;
+        return current;
     }
 
     public int getSelectedSlot() {
         return selectedSlot;
     }
 
+    public Item getSelectedItem() {
+        return slotItems[selectedSlot];
+    }
+
     public Block getSelectedBlock() {
-        return slotTypes[selectedSlot];
+        return slotItems[selectedSlot].getBlock();
     }
 
     public Block getSelectedBlockType() {
-        return slotTypes[selectedSlot];
+        return getSelectedBlock();
     }
 
     public int getSelectedCount() {
         return slotCounts[selectedSlot];
     }
 
-    public Block getSlotBlock(int slotIndex) {
+    public Item getSlotItem(int slotIndex) {
         if (slotIndex < 0 || slotIndex >= SLOT_COUNT) {
-            return Block.AIR;
+            return Item.NONE;
         }
-        return slotTypes[slotIndex];
+        return slotItems[slotIndex];
+    }
+
+    public Block getSlotBlock(int slotIndex) {
+        return getSlotItem(slotIndex).getBlock();
     }
 
     public Block getSlotType(int slotIndex) {

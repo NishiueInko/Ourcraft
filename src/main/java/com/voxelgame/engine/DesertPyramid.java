@@ -19,13 +19,13 @@ record DesertPyramid(int centerX, int centerZ, int baseY) {
     private static final int CELLAR_DEPTH = 8;
     /** Bước giữa những tâm ứng viên để giữ số cột cần kiểm tra thấp. */
     private static final int SITE_STEP = 13;
-    /** Hai bit thấp là mã biome, cờ có giá trị 8 đánh dấu miền sông và bờ sông. */
-    private static final int BIOME_AND_RIVER_MASK = 0x0B;
+    /** Ba bit thấp là mã biome, cờ sông nằm ở bit 4. */
+    private static final int BIOME_AND_RIVER_MASK = TerrainGenerator.BIOME_MASK | TerrainGenerator.RIVER;
 
-    /** Chọn một khu đất khô, ưu tiên thềm thấp, phẳng và gần mép đồng bằng. */
+    /** Chọn một khu đất khô, ưu tiên thềm thấp, phẳng và gần mép rừng hoa. */
     static DesertPyramid select(short[] heights, byte[] biomes) {
         int desert = BiomeType.DESERT.ordinal();
-        int boundary = 2 * BIOME_WIDTH;
+        int boundary = 4 * BIOME_WIDTH;
         int bestScore = Integer.MAX_VALUE;
         DesertPyramid best = null;
         for (int x = boundary - 96; x < WORLD_SIZE_X - SITE_RADIUS; x += SITE_STEP) {
