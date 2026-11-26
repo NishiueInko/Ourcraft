@@ -74,9 +74,9 @@
 **Files:**
 - Modify: `src/main/java/com/voxelgame/engine/TerrainGenerator.java`
 
-- [ ] **Step 1:** Bỏ hồ nước nhỏ (`waterChance`), bỏ `placeLandmarkLake` và `plantOasisPalms`; giữ hồ dung nham `lake_lava_surface` với rarity `1/200` chunk (`0,5%` mỗi chunk).
-- [ ] **Step 2:** Chuẩn hóa `generateIceAndSnow` & `addCanopySnow`: 100% cột lộ trời ở `SNOWY_PLAINS` (gồm 100% tán lá vân sam lộ trời) phủ đúng 1 lớp `Snow Layer` (giữ `Snow Block` trên đỉnh `Y > 110` và `Ice` trên sông).
-- [ ] **Step 3:** Chuyển `generateTrees` sang cơ chế theo từng chunk `16×16`: `PLAINS` `0,05` cây/chunk (`33%` `OLD_OAK`, `67%` `OAK`, bỏ `OAK_BUSH`); `FOREST` `10` lần thử/chunk (`90%` `OAK`, `10%` `OLD_OAK`); `FLOWER_FOREST` `6` lần thử/chunk (`90%` `OAK`, `10%` `OLD_OAK`); `SNOWY_PLAINS` phân vùng `Flat` `0,1` cây/chunk (`SPRUCE`), `Grove` (theo noise rừng ở `Y = 30..61`) `10` lần thử/chunk (`2/3` `SPRUCE`, `1/3` `PINE`), `Slopes/Peaks` (`Y ≥ 62`) `0` cây; `DESERT` `0` cây.
+- [x] **Step 1:** Bỏ hồ nước nhỏ (`waterChance`), bỏ `placeLandmarkLake` và `plantOasisPalms`; giữ hồ dung nham `lake_lava_surface` với rarity `1/200` chunk (`0,5%` mỗi chunk).
+- [x] **Step 2:** Chuẩn hóa `generateIceAndSnow` & `addCanopySnow`: 100% cột lộ trời ở `SNOWY_PLAINS` (gồm 100% tán lá vân sam lộ trời) phủ đúng 1 lớp `Snow Layer` (giữ `Snow Block` trên đỉnh `Y > 110` và `Ice` trên sông).
+- [x] **Step 3:** Chuyển `generateTrees` sang cơ chế theo từng chunk `16×16`: `PLAINS` `0,05` cây/chunk (`33%` `OLD_OAK`, `67%` `OAK`, bỏ `OAK_BUSH`); `FOREST` `10` lần thử/chunk (`90%` `OAK`, `10%` `OLD_OAK`); `FLOWER_FOREST` `6` lần thử/chunk (`90%` `OAK`, `10%` `OLD_OAK`); `SNOWY_PLAINS` phân vùng `Flat` `0,1` cây/chunk (`SPRUCE`), `Grove` (theo noise rừng ở `Y = 30..61`) `10` lần thử/chunk (`2/3` `SPRUCE`, `1/3` `PINE`), `Slopes/Peaks` (`Y ≥ 62`) `0` cây; `DESERT` `0` cây.
 
 ### Task 2.2: Chuẩn hóa Hoa, Cỏ ngắn, Cỏ cao, Xương rồng, Bụi khô & Mía theo chuẩn Minecraft 1.21.11
 **Files:**
@@ -84,14 +84,14 @@
 - Modify: `src/test/java/com/voxelgame/engine/TerrainGenerationChecks.java`
 - Modify: `README.md`
 
-- [ ] **Step 1:** Chuyển `generatePlants` sang cơ chế theo chunk chuẩn Minecraft:
+- [x] **Step 1:** Chuyển `generatePlants` sang cơ chế theo chunk chuẩn Minecraft:
   - `PLAINS`: cỏ ngắn `~25–30%` mặt cỏ, cỏ cao rarity `1/5` chunk, hoa `~3–5` bông/chunk trọng số `Dandelion 2 : Poppy 1 : Cornflower 1 : Oxeye Daisy 1`.
   - `FOREST`: cỏ ngắn `2` patch/chunk, hoa `~1–2` bông/chunk chỉ `Dandelion 2 : Poppy 1`.
   - `FLOWER_FOREST`: cỏ ngắn `2` patch/chunk, thảm hoa `flower_forest` dày đặc theo gradient 2D (~15–25 bông/chunk, đủ 4 loài).
   - `DESERT`: `Cactus` rarity `1/5` chunk (chiều cao `56%` cao 1, `28%` cao 2, `16%` cao 3), `Dead Bush` `2` patch/chunk.
   - `Sugar Cane`: rarity `1/6` chunk ở biome thường, dày gấp `~6×` ở `DESERT`, chiều cao `50%` cao 2, `33%` cao 3, `17%` cao 4.
-- [ ] **Step 2:** Cập nhật `TerrainGenerationChecks.java` kiểm tra mật độ tương đối giữa các biome (`FOREST` nhiều cây hơn `PLAINS`, `FLOWER_FOREST` nhiều hoa hơn `FOREST`/`PLAINS`, `DESERT` nhiều mía hơn `PLAINS`, có đủ mọi block và tính tất định).
-- [ ] **Step 3:** Đồng bộ Phần A của `README.md` cho sinh địa hình/thực vật/hồ/tuyết và chạy `.\gradlew.bat check` — kỳ vọng PASS 100%.
+- [x] **Step 2:** Cập nhật `TerrainGenerationChecks.java` kiểm tra mật độ tương đối giữa các biome (`FOREST` nhiều cây hơn `PLAINS`, `FLOWER_FOREST` nhiều hoa hơn `FOREST`/`PLAINS`, `DESERT` nhiều mía hơn `PLAINS`, có đủ mọi block và tính tất định).
+- [x] **Step 3:** Đồng bộ Phần A của `README.md` cho sinh địa hình/thực vật/hồ/tuyết và chạy `.\gradlew.bat check` — kỳ vọng PASS 100%.
 
 ---
 

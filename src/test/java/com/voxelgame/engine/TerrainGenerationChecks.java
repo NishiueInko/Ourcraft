@@ -87,7 +87,7 @@ final class TerrainGenerationChecks {
         }
     }
 
-    /** Lấy mẫu ID và metadata của ba biome trong một thế giới sinh đầy đủ, không dùng OpenGL. */
+    /** Lấy mẫu ID và metadata của năm biome trong một thế giới sinh đầy đủ, không dùng OpenGL. */
     private static long sampleWorld(TerrainGenerator generator, boolean validate) {
         World world = World.empty();
         try {
@@ -100,50 +100,55 @@ final class TerrainGenerationChecks {
                 DesertPyramidChecks.checkGenerated(world, pyramid);
                 checkDesertSlope(world, generator);
                 checkLavaBanks(world, generator);
+                checkBiomeRatesAndFeatures(world, generator);
             }
             long hash = 0xCBF29CE484222325L;
             int[] count = new int[256];
             boolean frozenWater = false;
             boolean canopySnow = false;
             int bandWidth = World.BIOME_WIDTH;
+            int[] zStarts = { 448, World.CENTER_Z - 128 };
+            int[] zEnds = { 688, World.CENTER_Z + 128 };
             for (int centerX = bandWidth / 2; centerX < World.WORLD_SIZE_X; centerX += bandWidth) {
-                for (int x = centerX - 144; x <= centerX + 144; x++) {
-                    for (int z = World.CENTER_Z - 144; z <= World.CENTER_Z + 144; z++) {
-                        int surface = generator.getSurfaceY(x, z);
-                        if (validate) {
-                            checkStrata(world, x, surface, z, generator.getBiome(x, z) == BiomeType.DESERT);
-                        }
-                        int scanTop = Math.min(World.WORLD_SIZE_Y - 1, Math.max(42, surface + 12));
-                        for (int y = 0; y <= scanTop; y++) {
-                            byte id = world.getBlock(x, y, z);
-                            int state = world.getBlockState(x, y, z);
-                            hash = (hash ^ ((Byte.toUnsignedInt(id) << 8) | state)) * 0x100000001B3L;
-                            if (!validate) {
-                                continue;
+                for (int window = 0; window < zStarts.length; window++) {
+                    for (int x = centerX - 128; x <= centerX + 128; x++) {
+                        for (int z = zStarts[window]; z <= zEnds[window]; z++) {
+                            int surface = generator.getSurfaceY(x, z);
+                            if (validate) {
+                                checkStrata(world, x, surface, z, generator.getBiome(x, z) == BiomeType.DESERT);
                             }
-                            count[Byte.toUnsignedInt(id)]++;
-                            Block block = Block.fromId(id);
-                            if (block == Block.ICE) {
-                                frozenWater |= world.getBlock(x, y - 1, z) == Block.WATER.getId();
-                            } else if (block == Block.SNOW_LAYER) {
-                                canopySnow |= world.getBlock(x, y - 1, z) == Block.SPRUCE_LEAVES.getId();
+                            int scanTop = Math.min(World.WORLD_SIZE_Y - 1, Math.max(42, surface + 14));
+                            for (int y = 0; y <= scanTop; y++) {
+                                byte id = world.getBlock(x, y, z);
+                                int state = world.getBlockState(x, y, z);
+                                hash = (hash ^ ((Byte.toUnsignedInt(id) << 8) | state)) * 0x100000001B3L;
+                                if (!validate) {
+                                    continue;
+                                }
+                                count[Byte.toUnsignedInt(id)]++;
+                                Block block = Block.fromId(id);
+                                if (block == Block.ICE) {
+                                    frozenWater |= world.getBlock(x, y - 1, z) == Block.WATER.getId();
+                                } else if (block == Block.SNOW_LAYER) {
+                                    canopySnow |= world.getBlock(x, y - 1, z) == Block.SPRUCE_LEAVES.getId();
+                                }
+                                verifySupport(world, x, y, z, block, state);
                             }
-                            verifySupport(world, x, y, z, block, state);
                         }
                     }
                 }
             }
             if (validate) {
                 if (!frozenWater || !canopySnow) {
-                    throw new AssertionError("Thiếu hồ đóng băng có nước bên dưới hoặc tuyết đọng trên lá vân sam");
+                    throw new AssertionError("Thiếu sông đóng băng có nước bên dưới hoặc tuyết đọng trên lá vân sam");
                 }
                 Block[] expected = { Block.STONE, Block.DIRT, Block.SAND, Block.SANDSTONE, Block.GRAVEL,
                         Block.CACTUS, Block.DEAD_BUSH, Block.TALL_GRASS, Block.SHORT_GRASS, Block.SUGAR_CANE,
-                        Block.OAK_LOG, Block.SPRUCE_LOG, Block.SNOW_LAYER, Block.SNOW_BLOCK,
+                        Block.OAK_LOG, Block.SPRUCE_LOG, Block.SNOW_LAYER,
                         Block.DANDELION, Block.POPPY, Block.CORNFLOWER, Block.OXEYE_DAISY };
                 for (Block block : expected) {
                     if (count[Byte.toUnsignedInt(block.getId())] == 0) {
-                        throw new AssertionError("Mẫu địa hình ba biome thiếu " + block.getDisplayName());
+                        throw new AssertionError("Mẫu địa hình năm biome thiếu " + block.getDisplayName());
                     }
                 }
             }
@@ -248,17 +253,17 @@ final class TerrainGenerationChecks {
         world.setBlock(World.RESPAWN_X, 130, World.RESPAWN_Z, Block.AIR.getId());
     }
 
-    /** Mỗi loại biome phải có hồ với bờ đúng chất liệu ở các ô chung cạnh mặt dung nham. */
+    /** Mỗi loại biome phải có hồ dung nham với bờ đúng chất liệu ở các ô chung cạnh mặt dung nham. */
     private static void checkLavaBanks(World world, TerrainGenerator generator) {
         int[] banks = new int[BiomeType.values().length];
         int[] dx = {-1, 1, 0, 0};
         int[] dz = {0, 0, -1, 1};
-        for (int x = 64; x < World.WORLD_SIZE_X - 64; x++) {
+        for (int x = 64; x < World.WORLD_SIZE_X - 64; x += 2) {
             int inBand = x % World.BIOME_WIDTH;
             if (inBand < 64 || inBand >= World.BIOME_WIDTH - 64) {
                 continue;
             }
-            for (int z = World.CENTER_Z - 320; z <= World.CENTER_Z + 320; z++) {
+            for (int z = 64; z < World.WORLD_SIZE_Z - 64; z += 2) {
                 int originalY = generator.getSurfaceY(x, z);
                 for (int y = originalY - 3; y <= originalY; y++) {
                     if (world.getBlock(x, y, z) != Block.LAVA.getId()
@@ -293,6 +298,153 @@ final class TerrainGenerationChecks {
             if (banks[biome.ordinal()] == 0) {
                 throw new AssertionError("Mẫu kiểm tra thiếu bờ hồ dung nham trong " + biome);
             }
+        }
+    }
+
+    /** Kiểm tra mật độ tương đối giữa 5 biome, loại bỏ hồ nước nhỏ và tuyết phủ 100% 1 lớp ở Snowy Plains. */
+    private static void checkBiomeRatesAndFeatures(World world, TerrainGenerator generator) {
+        int biomeCount = BiomeType.values().length;
+        int[] oakLogs = new int[biomeCount];
+        int[] spruceLogs = new int[biomeCount];
+        int[] shortGrass = new int[biomeCount];
+        int[] tallGrass = new int[biomeCount];
+        int[] dandelions = new int[biomeCount];
+        int[] poppies = new int[biomeCount];
+        int[] cornflowers = new int[biomeCount];
+        int[] oxeyeDaisies = new int[biomeCount];
+        int[] sugarCanes = new int[biomeCount];
+        int[] cacti = new int[biomeCount];
+        int[] deadBushes = new int[biomeCount];
+        int snowyBlocks = 0;
+        int snowyCanopySnow = 0;
+
+        for (BiomeType biome : BiomeType.values()) {
+            int bandStart = biome.ordinal() * World.BIOME_WIDTH + 96;
+            int bandEnd = (biome.ordinal() + 1) * World.BIOME_WIDTH - 96;
+            int idx = biome.ordinal();
+            for (int x = bandStart; x <= bandEnd; x += 2) {
+                for (int z = 128; z < World.WORLD_SIZE_Z - 128; z += 2) {
+                    int surface = generator.getSurfaceY(x, z);
+                    int aboveY = surface + 1;
+                    byte above = world.getBlock(x, aboveY, z);
+
+                    // Kiểm tra bỏ hồ nước nhỏ ngoài dải sông (dải sông nằm quanh Z=380..750).
+                    if (z >= 900 && z <= 1900) {
+                        byte top = world.getBlock(x, surface, z);
+                        if (top == Block.WATER.getId() || top == Block.ICE.getId()) {
+                            throw new AssertionError("Phát hiện hồ nước nhỏ ngoài sông tại " + x + ", " + z);
+                        }
+                    }
+
+                    if (above == Block.OAK_LOG.getId()) {
+                        oakLogs[idx]++;
+                    } else if (above == Block.SPRUCE_LOG.getId()) {
+                        spruceLogs[idx]++;
+                        if (biome == BiomeType.SNOWY_PLAINS && surface >= 62) {
+                            throw new AssertionError("Không được mọc cây trên Snowy Slopes/Peaks tại Y=" + surface);
+                        }
+                    } else if (above == Block.SHORT_GRASS.getId()) {
+                        shortGrass[idx]++;
+                    } else if (above == Block.TALL_GRASS.getId()) {
+                        tallGrass[idx]++;
+                    } else if (above == Block.DANDELION.getId()) {
+                        dandelions[idx]++;
+                    } else if (above == Block.POPPY.getId()) {
+                        poppies[idx]++;
+                    } else if (above == Block.CORNFLOWER.getId()) {
+                        cornflowers[idx]++;
+                    } else if (above == Block.OXEYE_DAISY.getId()) {
+                        oxeyeDaisies[idx]++;
+                    } else if (above == Block.SUGAR_CANE.getId()) {
+                        sugarCanes[idx]++;
+                    } else if (above == Block.CACTUS.getId()) {
+                        cacti[idx]++;
+                    } else if (above == Block.DEAD_BUSH.getId()) {
+                        deadBushes[idx]++;
+                    }
+
+                    if (biome == BiomeType.SNOWY_PLAINS) {
+                        int scanTop = Math.min(World.WORLD_SIZE_Y - 2, surface + 18);
+                        boolean sawTop = false;
+                        for (int y = scanTop; y >= surface + 1; y--) {
+                            byte id = world.getBlock(x, y, z);
+                            if (id == Block.AIR.getId()) {
+                                continue;
+                            }
+                            if (!sawTop) {
+                                sawTop = true;
+                                if (id == Block.SPRUCE_LEAVES.getId() && !world.hasLavaNear(x, y + 1, z)) {
+                                    throw new AssertionError("Tán vân sam lộ trời thiếu tuyết tại "
+                                            + x + ", " + y + ", " + z);
+                                }
+                                if (id == Block.SNOW_LAYER.getId()
+                                        && world.getBlock(x, y - 1, z) == Block.SPRUCE_LEAVES.getId()) {
+                                    snowyCanopySnow++;
+                                }
+                            }
+                            if (id == Block.SNOW_LAYER.getId() && world.getBlockState(x, y, z) != 0) {
+                                throw new AssertionError("Tuyết địa hình phải dày 1 lớp tại " + x + ", " + y + ", " + z);
+                            }
+                            if (id == Block.SNOW_BLOCK.getId()) {
+                                if (y <= 111) {
+                                    throw new AssertionError("Snow Block chỉ được sinh trên Y>110, gặp tại Y=" + y);
+                                }
+                                snowyBlocks++;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        int snowy = BiomeType.SNOWY_PLAINS.ordinal();
+        int forest = BiomeType.FOREST.ordinal();
+        int plains = BiomeType.PLAINS.ordinal();
+        int flowerForest = BiomeType.FLOWER_FOREST.ordinal();
+        int desert = BiomeType.DESERT.ordinal();
+
+        if (oakLogs[forest] <= oakLogs[flowerForest] || oakLogs[flowerForest] <= oakLogs[plains]
+                || oakLogs[plains] == 0) {
+            throw new AssertionError("Sai thứ tự mật độ cây sồi: Forest=" + oakLogs[forest]
+                    + ", FlowerForest=" + oakLogs[flowerForest] + ", Plains=" + oakLogs[plains]);
+        }
+        if (oakLogs[desert] != 0 || spruceLogs[desert] != 0) {
+            throw new AssertionError("Desert không được mọc cây");
+        }
+        if (oakLogs[snowy] != 0 || spruceLogs[snowy] == 0 || snowyCanopySnow == 0 || snowyBlocks == 0) {
+            throw new AssertionError("Snowy Plains thiếu cây vân sam, tuyết tán lá hoặc Snow Block trên đỉnh");
+        }
+
+        int plainsFlowers = dandelions[plains] + poppies[plains] + cornflowers[plains] + oxeyeDaisies[plains];
+        int forestFlowers = dandelions[forest] + poppies[forest] + cornflowers[forest] + oxeyeDaisies[forest];
+        int ffFlowers = dandelions[flowerForest] + poppies[flowerForest]
+                + cornflowers[flowerForest] + oxeyeDaisies[flowerForest];
+        if (ffFlowers < plainsFlowers * 2 || ffFlowers < forestFlowers * 4 || plainsFlowers <= forestFlowers) {
+            throw new AssertionError("Sai mật độ hoa giữa các biome: FF=" + ffFlowers
+                    + ", Plains=" + plainsFlowers + ", Forest=" + forestFlowers);
+        }
+        if (dandelions[plains] == 0 || poppies[plains] == 0
+                || cornflowers[plains] == 0 || oxeyeDaisies[plains] == 0) {
+            throw new AssertionError("Plains phải có đủ 4 loài hoa");
+        }
+        if (dandelions[flowerForest] == 0 || poppies[flowerForest] == 0
+                || cornflowers[flowerForest] == 0 || oxeyeDaisies[flowerForest] == 0) {
+            throw new AssertionError("Flower Forest phải có đủ 4 loài hoa");
+        }
+        if (dandelions[forest] == 0 || poppies[forest] == 0
+                || cornflowers[forest] != 0 || oxeyeDaisies[forest] != 0) {
+            throw new AssertionError("Forest chỉ được sinh Dandelion và Poppy");
+        }
+
+        if (shortGrass[plains] <= shortGrass[forest] || shortGrass[plains] <= shortGrass[flowerForest]
+                || shortGrass[forest] == 0 || shortGrass[flowerForest] == 0) {
+            throw new AssertionError("Plains phải nhiều cỏ ngắn hơn Forest và Flower Forest");
+        }
+        if (tallGrass[plains] == 0 || tallGrass[forest] != 0 || tallGrass[flowerForest] != 0) {
+            throw new AssertionError("Chỉ Plains mới có cỏ cao ở lượt sinh cỏ");
+        }
+        if (cacti[desert] == 0 || deadBushes[desert] == 0 || sugarCanes[desert] < sugarCanes[plains] * 2) {
+            throw new AssertionError("Desert thiếu xương rồng/bụi khô hoặc mật độ mía chưa vượt trội Plains");
         }
     }
 

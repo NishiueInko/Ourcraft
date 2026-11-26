@@ -18,9 +18,14 @@ final class TerrainGenerator {
     private static final long BIOME_MIX = 0x1395370232F0F301L;
     private static final long LAKES = 0x120D5452C134307DL;
     private static final long SHORE = 0x6884472CF4B94C11L;
-    private static final long SNOW = 0x7F55382BE1620D13L;
     private static final long TREES = 0x033316FE9806C3ACL;
-    private static final long PLANTS = 0x33861755932C9621L;
+    private static final long FLOWERS_SEED = 0x4C81A3D92E74B517L;
+    private static final long FLOWER_GRADIENT = 0x29F4C608B315E8A3L;
+    private static final long GRASS_SEED = 0x71D28E4A90C36F5BL;
+    private static final long TALL_GRASS_SEED = 0x5B3E91C742A81D6FL;
+    private static final long CACTUS_SEED = 0x64A72F85C193E04DL;
+    private static final long DEAD_BUSH_SEED = 0x1E95B472D836A2C9L;
+    private static final long SUGAR_CANE_SEED = 0x3A6C82F15E094B73L;
     /** Các trường điều khiển sườn núi, xói mòn, lòng sông và mật độ cây. */
     private static final long RIDGES = 0x5A68B6F19F6D4CDFL;
     private static final long EROSION = 0x6B7458C57B81ACF1L;
@@ -41,8 +46,14 @@ final class TerrainGenerator {
     /** Cờ nhận diện dải sông và cột đã được lượt hồ sử dụng. */
     static final int RIVER = 16;
     private static final int LAKE = 32;
-    /** Bốn loài hoa có thể chiếm ưu thế trong một cụm thực vật. */
+    /** Bốn loài hoa dùng cho dải gradient của Flower Forest. */
     private static final Block[] FLOWERS = { Block.DANDELION, Block.POPPY, Block.CORNFLOWER, Block.OXEYE_DAISY };
+    /** Bảng trọng số hoa của Plains chuẩn Minecraft (Dandelion 2 : Poppy 1 : Cornflower 1 : Oxeye Daisy 1). */
+    private static final Block[] PLAINS_FLOWERS = {
+            Block.DANDELION, Block.DANDELION, Block.POPPY, Block.CORNFLOWER, Block.OXEYE_DAISY
+    };
+    /** Bảng trọng số hoa của Forest chuẩn Minecraft (chỉ Dandelion 2 : Poppy 1). */
+    private static final Block[] FOREST_FLOWERS = { Block.DANDELION, Block.DANDELION, Block.POPPY };
     /** Bảng mã biome, cấp phát một lần để tra nhanh trong các lượt sinh. */
     private static final BiomeType[] BIOMES = BiomeType.values();
 
@@ -95,7 +106,7 @@ final class TerrainGenerator {
                 + 27f * TerrainNoise.perlin(seed ^ BIOME_MIX ^ 1, x / 76f, z / 76f);
     }
 
-    /** Đo khoảng cách tới đường đồng mức của dải sông chạy qua ba biome. */
+    /** Đo khoảng cách tới đường đồng mức của dải sông chạy qua năm biome. */
     private float riverDistance(int x, int z) {
         float bend = 184f * TerrainNoise.perlin(seed ^ RIVERS, x / 390f, 0.37f)
                 + 39f * TerrainNoise.perlin(seed ^ RIVERS ^ 1, x / 137f, 0.67f);
@@ -227,76 +238,33 @@ final class TerrainGenerator {
         return Math.max(Math.max(west, east), Math.max(north, south));
     }
 
-    /** Đặt trước một hồ lạnh và một ốc đảo trong hai biome tương ứng, rồi sinh hồ trên lưới so le. */
+    /** Sinh hồ dung nham mặt đất theo từng chunk 16×16 với xác suất chuẩn 1/200 chunk (bỏ hồ nước nhỏ). */
     private void generateLakes(World world, short[] heights, byte[] biomes, DesertPyramid pyramid) {
         long lakeSeed = seed ^ LAKES;
-        int coldLakeX = BIOME_WIDTH / 2;
-        int warmLakeX = 4 * BIOME_WIDTH + BIOME_WIDTH / 2;
-        int coldLakeZ = CENTER_Z + sampleInt(lakeSeed, coldLakeX, CENTER_Z, 13) - 6;
-        int warmLakeZ = CENTER_Z + sampleInt(lakeSeed, warmLakeX, CENTER_Z, 13) - 6;
-        placeLandmarkLake(world, heights, biomes, pyramid, coldLakeX, coldLakeZ, BiomeType.SNOWY_PLAINS);
-        placeLandmarkLake(world, heights, biomes, pyramid, warmLakeX, warmLakeZ, BiomeType.DESERT);
-
-        int gridSpacing = 64;
-        for (int gridX = gridSpacing / 2; gridX < WORLD_SIZE_X - 16; gridX += gridSpacing) {
-            for (int gridZ = gridSpacing / 2; gridZ < WORLD_SIZE_Z - 16; gridZ += gridSpacing) {
-                int x = gridX + sampleInt(lakeSeed + 1, gridX, gridZ, 25) - 12;
-                int z = gridZ + sampleInt(lakeSeed + 2, gridX, gridZ, 25) - 12;
-                if (nearSpawn(x, z, 26)
-                        || distanceSquared(x - coldLakeX, z - coldLakeZ) < 27 * 27
-                        || distanceSquared(x - warmLakeX, z - warmLakeZ) < 27 * 27) {
+        for (int cx = 1; cx < World.WORLD_CHUNKS_X - 1; cx++) {
+            for (int cz = 1; cz < World.WORLD_CHUNKS_Z - 1; cz++) {
+                if (TerrainNoise.unit(lakeSeed, cx, cz) >= 1f / 200f) {
                     continue;
                 }
-                BiomeType biome = biomeAt(biomes, x, z);
-                float choice = TerrainNoise.unit(lakeSeed + 3, gridX, gridZ);
-                float lavaChance = biome == BiomeType.DESERT ? 0.17f : 0.08f;
-                float waterChance = biome == BiomeType.DESERT ? 0.06f : 0.36f;
-                float radiusVariation = TerrainNoise.unit(lakeSeed + 4, gridX, gridZ);
-                if (choice < lavaChance) {
-                    carveLake(world, heights, biomes, pyramid, x, z, 4.5f + radiusVariation * 3f, 3, Block.LAVA);
-                } else if (choice < lavaChance + waterChance) {
-                    if (carveLake(world, heights, biomes, pyramid, x, z, 5.5f + radiusVariation * 4f, 4, Block.WATER)
-                            && biome == BiomeType.DESERT) {
-                        plantOasisPalms(world, heights, biomes, x, z);
-                    }
-                }
+                int x = cx * Chunk.SIZE + sampleInt(lakeSeed + 1, cx, cz, Chunk.SIZE);
+                int z = cz * Chunk.SIZE + sampleInt(lakeSeed + 2, cx, cz, Chunk.SIZE);
+                float radiusVariation = TerrainNoise.unit(lakeSeed + 3, cx, cz);
+                carveLavaLake(world, heights, biomes, pyramid, x, z, 4.5f + radiusVariation * 3f, 3);
             }
         }
     }
 
-    /** Tìm nền bằng gần tâm biome cho hồ lạnh và ốc đảo dành làm mốc địa hình. */
-    private void placeLandmarkLake(World world, short[] heights, byte[] biomes, DesertPyramid pyramid,
-                                   int centerX, int centerZ, BiomeType biome) {
-        for (int radius = 0; radius <= 320; radius += 8) {
-            for (int dx = -radius; dx <= radius; dx += 8) {
-                for (int dz = -radius; dz <= radius; dz += 8) {
-                    if (Math.max(Math.abs(dx), Math.abs(dz)) != radius) {
-                        continue;
-                    }
-                    int x = centerX + dx;
-                    int z = centerZ + dz;
-                    if (biomeAt(biomes, x, z) == biome
-                            && carveLake(world, heights, biomes, pyramid, x, z, 7f, 4, Block.WATER)) {
-                        if (biome == BiomeType.DESERT) {
-                            plantOasisPalms(world, heights, biomes, x, z);
-                        }
-                        return;
-                    }
-                }
-            }
-        }
-    }
-
-    /** Khoét hồ có mặt phẳng, đáy cong và bờ nguyên khối bao quanh ngang mực chất lỏng. */
-    private boolean carveLake(World world, short[] heights, byte[] biomes, DesertPyramid pyramid,
-                              int centerX, int centerZ, float radius, int depth, Block liquid) {
-        boolean lava = liquid == Block.LAVA;
-        // Bờ Lava rộng hơn để bao kín cả những chỗ rìa hồ đổi bán kính qua hai ô kề.
-        float shoreWidth = lava ? 1.9f : 1.3f;
+    /** Khoét hồ dung nham có mặt phẳng, đáy cong và bờ nguyên khối bao quanh ngang mực chất lỏng. */
+    private boolean carveLavaLake(World world, short[] heights, byte[] biomes, DesertPyramid pyramid,
+                                  int centerX, int centerZ, float radius, int depth) {
+        // Bờ Lava rộng để bao kín cả những chỗ rìa hồ đổi bán kính qua hai ô kề.
+        float shoreWidth = 1.9f;
         float shoreNoise = 1.1f;
         float enclosingRadius = radius + shoreNoise + shoreWidth;
         int reach = (int) Math.ceil(enclosingRadius);
-        if (nearSpawn(centerX, centerZ, reach + SPAWN_CLEARANCE + 6)
+        if (centerX - reach - 2 < 0 || centerX + reach + 2 >= WORLD_SIZE_X
+                || centerZ - reach - 2 < 0 || centerZ + reach + 2 >= WORLD_SIZE_Z
+                || nearSpawn(centerX, centerZ, reach + SPAWN_CLEARANCE + 6)
                 || pyramid.contains(centerX, centerZ, reach + 3)) {
             return false;
         }
@@ -338,25 +306,17 @@ final class TerrainGenerator {
                 if (distance <= edge) {
                     int localDepth = Math.max(1, Math.round(depth * (1f - distance / edge * 0.82f)));
                     int bottomY = level - localDepth;
-                    Block floor = lava ? lavaLining : waterLakeFloor(biome, x, z);
-                    write(world, x, bottomY, z, floor);
-                    if (floor == Block.SAND) {
-                        write(world, x, bottomY - 1, z, Block.SANDSTONE);
-                    }
+                    write(world, x, bottomY, z, lavaLining);
                     for (int y = bottomY + 1; y <= level; y++) {
-                        write(world, x, y, z, liquid);
+                        write(world, x, y, z, Block.LAVA);
                     }
                     for (int y = level + 1; y <= heights[index]; y++) {
                         write(world, x, y, z, Block.AIR);
                     }
                     heights[index] = (short) level;
-                    if (lava) {
-                        markLavaColumns(biomes, x, z);
-                    }
+                    markLavaColumns(biomes, x, z);
                 } else {
-                    // Hạ từng đoạn bờ ngang mặt nước để tạo nền ẩm cho mía.
-                    boolean lowShore = !lava && TerrainNoise.fractal(seed ^ SHORE ^ LAKES, x / 7f, z / 7f) > -0.08f;
-                    int shoreY = Math.min(heights[index], lowShore ? level : level + 1);
+                    int shoreY = Math.min(heights[index], level + 1);
                     Block shore = biome == BiomeType.DESERT ? Block.SAND : Block.GRASS;
                     boolean newSand = shore == Block.SAND && world.getBlock(x, shoreY, z) != Block.SAND.getId();
                     write(world, x, shoreY, z, shore);
@@ -364,7 +324,7 @@ final class TerrainGenerator {
                         write(world, x, shoreY - 1, z, Block.SANDSTONE);
                     }
                     // Giữ lại vật liệu bờ sẵn có và lót các thành còn hở ngang mực Lava.
-                    if (lava && shoreY > level && world.getBlock(x, level, z) != shore.getId()) {
+                    if (shoreY > level && world.getBlock(x, level, z) != shore.getId()) {
                         write(world, x, level, z, lavaLining);
                     }
                     for (int y = shoreY + 1; y <= heights[index]; y++) {
@@ -377,21 +337,6 @@ final class TerrainGenerator {
         return true;
     }
 
-    /** Chọn vật liệu đáy phù hợp khí hậu và trộn Dirt, Sand, Gravel ở Plains. */
-    private Block waterLakeFloor(BiomeType biome, int x, int z) {
-        if (biome == BiomeType.DESERT) {
-            return Block.SAND;
-        }
-        float sample = TerrainNoise.unit(seed ^ SHORE, x, z);
-        if (sample < 0.24f) {
-            return Block.GRAVEL;
-        }
-        if (sample < 0.51f) {
-            return Block.SAND;
-        }
-        return Block.DIRT;
-    }
-
     /** Đánh dấu các cột có thể ở trong bán kính Manhattan 2 tính từ ô Lava mới sinh. */
     private static void markLavaColumns(byte[] biomes, int x, int z) {
         for (int dx = -2; dx <= 2; dx++) {
@@ -402,7 +347,7 @@ final class TerrainGenerator {
         }
     }
 
-    /** Đóng băng mặt hồ và rải các mảng tuyết có chiều dày khác nhau trên cỏ. */
+    /** Đóng băng mặt sông và phủ đúng 1 lớp tuyết trên toàn bộ cột lộ trời ở Snowy Plains. */
     private void generateIceAndSnow(World world, short[] heights, byte[] biomes) {
         for (int x = 0; x < WORLD_SIZE_X; x++) {
             for (int z = 0; z < WORLD_SIZE_Z; z++) {
@@ -415,14 +360,9 @@ final class TerrainGenerator {
                     write(world, x, y, z, Block.ICE);
                 } else if (y > 110 && Block.fromId(top).isOpaque() && !nearLava(world, biomes, x, y + 1, z)) {
                     write(world, x, y + 1, z, Block.SNOW_BLOCK);
-                } else if (top == Block.GRASS.getId() && !nearLava(world, biomes, x, y + 1, z)) {
-                    float patch = TerrainNoise.fractal(seed ^ SNOW, x / 19f, z / 19f);
-                    if (patch > 0.57f) {
-                        write(world, x, y + 1, z, Block.SNOW_BLOCK);
-                    } else {
-                        int state = patch > 0.39f ? 2 : patch > 0.22f ? 1 : 0;
-                        world.setBlockInternal(x, y + 1, z, Block.SNOW_LAYER.getId(), state);
-                    }
+                } else if (Block.SNOW_LAYER.canPlaceAt(world, x, y + 1, z)
+                        && !nearLava(world, biomes, x, y + 1, z)) {
+                    write(world, x, y + 1, z, Block.SNOW_LAYER);
                 }
             }
         }
@@ -432,10 +372,8 @@ final class TerrainGenerator {
     private enum TreeShape {
         OAK(4, 3, 2, 2, false),
         OLD_OAK(9, 3, 3, 3, false),
-        OAK_BUSH(1, 1, 2, 0, false),
         SPRUCE(7, 3, 3, 4, true),
-        PINE(7, 3, 2, 4, true),
-        DWARF_PINE(3, 2, 1, 2, true);
+        PINE(7, 3, 2, 4, true);
 
         /** Hai mốc dùng tính chiều cao thân theo seed. */
         final int minHeight;
@@ -455,45 +393,73 @@ final class TerrainGenerator {
         }
     }
 
-    /** Lưới so le lấy mật độ liên tục từ Perlin để tạo trảng trống và cụm cây dày. */
+    /** Nhận diện vùng rừng thông Grove liên tục trong Snowy Plains. */
+    private boolean isSnowyGrove(int x, int z) {
+        float grove = TerrainNoise.perlin(seed ^ FOREST, x / 91f, z / 91f)
+                + 0.32f * TerrainNoise.perlin(seed ^ FOREST ^ 1L, x / 43f, z / 43f);
+        return grove > 0.12f;
+    }
+
+    /** Sinh cây theo từng chunk 16×16 khớp mật độ và tỷ lệ loài chuẩn Minecraft 1.21.11. */
     private void generateTrees(World world, short[] heights, byte[] biomes, DesertPyramid pyramid) {
         long treeSeed = seed ^ TREES;
-        for (int gridX = 5; gridX < WORLD_SIZE_X - 4; gridX += 6) {
-            for (int gridZ = 5; gridZ < WORLD_SIZE_Z - 4; gridZ += 6) {
-                int x = gridX + sampleInt(treeSeed, gridX, gridZ, 3) - 1;
-                int z = gridZ + sampleInt(treeSeed + 1, gridX, gridZ, 3) - 1;
-                BiomeType biome = biomeAt(biomes, x, z);
-                if (biome == BiomeType.DESERT || nearSpawn(x, z, SPAWN_CLEARANCE + 5)
-                        || pyramid.contains(x, z, 4)) {
+        for (int cx = 0; cx < World.WORLD_CHUNKS_X; cx++) {
+            for (int cz = 0; cz < World.WORLD_CHUNKS_Z; cz++) {
+                int centerX = cx * Chunk.SIZE + 8;
+                int centerZ = cz * Chunk.SIZE + 8;
+                BiomeType chunkBiome = biomeAt(biomes, centerX, centerZ);
+                if (chunkBiome == BiomeType.DESERT) {
                     continue;
                 }
-                int groundY = heights[columnIndex(x, z)];
-                float forest = TerrainNoise.perlin(seed ^ FOREST, x / 91f, z / 91f)
-                        + 0.32f * TerrainNoise.perlin(seed ^ FOREST ^ 1L, x / 43f, z / 43f);
-                float density = TerrainNoise.mix(0.018f, 0.77f, smoothBetween(forest, -0.19f, 0.29f));
-                if (biome == BiomeType.SNOWY_PLAINS && groundY >= 62) {
-                    density *= 0.32f;
+                boolean snowyGrove = false;
+                int attempts;
+                switch (chunkBiome) {
+                    case PLAINS -> attempts = TerrainNoise.unit(treeSeed, cx, cz) < 0.05f ? 1 : 0;
+                    case FOREST -> attempts = 10;
+                    case FLOWER_FOREST -> attempts = 6;
+                    case SNOWY_PLAINS -> {
+                        snowyGrove = isSnowyGrove(centerX, centerZ);
+                        attempts = snowyGrove ? 10 : (TerrainNoise.unit(treeSeed, cx, cz) < 0.10f ? 1 : 0);
+                    }
+                    default -> attempts = 0;
                 }
-                if (groundY > 77 || TerrainNoise.unit(treeSeed + 2, x, z) >= density
-                        || world.getBlock(x, groundY, z) != Block.GRASS.getId()) {
-                    continue;
+                for (int attempt = 0; attempt < attempts; attempt++) {
+                    long h = chunkRoll(treeSeed, cx, cz, attempt + 1);
+                    int x = cx * Chunk.SIZE + (int) (h & 15);
+                    int z = cz * Chunk.SIZE + (int) ((h >>> 4) & 15);
+                    if (biomeAt(biomes, x, z) != chunkBiome
+                            || nearSpawn(x, z, SPAWN_CLEARANCE + 5)
+                            || pyramid.contains(x, z, 4)) {
+                        continue;
+                    }
+                    int groundY = heights[columnIndex(x, z)];
+                    if (world.getBlock(x, groundY, z) != Block.GRASS.getId()) {
+                        continue;
+                    }
+                    if (chunkBiome == BiomeType.SNOWY_PLAINS) {
+                        if (groundY >= 62 || (snowyGrove && (groundY < 30 || !isSnowyGrove(x, z)))) {
+                            continue;
+                        }
+                    } else if (groundY > 77) {
+                        continue;
+                    }
+                    float variety = ((h >>> 8) & 0xFFFFFFL) * 0x1.0p-24f;
+                    TreeShape shape = treeShape(chunkBiome, snowyGrove, variety);
+                    int height = shape.minHeight + (int) ((((h >>> 32) & 0xFFFFL) * shape.variation) >>> 16);
+                    placeTree(world, biomes, x, groundY + 1, z, height, shape);
                 }
-                TreeShape shape = treeShape(biome, groundY, TerrainNoise.unit(treeSeed + 3, x, z));
-                int height = shape.minHeight + sampleInt(treeSeed + 4, x, z, shape.variation);
-                placeTree(world, biomes, x, groundY + 1, z, height, shape);
             }
         }
     }
 
-    /** Chọn dáng cây thấp dần theo cao độ trong biome tuyết, và đa dạng tuổi sồi ở vùng mưa ôn hòa. */
-    private static TreeShape treeShape(BiomeType biome, int y, float variety) {
-        if (biome.hasRain()) {
-            return variety < 0.19f ? TreeShape.OAK_BUSH : variety < 0.34f ? TreeShape.OLD_OAK : TreeShape.OAK;
-        }
-        if (y >= 62) {
-            return TreeShape.DWARF_PINE;
-        }
-        return y >= 45 ? TreeShape.PINE : TreeShape.SPRUCE;
+    /** Chọn dáng cây theo biome và phân vùng Grove/Flat của Snowy Plains. */
+    private static TreeShape treeShape(BiomeType biome, boolean snowyGrove, float variety) {
+        return switch (biome) {
+            case PLAINS -> variety < (1f / 3f) ? TreeShape.OLD_OAK : TreeShape.OAK;
+            case FOREST, FLOWER_FOREST -> variety < 0.10f ? TreeShape.OLD_OAK : TreeShape.OAK;
+            case SNOWY_PLAINS -> snowyGrove && variety < (1f / 3f) ? TreeShape.PINE : TreeShape.SPRUCE;
+            default -> TreeShape.OAK;
+        };
     }
 
     /** Kiểm tra thân và mọi ô tán trước khi ghi cây, rồi phủ tuyết lên tán thông hợp lệ. */
@@ -564,12 +530,11 @@ final class TerrainGenerator {
         return Math.min(shape.crownRadius, shape == TreeShape.SPRUCE ? depth : (depth + 1) / 2);
     }
 
-    /** Cột lá chỉ nhận tuyết ở mặt trên đầu tiên thoáng ra bầu trời. */
+    /** Mọi cột lá vân sam lộ trời ở Snowy Plains (trừ vùng sát Lava) đều phủ 1 lớp tuyết. */
     private void addCanopySnow(World world, byte[] biomes, int x, int topY, int z, TreeShape shape) {
         for (int leafX = x - shape.crownRadius; leafX <= x + shape.crownRadius; leafX++) {
             for (int leafZ = z - shape.crownRadius; leafZ <= z + shape.crownRadius; leafZ++) {
-                if (biomeAt(biomes, leafX, leafZ) != BiomeType.SNOWY_PLAINS
-                        || TerrainNoise.unit(seed ^ SNOW, leafX, leafZ) >= 0.64f) {
+                if (biomeAt(biomes, leafX, leafZ) != BiomeType.SNOWY_PLAINS) {
                     continue;
                 }
                 for (int y = topY + 1; y >= topY - shape.crownDepth; y--) {
@@ -588,173 +553,226 @@ final class TerrainGenerator {
         }
     }
 
-    /** Chọn tối đa hai gốc trên các bờ đối diện của ốc đảo đã tạo mặt nước. */
-    private void plantOasisPalms(World world, short[] heights, byte[] biomes, int centerX, int centerZ) {
-        boolean alongX = (TerrainNoise.hash(seed ^ TREES, centerX, centerZ) & 1) == 0;
-        for (int side = -1; side <= 1; side += 2) {
-            boolean placed = false;
-            for (int distance = 4; distance <= 13 && !placed; distance++) {
-                for (int tangent = -distance; tangent <= distance && !placed; tangent++) {
-                    int x = centerX + (alongX ? side * distance : tangent);
-                    int z = centerZ + (alongX ? tangent : side * distance);
-                    if (!world.isInsideWorld(x, 0, z) || biomeAt(biomes, x, z) != BiomeType.DESERT) {
-                        continue;
-                    }
-                    int groundY = heights[columnIndex(x, z)];
-                    if ((biomes[columnIndex(x, z)] & LAKE) == 0
-                            || world.getBlock(x, groundY, z) != Block.SAND.getId()
-                            || !hasOasisWater(world, x, groundY, z)) {
-                        continue;
-                    }
-                    placed = placePalm(world, x, groundY + 1, z);
-                }
-            }
-        }
-    }
-
-    /** Tìm mặt nước gần gốc dù nền cát có thể cao hơn mặt nước một block. */
-    private static boolean hasOasisWater(World world, int x, int groundY, int z) {
-        for (int dx = -2; dx <= 2; dx++) {
-            for (int dz = -2; dz <= 2; dz++) {
-                if (Math.abs(dx) + Math.abs(dz) > 2) {
-                    continue;
-                }
-                for (int y = groundY - 1; y <= groundY; y++) {
-                    if (world.getBlock(x + dx, y, z + dz) == Block.WATER.getId()) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
-    }
-
-    /** Tạo thân thanh và chùm tàu lá xòe, với đầu tàu rủ thấp hơn tâm hai block. */
-    private boolean placePalm(World world, int x, int baseY, int z) {
-        int topY = baseY + 5 + sampleInt(seed ^ FOREST, x, z, 3);
-        for (int y = baseY; y <= topY; y++) {
-            if (world.getBlock(x, y, z) != Block.AIR.getId()) {
-                return false;
-            }
-        }
-        if (!palmCanopy(world, x, topY, z, false)) {
-            return false;
-        }
-        for (int y = baseY; y <= topY; y++) {
-            write(world, x, y, z, Block.OAK_LOG);
-        }
-        palmCanopy(world, x, topY, z, true);
-        return true;
-    }
-
-    /** Ghi tán tám hướng bằng hai loại cung dài/ngắn và cạnh lá xen kẽ. */
-    private static boolean palmCanopy(World world, int x, int y, int z, boolean place) {
-        if (!palmLeaf(world, x, y + 1, z, place)) {
-            return false;
-        }
-        for (int dx = -1; dx <= 1; dx++) {
-            for (int dz = -1; dz <= 1; dz++) {
-                if (dx == 0 && dz == 0) {
-                    continue;
-                }
-                boolean diagonal = dx != 0 && dz != 0;
-                int length = diagonal ? 3 : 4;
-                int previousY = y + 1;
-                for (int step = 1; step <= length; step++) {
-                    int leafY = y + (step < length - 1 ? 1 : step == length ? -1 : 0);
-                    int nextX = x + dx * step;
-                    int nextZ = z + dz * step;
-                    // Nối tàu lá bằng các mặt chung cả khi đổi cao độ hoặc đi chéo.
-                    if ((diagonal && !palmLeaf(world, nextX, previousY, nextZ - dz, place))
-                            || (leafY != previousY && !palmLeaf(world, nextX, previousY, nextZ, place))
-                            || !palmLeaf(world, nextX, leafY, nextZ, place)) {
-                        return false;
-                    }
-                    previousY = leafY;
-                }
-            }
-        }
-        return true;
-    }
-
-    /** Kiểm tra trước, sau đó cho phép các nhánh dùng chung ô nối khi ghi lá. */
-    private static boolean palmLeaf(World world, int x, int y, int z, boolean place) {
-        if (place) {
-            write(world, x, y, z, Block.OAK_LEAVES);
-            return true;
-        }
-        return world.isInsideWorld(x, y, z) && world.getBlock(x, y, z) == Block.AIR.getId();
-    }
-
-    /** Rải thực vật sau khi có nền, nước và cây; bỏ qua các vị trí đã bị cấu trúc khác chiếm. */
+    /** Sinh hoa, cỏ, xương rồng, bụi khô và mía theo từng chunk 16×16 chuẩn Minecraft 1.21.11. */
     private void generatePlants(World world, short[] heights, byte[] biomes, DesertPyramid pyramid) {
-        long plantSeed = seed ^ PLANTS;
-        for (int x = 0; x < WORLD_SIZE_X; x++) {
-            for (int z = 0; z < WORLD_SIZE_Z; z++) {
-                int y = heights[columnIndex(x, z)] + 1;
-                if (nearSpawn(x, z, SPAWN_CLEARANCE) || pyramid.contains(x, z, 0)
-                        || world.getBlock(x, y, z) != Block.AIR.getId()) {
-                    continue;
-                }
-                byte soil = world.getBlock(x, y - 1, z);
-                boolean grassSoil = soil == Block.GRASS.getId() || soil == Block.DIRT.getId();
-                boolean sandSoil = soil == Block.SAND.getId();
-                if (!grassSoil && !sandSoil) {
-                    continue;
-                }
-                float roll = TerrainNoise.unit(plantSeed, x, z);
-                BiomeType biome = biomeAt(biomes, x, z);
-                if (roll < 0.12f && Block.SUGAR_CANE.canPlaceAt(world, x, y, z)) {
-                    growColumn(world, x, y, z, 1 + sampleInt(plantSeed + 1, x, z, 3), Block.SUGAR_CANE);
-                } else if (biome == BiomeType.DESERT && sandSoil) {
-                    if (roll < 0.006f) {
-                        growColumn(world, x, y, z, 1 + sampleInt(plantSeed + 2, x, z, 3), Block.CACTUS);
-                    } else if (roll < 0.029f) {
-                        write(world, x, y, z, Block.DEAD_BUSH);
+        // Lượt 1: Sinh hoa và cỏ cao trước để cỏ ngắn không chiếm chỗ các cụm hoa và cỏ hai ô.
+        for (int cx = 0; cx < World.WORLD_CHUNKS_X; cx++) {
+            for (int cz = 0; cz < World.WORLD_CHUNKS_Z; cz++) {
+                BiomeType chunkBiome = biomeAt(biomes, cx * Chunk.SIZE + 8, cz * Chunk.SIZE + 8);
+                if (chunkBiome == BiomeType.PLAINS) {
+                    generateFlowerPatch(world, heights, biomes, pyramid, cx, cz, chunkBiome,
+                            seed ^ FLOWERS_SEED, 0.5f, 10, 4, PLAINS_FLOWERS, false);
+                    generateTallGrassPatch(world, heights, biomes, pyramid, cx, cz, chunkBiome);
+                } else if (chunkBiome == BiomeType.FOREST) {
+                    generateFlowerPatch(world, heights, biomes, pyramid, cx, cz, chunkBiome,
+                            seed ^ FLOWERS_SEED, 0.25f, 7, 3, FOREST_FLOWERS, false);
+                } else if (chunkBiome == BiomeType.FLOWER_FOREST) {
+                    for (int patch = 0; patch < 3; patch++) {
+                        generateFlowerPatch(world, heights, biomes, pyramid, cx, cz, chunkBiome,
+                                (seed ^ FLOWERS_SEED) + patch * 31L, 1.0f, 10, 5, FLOWERS, true);
                     }
-                } else if (biome.hasRain() && grassSoil && roll < 0.32f) {
-                    plantMeadow(world, x, y, z, roll, plantSeed);
                 }
             }
         }
+
+        // Lượt 2: Sinh cỏ ngắn, xương rồng, bụi khô và mía theo mật độ chuẩn từng biome.
+        for (int cx = 0; cx < World.WORLD_CHUNKS_X; cx++) {
+            for (int cz = 0; cz < World.WORLD_CHUNKS_Z; cz++) {
+                BiomeType chunkBiome = biomeAt(biomes, cx * Chunk.SIZE + 8, cz * Chunk.SIZE + 8);
+                if (chunkBiome == BiomeType.PLAINS) {
+                    generateShortGrassPatches(world, heights, biomes, pyramid, cx, cz, chunkBiome, 4, 32, 5);
+                    generateSugarCanePatch(world, heights, biomes, pyramid, cx, cz, chunkBiome, 1f / 6f);
+                } else if (chunkBiome == BiomeType.FOREST || chunkBiome == BiomeType.FLOWER_FOREST) {
+                    generateShortGrassPatches(world, heights, biomes, pyramid, cx, cz, chunkBiome, 2, 12, 4);
+                    generateSugarCanePatch(world, heights, biomes, pyramid, cx, cz, chunkBiome, 1f / 6f);
+                } else if (chunkBiome == BiomeType.DESERT) {
+                    generateDesertPlants(world, heights, biomes, pyramid, cx, cz);
+                    generateSugarCanePatch(world, heights, biomes, pyramid, cx, cz, chunkBiome, 1.0f);
+                }
+            }
+        }
+    }
+
+    /** Sinh một cụm hoa theo trọng số bảng loài hoặc theo trường gradient 2D ở Flower Forest. */
+    private void generateFlowerPatch(World world, short[] heights, byte[] biomes, DesertPyramid pyramid,
+                                     int cx, int cz, BiomeType chunkBiome, long featureSeed,
+                                     float chunkChance, int attempts, int spread,
+                                     Block[] palette, boolean gradient) {
+        if (chunkChance < 1.0f && TerrainNoise.unit(featureSeed, cx, cz) >= chunkChance) {
+            return;
+        }
+        long centerHash = chunkRoll(featureSeed, cx, cz, 1);
+        int originX = cx * Chunk.SIZE + (int) (centerHash & 15);
+        int originZ = cz * Chunk.SIZE + (int) ((centerHash >>> 4) & 15);
+        int baseIndex = (int) ((((centerHash >>> 8) & 0xFFFFL) * palette.length) >>> 16);
+        Block baseFlower = palette[baseIndex];
+        for (int attempt = 0; attempt < attempts; attempt++) {
+            long h = chunkRoll(featureSeed, cx, cz, attempt + 2);
+            int x = originX + triangularOffset(h, 0, spread);
+            int z = originZ + triangularOffset(h, 16, spread);
+            int y = canPlaceGroundPlant(world, heights, biomes, pyramid, x, z, chunkBiome);
+            if (y < 0 || !isGrassSoil(world.getBlock(x, y - 1, z))) {
+                continue;
+            }
+            Block flower;
+            if (gradient) {
+                float field = TerrainNoise.perlin(seed ^ FLOWER_GRADIENT, x / 42f, z / 42f);
+                float normalized = Math.max(0f, Math.min(0.9999f, (field + 0.42f) / 0.84f));
+                flower = palette[(int) (normalized * palette.length)];
+            } else {
+                float pick = ((h >>> 32) & 0xFFFFL) * 0x1.0p-16f;
+                if (pick < 0.70f) {
+                    flower = baseFlower;
+                } else {
+                    int alt = (int) ((((h >>> 48) & 0xFFFFL) * palette.length) >>> 16);
+                    flower = palette[alt];
+                }
+            }
+            write(world, x, y, z, flower);
+        }
+    }
+
+    /** Sinh cụm cỏ cao hai ô ở Plains với rarity 1/5 chunk. */
+    private void generateTallGrassPatch(World world, short[] heights, byte[] biomes, DesertPyramid pyramid,
+                                        int cx, int cz, BiomeType chunkBiome) {
+        long featureSeed = seed ^ TALL_GRASS_SEED;
+        if (TerrainNoise.unit(featureSeed, cx, cz) >= 0.2f) {
+            return;
+        }
+        long centerHash = chunkRoll(featureSeed, cx, cz, 1);
+        int originX = cx * Chunk.SIZE + (int) (centerHash & 15);
+        int originZ = cz * Chunk.SIZE + (int) ((centerHash >>> 4) & 15);
+        for (int attempt = 0; attempt < 36; attempt++) {
+            long h = chunkRoll(featureSeed, cx, cz, attempt + 2);
+            int x = originX + triangularOffset(h, 0, 5);
+            int z = originZ + triangularOffset(h, 16, 5);
+            int y = canPlaceGroundPlant(world, heights, biomes, pyramid, x, z, chunkBiome);
+            if (y < 0 || y + 1 >= World.WORLD_SIZE_Y
+                    || !isGrassSoil(world.getBlock(x, y - 1, z))
+                    || world.getBlock(x, y + 1, z) != Block.AIR.getId()) {
+                continue;
+            }
+            write(world, x, y, z, Block.TALL_GRASS);
+            world.setBlockInternal(x, y + 1, z, Block.TALL_GRASS.getId(), 1);
+        }
+    }
+
+    /** Sinh các cụm cỏ ngắn trên mặt cỏ trống theo số patch và lần thử của từng biome. */
+    private void generateShortGrassPatches(World world, short[] heights, byte[] biomes, DesertPyramid pyramid,
+                                           int cx, int cz, BiomeType chunkBiome,
+                                           int patches, int attemptsPerPatch, int spread) {
+        long featureSeed = seed ^ GRASS_SEED;
+        for (int patch = 0; patch < patches; patch++) {
+            int saltBase = patch * (attemptsPerPatch + 1) + 1;
+            long centerHash = chunkRoll(featureSeed, cx, cz, saltBase);
+            int originX = cx * Chunk.SIZE + (int) (centerHash & 15);
+            int originZ = cz * Chunk.SIZE + (int) ((centerHash >>> 4) & 15);
+            for (int attempt = 0; attempt < attemptsPerPatch; attempt++) {
+                long h = chunkRoll(featureSeed, cx, cz, saltBase + 1 + attempt);
+                int x = originX + triangularOffset(h, 0, spread);
+                int z = originZ + triangularOffset(h, 16, spread);
+                int y = canPlaceGroundPlant(world, heights, biomes, pyramid, x, z, chunkBiome);
+                if (y >= 0 && isGrassSoil(world.getBlock(x, y - 1, z))) {
+                    write(world, x, y, z, Block.SHORT_GRASS);
+                }
+            }
+        }
+    }
+
+    /** Sinh xương rồng (1/5 chunk, chiều cao biased_to_bottom) và 2 bụi khô mỗi chunk ở Desert. */
+    private void generateDesertPlants(World world, short[] heights, byte[] biomes, DesertPyramid pyramid,
+                                      int cx, int cz) {
+        long cactusSeed = seed ^ CACTUS_SEED;
+        if (TerrainNoise.unit(cactusSeed, cx, cz) < 0.2f) {
+            long h = chunkRoll(cactusSeed, cx, cz, 1);
+            int x = cx * Chunk.SIZE + (int) (h & 15);
+            int z = cz * Chunk.SIZE + (int) ((h >>> 4) & 15);
+            int y = canPlaceGroundPlant(world, heights, biomes, pyramid, x, z, BiomeType.DESERT);
+            if (y >= 0 && Block.CACTUS.canPlaceAt(world, x, y, z)) {
+                float roll = ((h >>> 8) & 0xFFFFFFL) * 0x1.0p-24f;
+                int height = roll < 0.56f ? 1 : roll < 0.84f ? 2 : 3;
+                growColumn(world, x, y, z, height, Block.CACTUS);
+            }
+        }
+        long bushSeed = seed ^ DEAD_BUSH_SEED;
+        for (int patch = 0; patch < 2; patch++) {
+            long h = chunkRoll(bushSeed, cx, cz, patch + 1);
+            int x = cx * Chunk.SIZE + (int) (h & 15);
+            int z = cz * Chunk.SIZE + (int) ((h >>> 4) & 15);
+            int y = canPlaceGroundPlant(world, heights, biomes, pyramid, x, z, BiomeType.DESERT);
+            if (y >= 0 && Block.DEAD_BUSH.canPlaceAt(world, x, y, z)) {
+                write(world, x, y, z, Block.DEAD_BUSH);
+            }
+        }
+    }
+
+    /** Sinh cụm mía dọc bờ sông ấm: 1/6 chunk ở biome ôn hòa và 1 lượt/chunk ở Desert. */
+    private void generateSugarCanePatch(World world, short[] heights, byte[] biomes, DesertPyramid pyramid,
+                                        int cx, int cz, BiomeType chunkBiome, float chunkChance) {
+        long caneSeed = seed ^ SUGAR_CANE_SEED;
+        if (chunkChance < 1.0f && TerrainNoise.unit(caneSeed, cx, cz) >= chunkChance) {
+            return;
+        }
+        long centerHash = chunkRoll(caneSeed, cx, cz, 1);
+        int originX = cx * Chunk.SIZE + (int) (centerHash & 15);
+        int originZ = cz * Chunk.SIZE + (int) ((centerHash >>> 4) & 15);
+        for (int attempt = 0; attempt < 20; attempt++) {
+            long h = chunkRoll(caneSeed, cx, cz, attempt + 2);
+            int x = originX + triangularOffset(h, 0, 4);
+            int z = originZ + triangularOffset(h, 16, 4);
+            int y = canPlaceGroundPlant(world, heights, biomes, pyramid, x, z, chunkBiome);
+            if (y >= 0 && Block.SUGAR_CANE.canPlaceAt(world, x, y, z)) {
+                float roll = ((h >>> 32) & 0xFFFFFFL) * 0x1.0p-24f;
+                int height = roll < 0.50f ? 2 : roll < 0.83f ? 3 : 4;
+                growColumn(world, x, y, z, height, Block.SUGAR_CANE);
+            }
+        }
+    }
+
+    /** Kiểm tra biên, vùng an toàn, kim tự tháp, đúng biome và ô trống tại mặt đất; trả -1 nếu không hợp lệ. */
+    private static int canPlaceGroundPlant(World world, short[] heights, byte[] biomes, DesertPyramid pyramid,
+                                           int x, int z, BiomeType expectedBiome) {
+        if (x < 0 || x >= WORLD_SIZE_X || z < 0 || z >= WORLD_SIZE_Z
+                || nearSpawn(x, z, SPAWN_CLEARANCE)
+                || pyramid.contains(x, z, 0)
+                || biomeAt(biomes, x, z) != expectedBiome) {
+            return -1;
+        }
+        int y = heights[columnIndex(x, z)] + 1;
+        if (y >= World.WORLD_SIZE_Y || world.getBlock(x, y, z) != Block.AIR.getId()) {
+            return -1;
+        }
+        return y;
+    }
+
+    /** Kiểm tra nền cỏ hoặc đất hợp lệ cho hoa và cỏ đồng bằng/rừng. */
+    private static boolean isGrassSoil(byte soil) {
+        return soil == Block.GRASS.getId() || soil == Block.DIRT.getId();
+    }
+
+    /** Băm tọa độ chunk và muối phụ thành giá trị 64-bit tất định không cấp phát bộ nhớ. */
+    private static long chunkRoll(long featureSeed, int cx, int cz, int salt) {
+        return TerrainNoise.hash(featureSeed ^ (salt * 0x9E3779B97F4A7C15L), cx, cz);
+    }
+
+    /** Tạo độ lệch tam giác [-spread, +spread] từ 16 bit băm để mô phỏng phân tán cụm Minecraft. */
+    private static int triangularOffset(long hash, int shift, int spread) {
+        int range = spread + 1;
+        int first = (int) ((((hash >>> shift) & 0xFFL) * range) >>> 8);
+        int second = (int) ((((hash >>> (shift + 8)) & 0xFFL) * range) >>> 8);
+        return first - second;
     }
 
     /** Sinh từng đoạn liên tục từ gốc và áp dụng cùng luật sinh tồn như lúc chơi. */
     private static void growColumn(World world, int x, int y, int z, int height, Block plant) {
         for (int offset = 0; offset < height; offset++) {
             int partY = y + offset;
-            if (world.getBlock(x, partY, z) != Block.AIR.getId() || !plant.canPlaceAt(world, x, partY, z)) {
+            if (partY >= World.WORLD_SIZE_Y
+                    || world.getBlock(x, partY, z) != Block.AIR.getId()
+                    || !plant.canPlaceAt(world, x, partY, z)) {
                 return;
             }
             write(world, x, partY, z, plant);
-        }
-    }
-
-    /** Dùng noise để tạo cụm cỏ, cụm hoa và công bố đủ hai nửa cỏ cao. */
-    private static void plantMeadow(World world, int x, int y, int z, float roll, long plantSeed) {
-        float patch = TerrainNoise.fractal(plantSeed + 3, x / 16f, z / 16f);
-        if (roll < 0.14f) {
-            float strength = 0.43f;
-            Block species = null;
-            for (int index = 0; index < FLOWERS.length; index++) {
-                float flowerPatch = TerrainNoise.simplex(plantSeed + 7 + index, x / 31f, z / 31f);
-                if (flowerPatch > strength) {
-                    strength = flowerPatch;
-                    species = FLOWERS[index];
-                }
-            }
-            if (species != null) {
-                write(world, x, y, z, species);
-                return;
-            }
-        }
-        if (patch > -0.09f && roll < 0.26f) {
-            if (roll < 0.055f && world.getBlock(x, y + 1, z) == Block.AIR.getId()) {
-                write(world, x, y, z, Block.TALL_GRASS);
-                world.setBlockInternal(x, y + 1, z, Block.TALL_GRASS.getId(), 1);
-            } else {
-                write(world, x, y, z, Block.SHORT_GRASS);
-            }
         }
     }
 
