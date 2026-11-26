@@ -58,6 +58,10 @@ public final class Sheep extends MobEntity {
         public Item woolItem() { return woolItem; }
     }
 
+    /** Xác suất ăn cỏ mỗi tick (1/20s) chuẩn Minecraft: 1/1000 cho cừu lớn và 1/50 cho cừu con. */
+    public static final int ADULT_GRAZE_CHANCE_DIVISOR = 1000;
+    public static final int BABY_GRAZE_CHANCE_DIVISOR = 50;
+
     /** Màu len và trạng thái đã bị cắt lông theo cá thể, model vẫn được chia sẻ. */
     private final WoolColor woolColor;
     private boolean sheared;
@@ -129,13 +133,13 @@ public final class Sheep extends MobEntity {
 
     /** Giữ tư thế cúi đầu tới lúc ăn, dùng đường thay block bình thường để cập nhật cây cạnh. */
     private static final class GrazeGoal implements MobGoal {
-        /** Thời gian cúi đầu, mốc gặm và tổng thời gian cho một lần ăn. */
+        /** Nhịp kiểm tra 1 tick (0,05s) và các mốc thời gian cúi đầu ăn cỏ. */
+        private static final float TICK_SECONDS = 0.05f;
         private static final float EASE_SECONDS = 0.35f;
         private static final float EAT_SECONDS = 0.9f;
         private static final float DURATION = 1.45f;
         /** Sai số nhỏ khi đọc mặt đỡ ở biên độ cao nguyên. */
         private static final float GROUND_EPSILON = 0.001f;
-        private double nextAttempt = ThreadLocalRandom.current().nextFloat(3f, 8f);
         private float elapsed;
         private int foodX;
         private int foodY;
@@ -146,14 +150,19 @@ public final class Sheep extends MobEntity {
         @Override public int priority() { return 5; }
         /** Giữ cả chuyển động ngang và đầu để tránh tư thế xung đột. */
         @Override public int controls() { return MOVE | LOOK; }
+        /** Rút thăm đúng theo nhịp 20 Hz chuẩn Minecraft, không phụ thuộc 60 FPS. */
+        @Override public float retrySeconds() { return TICK_SECONDS; }
 
-        /** Chọn Short Grass ở chân, hoặc Grass Block tại mặt đỡ nếu không có bụi cỏ. */
+        /** Rút thăm 1/1000 (trưởng thành) hoặc 1/50 (con non), rồi kiểm tra Short Grass hoặc Grass Block dưới chân. */
         @Override
         public boolean canStart(World world, MobEntity sheep) {
-            if (sheep.ageSeconds() < nextAttempt || !sheep.isOnGround() || sheep.inWater() || sheep.panicTime() > 0f) {
+            if (!sheep.isOnGround() || sheep.inWater() || sheep.panicTime() > 0f) {
                 return false;
             }
-            scheduleNext(sheep);
+            int divisor = sheep.isBaby() ? BABY_GRAZE_CHANCE_DIVISOR : ADULT_GRAZE_CHANCE_DIVISOR;
+            if (ThreadLocalRandom.current().nextInt(divisor) != 0) {
+                return false;
+            }
             foodX = floor(sheep.x());
             foodY = floor(sheep.y() + GROUND_EPSILON);
             foodZ = floor(sheep.z());
@@ -205,11 +214,6 @@ public final class Sheep extends MobEntity {
         @Override
         public void stop(World world, MobEntity sheep) {
             sheep.mobVisualState().setPose(MobVisualState.Pose.IDLE, 0f);
-        }
-
-        /** Tách các lần thử để cừu có thời gian lang thang giữa các lần ăn. */
-        private void scheduleNext(MobEntity sheep) {
-            nextAttempt = sheep.ageSeconds() + ThreadLocalRandom.current().nextFloat(7f, 13f);
         }
 
         /** Đổi tọa độ thành ô voxel. */

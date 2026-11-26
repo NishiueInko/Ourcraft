@@ -16,12 +16,11 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public final class MobLootTable {
 
-    /** Bảy vật phẩm rơi ngẫu nhiên của Witch theo đúng trọng số đồng đều của Minecraft gốc. */
+    /** Sáu vật phẩm rơi ngẫu nhiên của Witch chuẩn Java 1.21+ (Redstone rơi riêng cố định 4–8). */
     private static final Item[] WITCH_DROPS = {
             Item.GLASS_BOTTLE,
             Item.GLOWSTONE_DUST,
             Item.GUNPOWDER,
-            Item.REDSTONE,
             Item.SPIDER_EYE,
             Item.SUGAR,
             Item.STICK
@@ -153,6 +152,8 @@ public final class MobLootTable {
             }
             case ENDERMAN -> spawnDrops(world, mob, Item.ENDER_PEARL, random.nextInt(2));
             case WITCH -> {
+                // Chuẩn Minecraft Java 1.21+: luôn rơi 4–8 Redstone Dust cộng 1–3 lượt × 0–2 từ 6 món còn lại.
+                spawnDrops(world, mob, Item.REDSTONE, random.nextInt(4, 9));
                 int rolls = random.nextInt(1, 4);
                 for (int i = 0; i < rolls; i++) {
                     Item chosen = WITCH_DROPS[random.nextInt(WITCH_DROPS.length)];

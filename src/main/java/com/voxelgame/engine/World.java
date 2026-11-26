@@ -138,18 +138,23 @@ public class World implements Disposable {
 
     /** Sinh địa hình và dựng trước mesh quanh điểm xuất phát. */
     public World() {
-        this(true);
+        this(true, null);
     }
 
     /** Mở một thế giới trống để kiểm tra luật block mà không cần GPU. */
     static World empty() {
-        return new World(false);
+        return new World(false, null);
+    }
+
+    /** Mở thế giới trống có gắn sẵn dấu chân kim tự tháp để kiểm thử sinh Camel lân cận. */
+    static World emptyWithPyramid(DesertPyramid pyramid) {
+        return new World(false, pyramid);
     }
 
     /** Tách sinh địa hình và khởi tạo mesh khỏi đường tạo bản đồ trống. */
-    private World(boolean generate) {
+    private World(boolean generate, DesertPyramid testPyramid) {
         if (!generate) {
-            desertPyramid = null;
+            desertPyramid = testPyramid;
             spawnY = 1;
             return;
         }

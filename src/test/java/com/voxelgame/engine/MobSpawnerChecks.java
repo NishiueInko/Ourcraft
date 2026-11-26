@@ -15,6 +15,8 @@ final class MobSpawnerChecks {
         MobGoalChecks.run();
         checkDaylightAndClearance();
         checkPopulationAndCaps();
+        checkSeparateSpawnIntervals();
+        checkPyramidCamelSpawn();
         checkDespawn();
         checkJockeySpawn();
         checkMountedDespawn();
@@ -101,6 +103,131 @@ final class MobSpawnerChecks {
             }
             world.dispose();
         }
+    }
+
+    /** Xác minh nhịp sinh tách riêng: quái chạy mỗi 1 tick (0,05s), thú định kỳ chạy mỗi 400 tick (20,0s). */
+    private static void checkSeparateSpawnIntervals() {
+        require(Math.abs(MobSpawner.MONSTER_INTERVAL - 0.05f) < 0.0001f, "Chu kỳ sinh quái phải là 0,05s");
+        require(Math.abs(MobSpawner.CREATURE_INTERVAL - 20.0f) < 0.0001f, "Chu kỳ sinh thú định kỳ phải là 20,0s");
+        World world = World.empty();
+        WorldTime time = new WorldTime();
+        MobSpawner spawner = new MobSpawner(41);
+        Player player = new Player(2000.5f, 31f, 800.5f);
+        world.registerPlayer(player);
+        MobType[] types = MobType.values();
+        MobType.Factory[] previousFactories = new MobType.Factory[types.length];
+        for (MobType type : types) {
+            previousFactories[type.ordinal()] = type.registerFactory((x, y, z) -> new MobEntity(type, x, y, z));
+        }
+        try {
+            for (int x = 1870; x <= 2130; x++) {
+                for (int z = 670; z <= 930; z++) {
+                    world.setBlockInternal(x, 30, z, Block.GRASS.getId(), 0);
+                }
+            }
+            // Khám phá hết chunk quanh người chơi và căn đúng bội 20s (80 × 0,25s = 20,0s).
+            for (int i = 0; i < 80; i++) {
+                spawner.update(world, time, 0.25f);
+            }
+            for (int i = 0; i < world.entityCount(); i++) {
+                if (world.entityAt(i) instanceof MobEntity mob) {
+                    mob.discard();
+                }
+            }
+            world.updateEntities(0.05f);
+            require(countAlive(world, MobCategory.CREATURE) == 0, "Cần dọn sạch thú cũ trước khi đo 400 tick");
+
+            // Trong 399 tick đầu (19,95s), chu kỳ bổ sung 400 tick chưa kích hoạt và chunk đã khám phá xong.
+            for (int tick = 0; tick < 399; tick++) {
+                spawner.update(world, time, 0.05f);
+            }
+            require(countAlive(world, MobCategory.CREATURE) == 0,
+                    "Thú định kỳ không được sinh trước mốc 400 tick (20,0s)");
+
+            // Tick thứ 400 (đủ 20,0s) kích hoạt sinh thú định kỳ theo bảng Plains (tối đa cap 10).
+            spawner.update(world, time, 0.05f);
+            int respawnedCreatures = countAlive(world, MobCategory.CREATURE);
+            require(respawnedCreatures > 0 && respawnedCreatures <= MobCategory.CREATURE.cap(),
+                    "Mốc 400 tick phải sinh lại thú định kỳ trong giới hạn cap 10 (" + respawnedCreatures + ")");
+
+            // Quái phải sinh ngay theo nhịp 0,05s (1 tick) khi chuyển sang ban đêm mà không cần chờ 0,25s.
+            time.update(850);
+            for (int tick = 0; tick < 60 && countAlive(world, MobCategory.MONSTER) == 0; tick++) {
+                spawner.update(world, time, 0.05f);
+            }
+            require(countAlive(world, MobCategory.MONSTER) > 0,
+                    "Quái phải sinh được theo nhịp từng tick 0,05s vào ban đêm");
+        } finally {
+            for (MobType type : types) {
+                type.registerFactory(previousFactories[type.ordinal()]);
+            }
+            world.dispose();
+        }
+    }
+
+    /** Kiểm tra sinh cố định 1 Camel trưởng thành hiền lành gần Kim tự tháp sa mạc khi khám phá lần đầu. */
+    private static void checkPyramidCamelSpawn() {
+        DesertPyramid pyramid = new DesertPyramid(3500, 800, 30);
+        World world = World.emptyWithPyramid(pyramid);
+        WorldTime time = new WorldTime();
+        MobSpawner spawner = new MobSpawner(99);
+        Player player = new Player(3500.5f, 220f, 830.5f);
+        world.registerPlayer(player);
+        try {
+            for (int x = 3480; x <= 3520; x++) {
+                for (int z = 780; z <= 825; z++) {
+                    world.setBlockInternal(x, 30, z, Block.SAND.getId(), 0);
+                }
+            }
+            spawner.update(world, time, 0.25f);
+            require(countCamel(world) == 0, "Không sinh Camel kim tự tháp khi người chơi ở ngoài 128 block");
+
+            player.setPosition(3500.5f, 31f, 830.5f);
+            spawner.update(world, time, 0.25f);
+            require(countCamel(world) == 1, "Phải sinh đúng 1 Camel gần Kim tự tháp khi khám phá lần đầu");
+            MobEntity camel = findFirstCamel(world);
+            require(camel != null && !camel.isBaby() && camel.isPersistent(),
+                    "Camel kim tự tháp phải là cá thể trưởng thành và được giữ lại");
+
+            for (int i = 0; i < 40; i++) {
+                spawner.update(world, time, 0.25f);
+            }
+            require(countCamel(world) == 1, "Không được sinh thêm Camel kim tự tháp thứ hai");
+        } finally {
+            world.dispose();
+        }
+    }
+
+    /** Đếm các cá thể còn sống theo nhóm trong thế giới kiểm thử. */
+    private static int countAlive(World world, MobCategory category) {
+        int count = 0;
+        for (int i = 0; i < world.entityCount(); i++) {
+            if (world.entityAt(i) instanceof MobEntity mob && mob.isAlive() && mob.type().category() == category) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /** Đếm số Camel hiền lành hiện có trong thế giới. */
+    private static int countCamel(World world) {
+        int count = 0;
+        for (int i = 0; i < world.entityCount(); i++) {
+            if (world.entityAt(i) instanceof MobEntity mob && mob.isAlive() && mob.type() == MobType.CAMEL) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /** Tìm cá thể Camel đầu tiên trong danh sách thực thể. */
+    private static MobEntity findFirstCamel(World world) {
+        for (int i = 0; i < world.entityCount(); i++) {
+            if (world.entityAt(i) instanceof MobEntity mob && mob.isAlive() && mob.type() == MobType.CAMEL) {
+                return mob;
+            }
+        }
+        return null;
     }
 
     /** Kiểm tra ngưỡng tức thì, bảo vệ persistent và đặt lại đồng hồ khi mob đến gần. */

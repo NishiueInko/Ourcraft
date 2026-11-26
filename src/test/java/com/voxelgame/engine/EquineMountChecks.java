@@ -96,11 +96,19 @@ final class EquineMountChecks {
         MountableMob donkey = new Donkey(23.5f, 16f, 23.5f);
         Player rider = new Player(22.5f, 16f, 23.5f);
         donkey.setBaby(true);
+        require(Math.abs(donkey.getHalfWidth() * 2f - 1.3965f * 0.5f) < 0.001f
+                        && Math.abs(donkey.getHeight() - 0.75f) < 0.001f,
+                "Lừa con phải thu nhỏ hitbox còn 0,5×");
         require(!donkey.onPlayerInteract(world, rider), "Không thể cưỡi lừa con");
         donkey.setBaby(false);
+        require(Math.abs(donkey.getHalfWidth() * 2f - 1.3965f) < 0.001f
+                        && Math.abs(donkey.getHeight() - 1.5f) < 0.001f,
+                "Lừa trưởng thành phải khôi phục đủ hitbox 1,0×");
+        require(MountableMob.TEMPER_PER_ATTEMPT == 5 && MountableMob.MAX_TEMPER == 100,
+                "Mỗi lần hất xuống phải cộng +5 temper trên ngưỡng tối đa 100");
         require(!donkey.isTamed() && donkey.getSeatCount() == 1, "Lừa hoang bắt đầu với một ghế");
         int previousTemper = 0;
-        for (int attempt = 0; attempt < 4 && !donkey.isTamed(); attempt++) {
+        for (int attempt = 0; attempt < 25 && !donkey.isTamed(); attempt++) {
             require(donkey.onPlayerInteract(world, rider) && rider.getMount() == donkey,
                     "Chuột phải phải đặt người chơi vào ghế lừa");
             Vector3 seat = donkey.copySeatPosition(0, new Vector3());
@@ -109,12 +117,16 @@ final class EquineMountChecks {
                 donkey.updateRiderInput(rider, 1f, 0f, false, true, 0.05f);
                 donkey.update(world, 0.05f);
             }
-            require(donkey.temper() > previousTemper && donkey.chargeProgress() == 0f,
-                    "Cưỡi hoang tăng thiện cảm nhưng không nạp nhảy");
+            require(donkey.chargeProgress() == 0f, "Cưỡi hoang không nạp nhảy");
+            if (!donkey.isTamed()) {
+                require(donkey.temper() == previousTemper + MountableMob.TEMPER_PER_ATTEMPT,
+                        "Hất xuống phải cộng đúng +5 điểm thiện cảm");
+            }
             previousTemper = donkey.temper();
         }
-        require(donkey.isTamed() && donkey.isPersistent() && rider.getMount() == donkey,
-                "Lừa đã quen giữ người cưỡi và được lưu giữ");
+        require(donkey.isTamed() && donkey.temper() == MountableMob.MAX_TEMPER
+                        && donkey.isPersistent() && rider.getMount() == donkey,
+                "Lừa đã thuần giữ người cưỡi với temper=100 và được lưu giữ");
         for (int tick = 0; tick < 26; tick++) {
             donkey.updateRiderInput(rider, 1f, 0f, false, false, 0.05f);
             donkey.update(world, 0.05f);

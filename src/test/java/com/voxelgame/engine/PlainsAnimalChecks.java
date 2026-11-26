@@ -85,23 +85,36 @@ final class PlainsAnimalChecks {
                 "Màu len được chuyển vào lớp hiển thị của cá thể");
     }
 
-    /** Ăn bụi cỏ trước, gặm nền cỏ bằng đường cập nhật gameplay của World. */
+    /** Ăn bụi cỏ trước, gặm nền cỏ bằng đường cập nhật gameplay của World (1/1000 trưởng thành, 1/50 con non). */
     private static void checkGrazing(World world) {
+        require(Sheep.ADULT_GRAZE_CHANCE_DIVISOR == 1000 && Sheep.BABY_GRAZE_CHANCE_DIVISOR == 50,
+                "Xác suất ăn cỏ của cừu phải đúng 1/1000 (trưởng thành) và 1/50 (con non)");
         pen(world, 43, 30, Block.SHORT_GRASS);
         // Cỏ cao thiếu nửa trên sẽ bị dọn khi đường ghi gameplay thông báo cho ô phía trên nền.
         pen(world, 49, 30, Block.TALL_GRASS);
         Sheep eater = new Sheep(43.5f, 16f, 30.5f, Sheep.WoolColor.WHITE);
         Sheep grazer = new Sheep(49.5f, 16f, 30.5f, Sheep.WoolColor.BROWN);
-        require(waitForGrass(world, eater, 43, 16, 30, Block.SHORT_GRASS), "Cừu phải cúi đầu trước khi ăn bụi cỏ");
+        require(waitForGrass(world, eater, 43, 16, 30, Block.SHORT_GRASS, 20_000),
+                "Cừu phải cúi đầu trước khi ăn bụi cỏ");
         require(world.getBlock(43, 16, 30) == Block.AIR.getId() && world.getBlock(43, 15, 30) == Block.GRASS.getId(),
                 "Ăn Short Grass giữ nguyên nền cỏ");
-        require(waitForGrass(world, grazer, 49, 15, 30, Block.GRASS), "Cừu phải cúi đầu trước khi gặm Grass Block");
+        require(waitForGrass(world, grazer, 49, 15, 30, Block.GRASS, 20_000),
+                "Cừu phải cúi đầu trước khi gặm Grass Block");
         require(world.getBlock(49, 15, 30) == Block.DIRT.getId() && world.getBlock(49, 16, 30) == Block.AIR.getId(),
                 "Gặm nền cỏ đổi thành Dirt và chạy cập nhật lân cận");
 
+        // Cừu con có hitbox 0,5× và tần suất ăn cỏ 1/50 mỗi tick (nhanh hơn rõ rệt so với cừu lớn).
+        pen(world, 55, 30, Block.SHORT_GRASS);
+        Sheep lamb = new Sheep(55.5f, 16f, 30.5f, Sheep.WoolColor.WHITE);
+        lamb.setBaby(true);
+        near(lamb.getHalfWidth() * 2f, 0.45f, "Chiều rộng hitbox cừu con");
+        near(lamb.getHeight(), 0.65f, "Chiều cao hitbox cừu con");
+        require(waitForGrass(world, lamb, 55, 16, 30, Block.SHORT_GRASS, 1_500),
+                "Cừu con với xác suất 1/50 mỗi tick phải ăn được cỏ nhanh hơn cừu lớn");
+
         pen(world, 43, 38, Block.SHORT_GRASS);
         Sheep interrupted = new Sheep(43.5f, 16f, 38.5f, Sheep.WoolColor.LIGHT_GRAY);
-        for (int i = 0; i < 200 && interrupted.mobVisualState().pose() != MobVisualState.Pose.GRAZE; i++) {
+        for (int i = 0; i < 20_000 && interrupted.mobVisualState().pose() != MobVisualState.Pose.GRAZE; i++) {
             interrupted.update(world, 0.05f);
         }
         require(interrupted.mobVisualState().pose() == MobVisualState.Pose.GRAZE, "Cừu bắt đầu lượt ăn trước khi bị đánh");
@@ -128,9 +141,9 @@ final class PlainsAnimalChecks {
     }
 
     /** Theo dõi tư thế cúi đầu rồi dừng ngay khi mẫu đang ăn đổi trạng thái. */
-    private static boolean waitForGrass(World world, Sheep sheep, int x, int y, int z, Block expected) {
+    private static boolean waitForGrass(World world, Sheep sheep, int x, int y, int z, Block expected, int maxTicks) {
         boolean grazing = false;
-        for (int i = 0; i < 400 && world.getBlock(x, y, z) == expected.getId(); i++) {
+        for (int i = 0; i < maxTicks && world.getBlock(x, y, z) == expected.getId(); i++) {
             sheep.update(world, 0.05f);
             grazing |= sheep.mobVisualState().pose() == MobVisualState.Pose.GRAZE;
         }

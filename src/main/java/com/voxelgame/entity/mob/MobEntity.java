@@ -34,7 +34,8 @@ public class MobEntity extends LivingEntity implements MobVisual {
     /** Khoảng thời gian phản ứng và khoảng cách giữa hai tiếng chân. */
     private static final float NEUTRAL_ANGER_SECONDS = 15f;
     private static final float STEP_SOUND_SPACING = 0.9f;
-    /** Tỷ lệ hiển thị và cao độ cho cá thể non. */
+    /** Tỷ lệ hitbox, tỷ lệ hiển thị và cao độ âm thanh cho cá thể non. */
+    private static final float BABY_DIMENSIONS_SCALE = 0.5f;
     private static final float BABY_SCALE = 0.6f;
     private static final float BABY_PITCH = 1.5f;
 
@@ -674,12 +675,19 @@ public class MobEntity extends LivingEntity implements MobVisual {
     public final float panicTime() { return panicTime; }
     /** Trả thời gian giận còn lại, tính bằng giây. */
     public final float angerTimer() { return angerTimer; }
+    /** Trả tỷ lệ hiển thị khi là cá thể trưởng thành (mặc định 1,0×, lớp con có thể ghi đè như Husk 1,06×). */
+    protected float adultVisualScale() { return 1f; }
+    /** Trả tỷ lệ hiển thị khi là cá thể non (0,6× tỷ lệ trưởng thành). */
+    protected float babyVisualScale() { return BABY_SCALE * adultVisualScale(); }
     /** Trả trạng thái non để hành vi và âm thanh dùng cùng một giá trị. */
     public final boolean isBaby() { return baby; }
-    /** Đặt trạng thái non và tỷ lệ hình hiển thị liên quan. */
+    /** Đặt trạng thái non, đồng bộ thu nhỏ hitbox 0,5× (hoặc khôi phục 1,0×) và tỷ lệ hình hiển thị. */
     public final void setBaby(boolean baby) {
         this.baby = baby;
-        visual.setScale(baby ? BABY_SCALE : 1f);
+        float dimensionScale = baby ? BABY_DIMENSIONS_SCALE : 1f;
+        halfWidth = type.width() * 0.5f * dimensionScale;
+        height = type.height() * dimensionScale;
+        visual.setScale(baby ? babyVisualScale() : adultVisualScale());
     }
     /** Đánh dấu cá thể thuần hóa hoặc được giữ bằng quy tắc riêng của loài. */
     public final void setPersistent(boolean persistent) { this.persistent = persistent; }

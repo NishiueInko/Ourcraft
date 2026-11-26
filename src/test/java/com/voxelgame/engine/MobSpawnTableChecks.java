@@ -13,6 +13,7 @@ final class MobSpawnTableChecks {
     /** Chạy các kiểm tra xác suất và phân vùng tuyết trong bộ hồi quy chung. */
     static void run() {
         checkPlains();
+        checkForestAndFlowerForest();
         checkDesert();
         checkSnowTables();
         checkSnowTerrain();
@@ -31,10 +32,29 @@ final class MobSpawnTableChecks {
                 new Expected(MobType.WITCH, 5, 1, 1));
     }
 
-    /** Sa mạc chỉ có thỏ vàng và lạc đà hiền lành, với tổng trọng số quái bằng 415. */
+    /** Rừng sồi có thêm sói hoang; rừng hoa có thêm thỏ trắng thay cho ngựa và lừa. */
+    private static void checkForestAndFlowerForest() {
+        checkTable(BiomeType.FOREST, MobCategory.CREATURE, null,
+                new Expected(MobType.SHEEP, 12, 4, 4), new Expected(MobType.PIG, 10, 4, 4),
+                new Expected(MobType.CHICKEN, 10, 4, 4), new Expected(MobType.COW, 8, 4, 4),
+                new Expected(MobType.WOLF, 5, 4, 4));
+        checkTable(BiomeType.FLOWER_FOREST, MobCategory.CREATURE, null,
+                new Expected(MobType.SHEEP, 12, 4, 4), new Expected(MobType.PIG, 10, 4, 4),
+                new Expected(MobType.CHICKEN, 10, 4, 4), new Expected(MobType.COW, 8, 4, 4),
+                new Expected(MobType.SNOW_RABBIT, 4, 2, 3));
+        for (BiomeType forest : new BiomeType[]{BiomeType.FOREST, BiomeType.FLOWER_FOREST}) {
+            checkTable(forest, MobCategory.MONSTER, null,
+                    new Expected(MobType.SPIDER, 100, 4, 4), new Expected(MobType.SKELETON, 100, 4, 4),
+                    new Expected(MobType.CREEPER, 100, 4, 4), new Expected(MobType.ZOMBIE, 95, 4, 4),
+                    new Expected(MobType.ENDERMAN, 10, 1, 4), new Expected(MobType.ZOMBIE_VILLAGER, 5, 1, 1),
+                    new Expected(MobType.WITCH, 5, 1, 1));
+        }
+    }
+
+    /** Sa mạc chỉ sinh thỏ vàng (trọng số 4), với tổng trọng số quái bằng 415. */
     private static void checkDesert() {
         checkTable(BiomeType.DESERT, MobCategory.CREATURE, null,
-                new Expected(MobType.RABBIT, 12, 2, 3), new Expected(MobType.CAMEL, 1, 1, 1));
+                new Expected(MobType.RABBIT, 4, 2, 3));
         checkTable(BiomeType.DESERT, MobCategory.MONSTER, null,
                 new Expected(MobType.SPIDER, 100, 4, 4), new Expected(MobType.CREEPER, 100, 4, 4),
                 new Expected(MobType.HUSK, 80, 4, 4), new Expected(MobType.PARCHED, 50, 4, 4),
@@ -43,13 +63,13 @@ final class MobSpawnTableChecks {
                 new Expected(MobType.ZOMBIE_VILLAGER, 1, 1, 1));
     }
 
-    /** Ba phân vùng tuyết có ba nhóm thú và cùng một bảng quái. */
+    /** Ba phân vùng tuyết có ba nhóm thú (Grove có thỏ trọng số 4) và cùng một bảng quái. */
     private static void checkSnowTables() {
         checkTable(BiomeType.SNOWY_PLAINS, MobCategory.CREATURE, SnowSubZone.SNOWY_PLAINS_FLAT,
                 new Expected(MobType.SNOW_RABBIT, 10, 2, 3), new Expected(MobType.POLAR_BEAR, 1, 1, 2));
         checkTable(BiomeType.SNOWY_PLAINS, MobCategory.CREATURE, SnowSubZone.SNOWY_GROVE,
                 new Expected(MobType.WOLF, 8, 4, 4), new Expected(MobType.SNOW_FOX, 8, 2, 4),
-                new Expected(MobType.SNOW_RABBIT, 8, 2, 3));
+                new Expected(MobType.SNOW_RABBIT, 4, 2, 3));
         checkTable(BiomeType.SNOWY_PLAINS, MobCategory.CREATURE, SnowSubZone.SNOWY_SLOPES_PEAKS,
                 new Expected(MobType.GOAT, 5, 1, 3), new Expected(MobType.SNOW_RABBIT, 4, 2, 3));
         for (SnowSubZone zone : SnowSubZone.values()) {

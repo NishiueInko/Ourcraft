@@ -13,9 +13,9 @@ import java.util.concurrent.ThreadLocalRandom;
 
 /** Nền tảng ghế, điều khiển cưỡi, thuần hóa và xuống thú an toàn. */
 public abstract class MountableMob extends MobEntity {
-    /** Bốn lượt cưỡi đủ dài để thú hoang dần chấp nhận người chơi. */
-    private static final int MAX_TEMPER = 100;
-    private static final int TEMPER_PER_ATTEMPT = 25;
+    /** Ngưỡng thiện cảm tối đa (100) và điểm cộng mỗi lần bị hất xuống (+5) chuẩn Minecraft. */
+    public static final int MAX_TEMPER = 100;
+    public static final int TEMPER_PER_ATTEMPT = 5;
     private static final float CHARGE_SECONDS = 0.9f;
     /** Gia tốc trọng lực chung của mob và dung sai mặt tiếp xúc. */
     private static final float GRAVITY_MAGNITUDE = 26f;
@@ -266,11 +266,11 @@ public abstract class MountableMob extends MobEntity {
             mobVisualState().setPose(rear > 0f ? MobVisualState.Pose.REAR : MobVisualState.Pose.IDLE, rear);
             return;
         }
-        if (temper + TEMPER_PER_ATTEMPT >= MAX_TEMPER) {
+        if (ThreadLocalRandom.current().nextInt(MAX_TEMPER) < temper) {
             tame();
             mobVisualState().setPose(MobVisualState.Pose.IDLE, 0f);
         } else if (tryDismount(world, driver)) {
-            temper += TEMPER_PER_ATTEMPT;
+            temper = Math.min(MAX_TEMPER, temper + TEMPER_PER_ATTEMPT);
         } else {
             tamingTimeLeft = 0.25f;
         }

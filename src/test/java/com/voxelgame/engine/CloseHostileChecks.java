@@ -5,6 +5,7 @@ import com.voxelgame.entity.DamageSource;
 import com.voxelgame.entity.Player;
 import com.voxelgame.entity.StatusEffectType;
 import com.voxelgame.entity.mob.Creeper;
+import com.voxelgame.entity.mob.Enderman;
 import com.voxelgame.entity.mob.Husk;
 import com.voxelgame.entity.mob.MobAttitude;
 import com.voxelgame.entity.mob.Spider;
@@ -19,8 +20,10 @@ final class CloseHostileChecks {
     /** Chạy các kiểm tra chỉ số, điều kiện tấn công và phá khối. */
     static void run() {
         checkZombieAttributesAndReinforcements();
+        checkHuskBabyAndDimensions();
         checkHuskHunger();
         checkHuskUnderwaterConversion();
+        checkEndermanBlockRates();
         checkCreeperFuseAndBlockDamage();
         checkCreeperCancelsFuse();
         checkSpiderStanceAndLeap();
@@ -54,6 +57,39 @@ final class CloseHostileChecks {
         }
     }
 
+    /** Husk có 5% cơ hội là con non với hitbox 0,5×, tốc độ 1,5×, giữ scale 1,06× ở trưởng thành và kỵ sĩ luôn lớn. */
+    private static void checkHuskBabyAndDimensions() {
+        Husk adult = new Husk(10.5f, 1f, 10.5f, false, false);
+        Husk baby = new Husk(10.5f, 1f, 10.5f, false, true);
+        near(adult.getHalfWidth() * 2f, 0.6f, "Chiều rộng hitbox Husk trưởng thành");
+        near(adult.getHeight(), 1.95f, "Chiều cao hitbox Husk trưởng thành");
+        near(adult.mobVisualState().scale(), 1.06f, "Tỷ lệ hình hiển thị Husk trưởng thành");
+        near(baby.getHalfWidth() * 2f, 0.3f, "Chiều rộng hitbox Husk con");
+        near(baby.getHeight(), 0.975f, "Chiều cao hitbox Husk con");
+        near(baby.moveSpeed(), adult.moveSpeed() * 1.5f, "Tốc độ Husk con");
+        near(baby.mobVisualState().scale(), 0.6f * 1.06f, "Tỷ lệ hình hiển thị Husk con");
+
+        // Kiểm tra khôi phục kích thước 1,0× và visual 1,06× khi chuyển baby true -> false.
+        baby.setBaby(false);
+        near(baby.getHalfWidth() * 2f, 0.6f, "Khôi phục chiều rộng hitbox Husk");
+        near(baby.getHeight(), 1.95f, "Khôi phục chiều cao hitbox Husk");
+        near(baby.mobVisualState().scale(), 1.06f, "Khôi phục tỷ lệ hiển thị Husk trưởng thành");
+
+        for (int i = 0; i < 64; i++) {
+            Husk jockey = new Husk(0f, 1f, 0f, true);
+            require(!jockey.isBaby() && jockey.hasIronSpear(), "Husk cầm giáo cưỡi Camel Husk luôn là người lớn");
+        }
+
+        int babyCount = 0;
+        for (int i = 0; i < 2000; i++) {
+            if (new Husk(0f, 1f, 0f).isBaby()) {
+                babyCount++;
+            }
+        }
+        require(babyCount > 40 && babyCount < 180,
+                "Tỉ lệ Husk con tự nhiên phải dao động quanh 5% (nhận " + babyCount + "/2000)");
+    }
+
     /** Một đòn cận chiến thật của Husk gây 3 HP và áp Hunger I đúng thời lượng. */
     private static void checkHuskHunger() {
         World world = World.empty();
@@ -61,7 +97,7 @@ final class CloseHostileChecks {
             floor(world, 0);
             Player player = new Player(11.5f, 1f, 10.5f);
             world.registerPlayer(player);
-            Husk husk = new Husk(10.5f, 1f, 10.5f);
+            Husk husk = new Husk(10.5f, 1f, 10.5f, false, false);
             husk.update(world, TICK);
             near(player.getHealth(), 17f, "Sát thương cận chiến của Husk");
             float hunger = player.getEffectDuration(StatusEffectType.HUNGER);
@@ -86,7 +122,7 @@ final class CloseHostileChecks {
                     }
                 }
             }
-            Husk husk = new Husk(10.5f, 1f, 10.5f);
+            Husk husk = new Husk(10.5f, 1f, 10.5f, false, false);
             world.addLivingEntity(husk);
             for (int tick = 0; tick < 899; tick++) {
                 world.updateEntities(TICK);
@@ -98,6 +134,49 @@ final class CloseHostileChecks {
             }
             require(world.entityCount() == 1 && world.entityAt(0).getClass() == Zombie.class,
                     "Husk chìm đầu đủ lâu phải được thay bằng một Zombie trưởng thành");
+        } finally {
+            world.dispose();
+        }
+    }
+
+    /** Enderman dùng chu kỳ 2 tick (0,10s) với xác suất nhặt 1/20 và đặt 1/2000 trên 1 ô ngẫu nhiên. */
+    private static void checkEndermanBlockRates() {
+        require(Enderman.PICKUP_CHANCE_DIVISOR == 20 && Enderman.PLACE_CHANCE_DIVISOR == 2000
+                        && Math.abs(Enderman.BLOCK_CHECK_INTERVAL - 0.10f) < 0.0001f,
+                "Hằng số nhặt/đặt khối của Enderman phải khớp chuẩn 1/20 và 1/2000 mỗi 2 tick");
+        World world = World.empty();
+        try {
+            // Bao tường đá ở bán kính 3 để Enderman đứng yên và mọi ô -2..+2 quanh chân đều hợp lệ.
+            for (int x = 7; x <= 13; x++) {
+                for (int z = 7; z <= 13; z++) {
+                    world.setBlockInternal(x, 0, z, Block.STONE.getId(), 0);
+                    boolean rim = x == 7 || x == 13 || z == 7 || z == 13;
+                    if (rim) {
+                        for (int y = 1; y <= 4; y++) {
+                            world.setBlockInternal(x, y, z, Block.STONE.getId(), 0);
+                        }
+                    } else if (!(x == 10 && z == 10)) {
+                        world.setBlockInternal(x, 1, z, Block.GRASS.getId(), 0);
+                    }
+                }
+            }
+            Enderman enderman = new Enderman(10.5f, 1f, 10.5f);
+            for (int tick = 0; tick < 4000 && enderman.heldBlock() == Block.AIR; tick++) {
+                enderman.update(world, TICK);
+            }
+            require(enderman.heldBlock() == Block.GRASS, "Enderman phải nhặt được khối cỏ quanh chân");
+
+            // Dọn sạch cỏ còn lại để có nền đá trống cho phép đặt khối (giữ khoảng trống -2..+2).
+            for (int x = 8; x <= 12; x++) {
+                for (int z = 8; z <= 12; z++) {
+                    world.setBlockInternal(x, 1, z, Block.AIR.getId(), 0);
+                }
+            }
+            for (int tick = 0; tick < 120_000 && enderman.heldBlock() != Block.AIR; tick++) {
+                enderman.update(world, TICK);
+            }
+            require(enderman.heldBlock() == Block.AIR,
+                    "Enderman đang cầm khối phải đặt lại được xuống nền rắn theo xác suất 1/2000 mỗi 2 tick");
         } finally {
             world.dispose();
         }

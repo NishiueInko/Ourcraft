@@ -50,9 +50,10 @@ public abstract class Entity {
     // Vector vận tốc chuyển động theo 3 trục (X, Y, Z)
     protected final Vector3 velocity;
 
-    // Một nửa chiều rộng (bán kính ngang) và toàn bộ chiều cao của hộp va chạm AABB
-    protected final float halfWidth;
-    /** Chiều cao thực của hộp, có thể đổi khi loài có tư thế ngồi. */
+    // Một nửa chiều rộng (bán kính ngang) và toàn bộ chiều cao của hộp va chạm AABB;
+    // giữ khả năng thay đổi để đồng bộ hitbox khi mob chuyển đổi trạng thái non/trưởng thành.
+    protected float halfWidth;
+    /** Chiều cao thực của hộp, có thể đổi khi loài có tư thế ngồi hoặc trạng thái non. */
     protected float height;
 
     // Cờ trạng thái báo hiệu thực thể đang đứng chạm mặt đất rắn

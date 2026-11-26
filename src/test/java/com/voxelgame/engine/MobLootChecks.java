@@ -404,6 +404,30 @@ final class MobLootChecks {
             require(witch.drinkingPotionItem() == Item.POTION_HEALING,
                     "Witch bị thương phải chuyển sang uống Potion of Healing");
 
+            // Witch chết chuẩn Java 1.21+: luôn rơi cố định 4–8 Redstone Dust + 1–3 lượt × 0–2 từ 6 món còn lại
+            int extraDropsTotal = 0;
+            for (int i = 0; i < 30; i++) {
+                Witch lootWitch = new Witch(103.5f, 20f, 100.5f);
+                lootWitch.damage(world, 50f, DamageSource.MELEE, player, 0f, 0f);
+                List<Item> witchDrops = collectGroundItems(world);
+                int redstoneCount = countItem(witchDrops, Item.REDSTONE);
+                require(redstoneCount >= 4 && redstoneCount <= 8,
+                        "Witch phải luôn rơi cố định 4–8 Redstone Dust (nhận " + redstoneCount + ")");
+                int nonRedstone = 0;
+                for (Item drop : witchDrops) {
+                    if (drop == Item.REDSTONE) {
+                        continue;
+                    }
+                    require(drop == Item.GLASS_BOTTLE || drop == Item.GLOWSTONE_DUST || drop == Item.GUNPOWDER
+                                    || drop == Item.SPIDER_EYE || drop == Item.SUGAR || drop == Item.STICK,
+                            "Vật phẩm phụ của Witch phải thuộc 6 món hợp lệ (" + drop + ")");
+                    nonRedstone++;
+                }
+                require(nonRedstone <= 6, "Tối đa 3 lượt × 2 món phụ từ Witch (" + nonRedstone + ")");
+                extraDropsTotal += nonRedstone;
+            }
+            require(extraDropsTotal > 0, "Witch phải có rơi thêm vật phẩm phụ ngoài Redstone");
+
             // Kiểm tra Husk cầm giáo sắt, Zombie, Zombie Villager, Stray, Parched, Spider không ném lỗi
             new Zombie(103.5f, 20f, 100.5f, false).damage(world, 30f, DamageSource.FIRE, player, 0f, 0f);
             new ZombieVillager(103.5f, 20f, 100.5f).damage(world, 30f, DamageSource.MELEE, player, 0f, 0f);

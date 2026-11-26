@@ -13,6 +13,8 @@ import java.util.concurrent.ThreadLocalRandom;
 
 /** Zombie sa mạc áp Hunger khi đánh và đổi thành Zombie thường sau khi chìm đầu. */
 public final class Husk extends Zombie {
+    /** Tỷ lệ hiển thị người lớn của Husk (cao hơn Zombie thường 6%). */
+    private static final float ADULT_VISUAL_SCALE = 1.06f;
     /** Chìm đầu 30 giây liên tục trước pha chuyển hóa dài 15 giây. */
     private static final double SUBMERGE_SECONDS = 30d;
     private static final double CONVERSION_SECONDS = 15d;
@@ -28,20 +30,30 @@ public final class Husk extends Zombie {
     private boolean converting;
     private boolean converted;
 
-    /** Tạo Husk người lớn có kích thước hình vẽ lớn hơn 6% nhưng giữ hộp vật lý cũ. */
+    /** Tạo Husk tự nhiên với 5% cơ hội là cá thể non (theo Zombie.rollsBaby). */
     public Husk(float x, float y, float z) {
-        this(x, y, z, false);
+        this(x, y, z, false, rollsBaby());
     }
 
-    /** Trang bị giáo cho Husk ghế lái của bộ kỵ sĩ sa mạc. */
+    /** Trang bị giáo cho Husk ghế lái của bộ kỵ sĩ sa mạc (luôn là người lớn). */
     public Husk(float x, float y, float z, boolean ironSpear) {
-        super(MobType.HUSK, x, y, z, false);
+        this(x, y, z, ironSpear, false);
+    }
+
+    /** Khởi tạo Husk với trang bị giáo và trạng thái non/trưởng thành tường minh. */
+    public Husk(float x, float y, float z, boolean ironSpear, boolean baby) {
+        super(MobType.HUSK, x, y, z, baby);
         this.ironSpear = ironSpear;
         spearTarget = ironSpear ? new Vector3() : null;
-        mobVisualState().setScale(1.06f);
         if (ironSpear) {
             mobVisualState().setPose(MobVisualState.Pose.THRUST, 0f);
         }
+    }
+
+    /** Giữ tỷ lệ hiển thị 1,06× cho Husk trưởng thành (và 0,6 × 1,06 cho Husk con). */
+    @Override
+    protected float adultVisualScale() {
+        return ADULT_VISUAL_SCALE;
     }
 
     /** Nhận diện Husk có thể chỉ huy cú lao bằng giáo. */
@@ -106,7 +118,7 @@ public final class Husk extends Zombie {
         }
         converted = true;
         playSound(world, MobSoundEvent.HUSK_CONVERT);
-        world.replaceLivingEntity(this, new Zombie(x(), y(), z(), false));
+        world.replaceLivingEntity(this, new Zombie(x(), y(), z(), isBaby()));
     }
 
     /** Điểm ở phần mặt phải thấp hơn bề mặt chất lỏng trong chính ô chứa đầu. */

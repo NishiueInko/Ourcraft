@@ -22,7 +22,10 @@ public final class Enderman extends MobEntity {
     private static final int TELEPORT_RADIUS = 32;
     private static final int TELEPORT_ATTEMPTS = 24;
     private static final int NEAR_FALLBACK_RADIUS = 4;
-    private static final int BLOCK_ATTEMPTS = 8;
+    /** Chu kỳ 2 tick (0,10s) và xác suất nhặt (1/20) / đặt (1/2000) block chuẩn Minecraft. */
+    public static final float BLOCK_CHECK_INTERVAL = 0.10f;
+    public static final int PICKUP_CHANCE_DIVISOR = 20;
+    public static final int PLACE_CHANCE_DIVISOR = 2000;
 
     /** Bộ đệm tia mắt và trạng thái đích dịch chuyển được tái sử dụng. */
     private final Vector3 eye = new Vector3();
@@ -33,7 +36,7 @@ public final class Enderman extends MobEntity {
     private float gazeDelay;
     private float wetDelay;
     private float combatTeleportDelay = 2.8f;
-    private float blockDelay = ThreadLocalRandom.current().nextFloat(6f, 14f);
+    private float blockDelay = BLOCK_CHECK_INTERVAL;
     private Block heldBlock = Block.AIR;
 
     /** Dùng goal chung và đòn cận chiến 7 HP khi đang giận. */
@@ -84,8 +87,8 @@ public final class Enderman extends MobEntity {
             mobVisualState().setPose(MobVisualState.Pose.IDLE, 0f);
             setMoveSpeed(3f);
             blockDelay -= dt;
-            if (blockDelay <= 0f) {
-                blockDelay = ThreadLocalRandom.current().nextFloat(6f, 14f);
+            if (blockDelay <= 0.0001f) {
+                blockDelay = BLOCK_CHECK_INTERVAL;
                 moveNaturalBlock(world);
             }
         }
@@ -213,34 +216,42 @@ public final class Enderman extends MobEntity {
         playSound(world, MobSoundEvent.ENDERMAN_TELEPORT);
     }
 
-    /** Thỉnh thoảng nhặt một khối tự nhiên và đặt lại tại ô trống có nền gần đó. */
+    /** Nhặt (1/20) hoặc đặt (1/2000) đúng 1 ô ngẫu nhiên quanh người mỗi 2 tick chuẩn Minecraft. */
     private void moveNaturalBlock(World world) {
         ThreadLocalRandom random = ThreadLocalRandom.current();
+        if (heldBlock == Block.AIR) {
+            if (random.nextInt(PICKUP_CHANCE_DIVISOR) != 0) {
+                return;
+            }
+        } else if (random.nextInt(PLACE_CHANCE_DIVISOR) != 0) {
+            return;
+        }
         int bx = MathUtils.floor(x());
         int by = MathUtils.floor(y());
         int bz = MathUtils.floor(z());
-        for (int i = 0; i < BLOCK_ATTEMPTS; i++) {
-            int tx = bx + random.nextInt(-3, 4);
-            int ty = by + random.nextInt(-1, 2);
-            int tz = bz + random.nextInt(-3, 4);
-            if (tx == bx && tz == bz || !world.isInsideWorld(tx, ty, tz)) {
-                continue;
-            }
-            Block block = Block.fromId(world.getBlock(tx, ty, tz));
-            if (heldBlock == Block.AIR) {
-                if (canCarry(block)) {
-                    heldBlock = block;
-                    mobVisualState().setHeldBlock(heldBlock);
-                    world.setBlock(tx, ty, tz, Block.AIR.getId());
-                    return;
-                }
-            } else if (block == Block.AIR && world.isSolidBlock(tx, ty - 1, tz)
-                    && !intersectsBlock(tx, ty, tz) && world.tryPlaceBlock(tx, ty, tz, heldBlock, world.getPlayer())) {
-                heldBlock = Block.AIR;
-                mobVisualState().setHeldBlock(null);
-                return;
-            }
+        int tx = bx + random.nextInt(-2, 3);
+        int ty = by + random.nextInt(-1, 2);
+        int tz = bz + random.nextInt(-2, 3);
+        if ((tx == bx && tz == bz) || !world.isInsideWorld(tx, ty, tz)) {
+            return;
         }
+        Block block = Block.fromId(world.getBlock(tx, ty, tz));
+        if (heldBlock == Block.AIR) {
+            if (canCarry(block)) {
+                heldBlock = block;
+                mobVisualState().setHeldBlock(heldBlock);
+                world.setBlock(tx, ty, tz, Block.AIR.getId());
+            }
+        } else if (block == Block.AIR && world.isSolidBlock(tx, ty - 1, tz)
+                && !intersectsBlock(tx, ty, tz) && world.tryPlaceBlock(tx, ty, tz, heldBlock, world.getPlayer())) {
+            heldBlock = Block.AIR;
+            mobVisualState().setHeldBlock(null);
+        }
+    }
+
+    /** Trả khối Enderman đang cầm trên tay (Block.AIR nếu tay trống). */
+    public Block heldBlock() {
+        return heldBlock;
     }
 
     /** Lấy và xóa khối đang cầm để rơi ra ngoài thế giới khi Enderman bị tiêu diệt. */

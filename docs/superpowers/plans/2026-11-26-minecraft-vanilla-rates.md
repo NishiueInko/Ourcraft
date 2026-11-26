@@ -104,9 +104,9 @@
 - Modify: `src/main/java/com/voxelgame/entity/mob/MobEntity.java`
 - Modify: `src/main/java/com/voxelgame/entity/mob/Husk.java`
 
-- [ ] **Step 1:** Cập nhật `MobSpawnTable.java`: thêm `FOREST_CREATURES` (`Sheep 12, Pig 10, Chicken 10, Cow 8, Wolf 5`), `FLOWER_FOREST_CREATURES` (`Sheep 12, Pig 10, Chicken 10, Cow 8, Snow Rabbit 4`), sửa `DESERT_CREATURES` (`Rabbit 4 (2–3)`), sửa `SNOW_GROVE_CREATURES` (`Wolf 8, Snow Fox 8, Snow Rabbit 4`).
-- [ ] **Step 2:** Cập nhật `MobEntity.setBaby(boolean)` thu nhỏ hitbox `0,5×` khi `true` và khôi phục `1,0×` khi `false` (giữ `scale = 1.06f` cho Husk trưởng thành). Cập nhật `Husk.java`: `5%` baby tự nhiên; giữ kỵ sĩ cầm giáo là người lớn; thêm constructor `Husk(x, y, z, ironSpear, baby)`.
-- [ ] **Step 3:** Cập nhật `MobSpawner.java`: tách `MONSTER_INTERVAL = 0.05f` (1 tick) và `CREATURE_INTERVAL = 20.0f` (400 tick); bỏ lọc `75%` cát phẳng của Camel; sinh cố định 1 `Camel` hiền lành gần `world.desertPyramid()` khi khám phá lần đầu; áp dụng `5%` baby cho `Cow, Sheep, Pig, Chicken, Wolf, Goat` và `10%` baby cho `Rabbit, Snow Rabbit`.
+- [x] **Step 1:** Cập nhật `MobSpawnTable.java`: thêm `FOREST_CREATURES` (`Sheep 12, Pig 10, Chicken 10, Cow 8, Wolf 5`), `FLOWER_FOREST_CREATURES` (`Sheep 12, Pig 10, Chicken 10, Cow 8, Snow Rabbit 4`), sửa `DESERT_CREATURES` (`Rabbit 4 (2–3)`), sửa `SNOW_GROVE_CREATURES` (`Wolf 8, Snow Fox 8, Snow Rabbit 4`).
+- [x] **Step 2:** Cập nhật `MobEntity.setBaby(boolean)` thu nhỏ hitbox `0,5×` khi `true` và khôi phục `1,0×` khi `false` (giữ `scale = 1.06f` cho Husk trưởng thành). Cập nhật `Husk.java`: `5%` baby tự nhiên; giữ kỵ sĩ cầm giáo là người lớn; thêm constructor `Husk(x, y, z, ironSpear, baby)`.
+- [x] **Step 3:** Cập nhật `MobSpawner.java`: tách `MONSTER_INTERVAL = 0.05f` (1 tick) và `CREATURE_INTERVAL = 20.0f` (400 tick); bỏ lọc `75%` cát phẳng của Camel; sinh cố định 1 `Camel` hiền lành gần `world.desertPyramid()` khi khám phá lần đầu; áp dụng `5%` baby cho `Cow, Sheep, Pig, Chicken, Wolf, Goat` và `10%` baby cho `Rabbit, Snow Rabbit`.
 
 ### Task 3.2: Chuẩn hóa Hành vi AI (`Sheep`, `Enderman`, `MountableMob`) & Loot (`MobLootTable`)
 **Files:**
@@ -115,10 +115,10 @@
 - Modify: `src/main/java/com/voxelgame/entity/mob/MountableMob.java`
 - Modify: `src/main/java/com/voxelgame/entity/mob/MobLootTable.java`
 
-- [ ] **Step 1:** `Sheep.GrazeGoal`: đổi sang xác suất `1/1000` mỗi tick (trưởng thành) và `1/50` mỗi tick (con non).
-- [ ] **Step 2:** `Enderman.java`: đổi nhặt block sang `1/20` mỗi 2 tick (`0,1s`, thử 1 ô ngẫu nhiên) và đặt block sang `1/2000` mỗi 2 tick.
-- [ ] **Step 3:** `MountableMob.java`: thuần hóa ngẫu nhiên `random.nextInt(100) < temper`, trượt thì hất xuống và cộng `temper += 5`.
-- [ ] **Step 4:** `MobLootTable.java`: Witch rơi cố định `4–8 Redstone Dust` + `1–3` lượt × `0–2` món từ 6 món còn lại (bỏ Redstone khỏi pool ngẫu nhiên).
+- [x] **Step 1:** `Sheep.GrazeGoal`: đổi sang xác suất `1/1000` mỗi tick (trưởng thành) và `1/50` mỗi tick (con non).
+- [x] **Step 2:** `Enderman.java`: đổi nhặt block sang `1/20` mỗi 2 tick (`0,1s`, thử 1 ô ngẫu nhiên) và đặt block sang `1/2000` mỗi 2 tick.
+- [x] **Step 3:** `MountableMob.java`: thuần hóa ngẫu nhiên `random.nextInt(100) < temper`, trượt thì hất xuống và cộng `temper += 5`.
+- [x] **Step 4:** `MobLootTable.java`: Witch rơi cố định `4–8 Redstone Dust` + `1–3` lượt × `0–2` món từ 6 món còn lại (bỏ Redstone khỏi pool ngẫu nhiên).
 
 ### Task 3.3: Cập nhật kiểm thử Giai đoạn 3
 **Files:**
@@ -130,8 +130,8 @@
 - Modify: `src/test/java/com/voxelgame/engine/MobLootChecks.java`
 - Modify: `src/test/java/com/voxelgame/engine/PassiveAndNeutralMobChecks.java`
 
-- [ ] **Step 1:** Cập nhật các file test kiểm tra đủ bảng 5 biome, chu kỳ 1 tick / 400 tick, Camel Kim tự tháp, Baby Husk + Baby thú hiền lành, `Sheep` graze `1/1000` & `1/50`, `Enderman` pickup/place, `MountableMob` temper `+5`, `Witch` luôn rơi `4–8` Redstone Dust.
-- [ ] **Step 2:** Chạy `.\gradlew.bat check` — kỳ vọng PASS 100%.
+- [x] **Step 1:** Cập nhật các file test kiểm tra đủ bảng 5 biome, chu kỳ 1 tick / 400 tick, Camel Kim tự tháp, Baby Husk + Baby thú hiền lành, `Sheep` graze `1/1000` & `1/50`, `Enderman` pickup/place, `MountableMob` temper `+5`, `Witch` luôn rơi `4–8` Redstone Dust.
+- [x] **Step 2:** Chạy `.\gradlew.bat check` — kỳ vọng PASS 100%.
 
 ---
 
@@ -140,6 +140,6 @@
 **Files:**
 - Modify: `README.md`
 
-- [ ] **Step 1:** Rà soát toàn bộ file đã sửa: không cấp phát rác GC trong Game Loop, không rò rỉ GPU/Off-heap/Thread, đủ chú thích tiếng Việt UTF-8, không có `// TODO`.
-- [ ] **Step 2:** Cập nhật toàn bộ Phần A của `README.md` khớp 100% mọi thông số sau Giai đoạn 1–3.
-- [ ] **Step 3:** Chạy `.\gradlew.bat check` lần cuối — kỳ vọng `BUILD SUCCESSFUL` và `Các kiểm tra hồi quy voxel đã qua.`
+- [x] **Step 1:** Rà soát toàn bộ file đã sửa: không cấp phát rác GC trong Game Loop, không rò rỉ GPU/Off-heap/Thread, đủ chú thích tiếng Việt UTF-8, không có `// TODO`.
+- [x] **Step 2:** Cập nhật toàn bộ Phần A của `README.md` khớp 100% mọi thông số sau Giai đoạn 1–3.
+- [x] **Step 3:** Chạy `.\gradlew.bat check` lần cuối — kỳ vọng `BUILD SUCCESSFUL` và `Các kiểm tra hồi quy voxel đã qua.`

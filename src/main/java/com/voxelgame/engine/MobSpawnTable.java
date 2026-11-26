@@ -14,15 +14,25 @@ public final class MobSpawnTable {
             new Entry(MobType.SHEEP, 12, 4, 4), new Entry(MobType.PIG, 10, 4, 4),
             new Entry(MobType.CHICKEN, 10, 4, 4), new Entry(MobType.COW, 8, 4, 4),
             new Entry(MobType.HORSE, 5, 2, 6), new Entry(MobType.DONKEY, 1, 1, 3));
+    /** Rừng sồi có thêm bầy sói hoang thay cho ngựa/lừa. */
+    private static final MobSpawnTable FOREST_CREATURES = new MobSpawnTable(
+            new Entry(MobType.SHEEP, 12, 4, 4), new Entry(MobType.PIG, 10, 4, 4),
+            new Entry(MobType.CHICKEN, 10, 4, 4), new Entry(MobType.COW, 8, 4, 4),
+            new Entry(MobType.WOLF, 5, 4, 4));
+    /** Rừng hoa dùng thảm thỏ thay cho sói và không có ngựa/lừa. */
+    private static final MobSpawnTable FLOWER_FOREST_CREATURES = new MobSpawnTable(
+            new Entry(MobType.SHEEP, 12, 4, 4), new Entry(MobType.PIG, 10, 4, 4),
+            new Entry(MobType.CHICKEN, 10, 4, 4), new Entry(MobType.COW, 8, 4, 4),
+            new Entry(MobType.SNOW_RABBIT, 4, 2, 3));
     private static final MobSpawnTable PLAINS_MONSTERS = new MobSpawnTable(
             new Entry(MobType.SPIDER, 100, 4, 4), new Entry(MobType.SKELETON, 100, 4, 4),
             new Entry(MobType.CREEPER, 100, 4, 4), new Entry(MobType.ZOMBIE, 95, 4, 4),
             new Entry(MobType.ENDERMAN, 10, 1, 4), new Entry(MobType.ZOMBIE_VILLAGER, 5, 1, 1),
             new Entry(MobType.WITCH, 5, 1, 1));
 
-    /** Sa mạc có thỏ vàng và lạc đà, với bảng quái thiên về các loài bản địa. */
+    /** Sa mạc sinh thỏ vàng (chuẩn desert.json); lạc đà hiền sinh cố định gần kim tự tháp. */
     private static final MobSpawnTable DESERT_CREATURES = new MobSpawnTable(
-            new Entry(MobType.RABBIT, 12, 2, 3), new Entry(MobType.CAMEL, 1, 1, 1));
+            new Entry(MobType.RABBIT, 4, 2, 3));
     private static final MobSpawnTable DESERT_MONSTERS = new MobSpawnTable(
             new Entry(MobType.SPIDER, 100, 4, 4), new Entry(MobType.CREEPER, 100, 4, 4),
             new Entry(MobType.HUSK, 80, 4, 4), new Entry(MobType.PARCHED, 50, 4, 4),
@@ -35,7 +45,7 @@ public final class MobSpawnTable {
             new Entry(MobType.SNOW_RABBIT, 10, 2, 3), new Entry(MobType.POLAR_BEAR, 1, 1, 2));
     private static final MobSpawnTable SNOW_GROVE_CREATURES = new MobSpawnTable(
             new Entry(MobType.WOLF, 8, 4, 4), new Entry(MobType.SNOW_FOX, 8, 2, 4),
-            new Entry(MobType.SNOW_RABBIT, 8, 2, 3));
+            new Entry(MobType.SNOW_RABBIT, 4, 2, 3));
     private static final MobSpawnTable SNOW_SLOPE_CREATURES = new MobSpawnTable(
             new Entry(MobType.GOAT, 5, 1, 3), new Entry(MobType.SNOW_RABBIT, 4, 2, 3));
     private static final MobSpawnTable SNOW_MONSTERS = new MobSpawnTable(
@@ -62,7 +72,9 @@ public final class MobSpawnTable {
     public static MobSpawnTable forBiome(BiomeType biome, MobCategory category, SnowSubZone zone) {
         boolean monster = category == MobCategory.MONSTER;
         return switch (biome) {
-            case PLAINS, FOREST, FLOWER_FOREST -> monster ? PLAINS_MONSTERS : PLAINS_CREATURES;
+            case PLAINS -> monster ? PLAINS_MONSTERS : PLAINS_CREATURES;
+            case FOREST -> monster ? PLAINS_MONSTERS : FOREST_CREATURES;
+            case FLOWER_FOREST -> monster ? PLAINS_MONSTERS : FLOWER_FOREST_CREATURES;
             case DESERT -> monster ? DESERT_MONSTERS : DESERT_CREATURES;
             case SNOWY_PLAINS -> monster ? SNOW_MONSTERS : switch (zone) {
                 case SNOWY_PLAINS_FLAT -> SNOW_FLAT_CREATURES;
@@ -80,7 +92,9 @@ public final class MobSpawnTable {
     /** Cho biết biome đã có thú hoạt động để tránh đánh dấu khám phá quá sớm. */
     static boolean anyImplementedCreatures(BiomeType biome) {
         return switch (biome) {
-            case PLAINS, FOREST, FLOWER_FOREST -> PLAINS_CREATURES.hasImplementedType();
+            case PLAINS -> PLAINS_CREATURES.hasImplementedType();
+            case FOREST -> FOREST_CREATURES.hasImplementedType();
+            case FLOWER_FOREST -> FLOWER_FOREST_CREATURES.hasImplementedType();
             case DESERT -> DESERT_CREATURES.hasImplementedType();
             case SNOWY_PLAINS -> SNOW_FLAT_CREATURES.hasImplementedType()
                     || SNOW_GROVE_CREATURES.hasImplementedType() || SNOW_SLOPE_CREATURES.hasImplementedType();
