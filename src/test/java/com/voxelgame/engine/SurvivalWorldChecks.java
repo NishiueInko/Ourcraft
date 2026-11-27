@@ -1,17 +1,27 @@
 package com.voxelgame.engine;
 
+import com.voxelgame.client.gui.DebugOverlayRenderer;
+import com.voxelgame.client.gui.GuiTextureAtlas;
+import com.voxelgame.client.gui.InventoryScreen;
+import com.voxelgame.client.gui.UIRenderer;
+import com.voxelgame.client.render.Camera;
+import com.voxelgame.world.effect.StatusEffectType;
+import com.voxelgame.world.entity.ItemEntity;
+import com.voxelgame.world.entity.player.Hotbar;
+import com.voxelgame.world.entity.player.Player;
+import com.voxelgame.world.entity.player.PlayerInventory;
+import com.voxelgame.world.item.Item;
+import com.voxelgame.world.level.block.Block;
+import com.voxelgame.world.level.block.OakLeavesBlock;
+import com.voxelgame.world.level.block.SpruceLeavesBlock;
+import com.voxelgame.world.level.LeafDecaySystem;
+import com.voxelgame.world.level.World;
+
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.GdxNativesLoader;
-import com.voxelgame.entity.Block;
-import com.voxelgame.entity.Item;
-import com.voxelgame.entity.ItemEntity;
-import com.voxelgame.entity.Player;
-import com.voxelgame.entity.PlayerInventory;
-import com.voxelgame.entity.StatusEffectType;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Proxy;
@@ -147,7 +157,7 @@ public final class SurvivalWorldChecks {
      * Kiểm tra tương tác kéo thả, chia đôi stack, đặt từng đơn vị và Shift-Click trên túi đồ 36 ô.
      */
     private static void checkInventorySlotInteractions() {
-        InventoryScreenRenderer screen = new InventoryScreenRenderer();
+        InventoryScreen screen = new InventoryScreen();
         World world = World.empty();
         try {
             Player player = new Player(10.5f, 11f, 10.5f);
@@ -160,21 +170,21 @@ public final class SurvivalWorldChecks {
             // 1. Hoán đổi 2 ô bằng LEFT_CLICK: ô 9 (balo) và ô 0 (Hotbar)
             inv.setSlot(9, Block.STONE, 10);
             inv.setSlot(0, Block.OAK_LOG, 5);
-            require(screen.handleSlotInteraction(inv, 9, InventoryScreenRenderer.LEFT_CLICK, false),
+            require(screen.handleSlotInteraction(inv, 9, InventoryScreen.LEFT_CLICK, false),
                     "Nhấn chuột trái vào ô 9 phải nhặt stack lên con trỏ");
             require(screen.getCursorItem() == Item.of(Block.STONE) && screen.getCursorCount() == 10,
                     "Con trỏ phải cầm 10 Stone");
             require(inv.getItem(9) == Item.NONE && inv.getCount(9) == 0,
                     "Ô 9 phải trống sau khi nhặt lên con trỏ");
 
-            require(screen.handleSlotInteraction(inv, 0, InventoryScreenRenderer.LEFT_CLICK, false),
+            require(screen.handleSlotInteraction(inv, 0, InventoryScreen.LEFT_CLICK, false),
                     "Nhấn chuột trái vào ô 0 phải hoán đổi Stone và Oak Log");
             require(inv.getItem(0) == Item.of(Block.STONE) && inv.getCount(0) == 10,
                     "Ô 0 phải nhận 10 Stone");
             require(screen.getCursorItem() == Item.of(Block.OAK_LOG) && screen.getCursorCount() == 5,
                     "Con trỏ phải cầm lại 5 Oak Log từ ô 0");
 
-            require(screen.handleSlotInteraction(inv, 9, InventoryScreenRenderer.LEFT_CLICK, false),
+            require(screen.handleSlotInteraction(inv, 9, InventoryScreen.LEFT_CLICK, false),
                     "Đặt 5 Oak Log vào ô 9 trống");
             require(inv.getItem(9) == Item.of(Block.OAK_LOG) && inv.getCount(9) == 5,
                     "Ô 9 phải chứa 5 Oak Log sau khi hoàn tất hoán đổi");
@@ -184,26 +194,26 @@ public final class SurvivalWorldChecks {
             // 2. Chia đôi stack bằng RIGHT_CLICK (16 -> cầm 8, để lại 8) và thả 1 đơn vị bằng RIGHT_CLICK
             inv.setSlot(10, Block.DIRT, 16);
             inv.setSlot(11, Item.NONE, 0);
-            require(screen.handleSlotInteraction(inv, 10, InventoryScreenRenderer.RIGHT_CLICK, false),
+            require(screen.handleSlotInteraction(inv, 10, InventoryScreen.RIGHT_CLICK, false),
                     "Chuột phải vào ô có 16 Dirt phải chia đôi");
             require(screen.getCursorItem() == Item.of(Block.DIRT) && screen.getCursorCount() == 8,
                     "Con trỏ phải cầm đúng 8 Dirt khi chia đôi 16");
             require(inv.getItem(10) == Item.of(Block.DIRT) && inv.getCount(10) == 8,
                     "Ô 10 phải giữ lại đúng 8 Dirt");
 
-            require(screen.handleSlotInteraction(inv, 11, InventoryScreenRenderer.RIGHT_CLICK, false),
+            require(screen.handleSlotInteraction(inv, 11, InventoryScreen.RIGHT_CLICK, false),
                     "Chuột phải vào ô 11 trống phải thả 1 Dirt");
             require(inv.getItem(11) == Item.of(Block.DIRT) && inv.getCount(11) == 1,
                     "Ô 11 phải nhận đúng 1 Dirt");
             require(screen.getCursorCount() == 7, "Con trỏ phải còn 7 Dirt sau khi thả 1");
 
-            require(screen.handleSlotInteraction(inv, 11, InventoryScreenRenderer.RIGHT_CLICK, false),
+            require(screen.handleSlotInteraction(inv, 11, InventoryScreen.RIGHT_CLICK, false),
                     "Chuột phải lần nữa vào ô 11 cùng loại phải cộng thêm 1 Dirt");
             require(inv.getCount(11) == 2 && screen.getCursorCount() == 6,
                     "Ô 11 phải tăng lên 2 Dirt và con trỏ còn 6");
 
             // Trả phần còn lại về ô 10
-            require(screen.handleSlotInteraction(inv, 10, InventoryScreenRenderer.LEFT_CLICK, false),
+            require(screen.handleSlotInteraction(inv, 10, InventoryScreen.LEFT_CLICK, false),
                     "Chuột trái vào ô 10 phải gộp 6 Dirt còn lại vào 8 Dirt");
             require(inv.getCount(10) == 14 && screen.getCursorItem() == Item.NONE,
                     "Ô 10 phải thành 14 Dirt và con trỏ trống");
@@ -212,7 +222,7 @@ public final class SurvivalWorldChecks {
             PlayerInventory quickInv = new PlayerInventory();
             // Hotbar mặc định: ô 2 có 16 Stone, ô 5 trống
             quickInv.setSlot(9, Block.STONE, 10);
-            require(screen.handleSlotInteraction(quickInv, 9, InventoryScreenRenderer.LEFT_CLICK, true),
+            require(screen.handleSlotInteraction(quickInv, 9, InventoryScreen.LEFT_CLICK, true),
                     "Shift-Click Stone từ ô balo 9 phải chuyển về Hotbar");
             require(quickInv.getItem(2) == Item.of(Block.STONE) && quickInv.getCount(2) == 26,
                     "Shift-Click phải ưu tiên gộp vào stack Stone sẵn có ở ô Hotbar 2 (16+10=26)");
@@ -221,14 +231,14 @@ public final class SurvivalWorldChecks {
 
             // Chuyển item chưa có trên Hotbar -> phải vào ô trống đầu tiên (ô 5)
             quickInv.setSlot(12, Item.IRON_INGOT, 12);
-            require(screen.handleSlotInteraction(quickInv, 12, InventoryScreenRenderer.LEFT_CLICK, true),
+            require(screen.handleSlotInteraction(quickInv, 12, InventoryScreen.LEFT_CLICK, true),
                     "Shift-Click Iron Ingot từ ô 12 phải chuyển vào ô Hotbar trống đầu tiên");
             require(quickInv.getItem(5) == Item.IRON_INGOT && quickInv.getCount(5) == 12,
                     "Ô Hotbar 5 phải nhận 12 Iron Ingot");
             require(quickInv.getItem(12) == Item.NONE, "Ô 12 phải trống sau khi Shift-Click");
 
             // Chuyển ngược từ Hotbar ô 5 về balo (phải vào ô trống đầu tiên của balo là ô 9)
-            require(screen.handleSlotInteraction(quickInv, 5, InventoryScreenRenderer.LEFT_CLICK, true),
+            require(screen.handleSlotInteraction(quickInv, 5, InventoryScreen.LEFT_CLICK, true),
                     "Shift-Click từ Hotbar ô 5 phải chuyển về balo");
             require(quickInv.getItem(9) == Item.IRON_INGOT && quickInv.getCount(9) == 12,
                     "Ô balo 9 phải nhận lại 12 Iron Ingot");
@@ -249,7 +259,7 @@ public final class SurvivalWorldChecks {
             require(hitX >= 0f, "Phải xác định được tọa độ pixel của ô balo 15 trên màn hình 1280x720");
             player.getInventory().setSlot(15, Item.IRON_INGOT, 4);
             require(screen.handleClick(player.getInventory(), hitX, hitY, 1280, 720,
-                    InventoryScreenRenderer.LEFT_CLICK, false),
+                    InventoryScreen.LEFT_CLICK, false),
                     "handleClick tại ô 15 phải xử lý nhặt 4 Iron Ingot lên con trỏ");
             require(screen.getCursorItem() == Item.IRON_INGOT && screen.getCursorCount() == 4,
                     "Con trỏ đang cầm 4 Iron Ingot trước khi đóng túi đồ");

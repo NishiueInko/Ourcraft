@@ -1,16 +1,18 @@
 package com.voxelgame.engine;
 
-import com.voxelgame.entity.Block;
-import com.voxelgame.entity.DamageSource;
-import com.voxelgame.entity.Player;
-import com.voxelgame.entity.StatusEffectType;
-import com.voxelgame.entity.mob.CamelHusk;
-import com.voxelgame.entity.mob.Husk;
-import com.voxelgame.entity.mob.MobAttitude;
-import com.voxelgame.entity.mob.MobEntity;
-import com.voxelgame.entity.mob.MobType;
-import com.voxelgame.entity.mob.Parched;
-import com.voxelgame.entity.projectile.ProjectileEntity;
+import com.voxelgame.world.effect.StatusEffectType;
+import com.voxelgame.world.entity.DamageSource;
+import com.voxelgame.world.entity.mob.animal.Camel;
+import com.voxelgame.world.entity.mob.MobAttitude;
+import com.voxelgame.world.entity.mob.MobEntity;
+import com.voxelgame.world.entity.mob.MobType;
+import com.voxelgame.world.entity.mob.monster.CamelHusk;
+import com.voxelgame.world.entity.mob.monster.Husk;
+import com.voxelgame.world.entity.mob.monster.Parched;
+import com.voxelgame.world.entity.player.Player;
+import com.voxelgame.world.entity.projectile.ProjectileEntity;
+import com.voxelgame.world.level.block.Block;
+import com.voxelgame.world.level.World;
 
 /** Kiểm tra bộ kỵ sĩ sa mạc, tấn công bằng giáo và trao lại quyền điều khiển. */
 final class CamelHuskBehaviorChecks {

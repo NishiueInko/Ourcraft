@@ -1,6 +1,10 @@
 package com.voxelgame.engine;
 
-import com.voxelgame.entity.Block;
+import com.voxelgame.world.level.biome.BiomeType;
+import com.voxelgame.world.level.block.Block;
+import com.voxelgame.world.level.gen.DesertPyramid;
+import com.voxelgame.world.level.gen.TerrainGenerator;
+import com.voxelgame.world.level.World;
 
 import java.util.Arrays;
 

@@ -1,12 +1,14 @@
 package com.voxelgame.engine;
 
-import com.badlogic.gdx.math.Vector3;
-import com.voxelgame.entity.Block;
-import com.voxelgame.entity.Player;
-import com.voxelgame.entity.mob.Donkey;
-import com.voxelgame.entity.mob.Horse;
-import com.voxelgame.entity.mob.MountableMob;
+import com.voxelgame.client.render.entity.MobAppearance;
+import com.voxelgame.world.entity.mob.animal.Donkey;
+import com.voxelgame.world.entity.mob.animal.Horse;
+import com.voxelgame.world.entity.mob.MountableMob;
+import com.voxelgame.world.entity.player.Player;
+import com.voxelgame.world.level.block.Block;
+import com.voxelgame.world.level.World;
 
+import com.badlogic.gdx.math.Vector3;
 import java.util.Random;
 
 /** Xác minh cơ chế cưỡi ngựa và lừa bằng vòng cập nhật vật lý thật. */
@@ -60,7 +62,7 @@ final class EquineMountChecks {
     /** Thú đã thuần cố định chỉ số để kiểm tra riêng va chạm của ghế. */
     private static final class TestMount extends MountableMob {
         private TestMount(float x, float y, float z) {
-            super(com.voxelgame.entity.mob.MobType.DONKEY, x, y, z, 1, 1f, 7.5f, 2.1f, true);
+            super(com.voxelgame.world.entity.mob.MobType.DONKEY, x, y, z, 1, 1f, 7.5f, 2.1f, true);
         }
     }
 

@@ -1,13 +1,19 @@
 package com.voxelgame.engine;
 
+import com.voxelgame.client.render.Camera;
+import com.voxelgame.world.entity.FallingBlockEntity;
+import com.voxelgame.world.entity.mob.MobCategory;
+import com.voxelgame.world.entity.mob.MobEntity;
+import com.voxelgame.world.entity.mob.MobSpawner;
+import com.voxelgame.world.entity.mob.MobType;
+import com.voxelgame.world.entity.mob.monster.Enderman;
+import com.voxelgame.world.entity.mob.monster.Skeleton;
+import com.voxelgame.world.entity.player.Player;
+import com.voxelgame.world.level.block.Block;
+import com.voxelgame.world.level.weather.WeatherManager;
+import com.voxelgame.world.level.World;
+
 import com.badlogic.gdx.math.Vector3;
-import com.voxelgame.entity.Block;
-import com.voxelgame.entity.FallingBlockEntity;
-import com.voxelgame.entity.Player;
-import com.voxelgame.entity.mob.Enderman;
-import com.voxelgame.entity.mob.MobCategory;
-import com.voxelgame.entity.mob.MobEntity;
-import com.voxelgame.entity.mob.MobType;
 
 /** Kiểm tra hành vi thù địch qua vòng mô phỏng thực mà không cần đồ họa. */
 final class HostileMobChecks {

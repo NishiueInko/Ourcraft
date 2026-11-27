@@ -1,14 +1,20 @@
 package com.voxelgame.engine;
 
-import com.voxelgame.entity.Block;
-import com.voxelgame.entity.DamageSource;
-import com.voxelgame.entity.Player;
+import com.voxelgame.client.render.Camera;
+import com.voxelgame.client.render.entity.MobAppearance;
+import com.voxelgame.client.render.entity.MobVisualState;
+import com.voxelgame.world.entity.DamageSource;
+import com.voxelgame.world.entity.mob.animal.PolarBear;
+import com.voxelgame.world.entity.mob.MobEntity;
+import com.voxelgame.world.entity.mob.MobType;
+import com.voxelgame.world.entity.mob.monster.Stray;
+import com.voxelgame.world.entity.player.Player;
+import com.voxelgame.world.entity.projectile.ArrowEntity;
+import com.voxelgame.world.entity.projectile.ArrowType;
+import com.voxelgame.world.level.block.Block;
+import com.voxelgame.world.level.World;
+
 import com.badlogic.gdx.math.Vector3;
-import com.voxelgame.entity.projectile.ArrowEntity;
-import com.voxelgame.entity.projectile.ArrowType;
-import com.voxelgame.entity.mob.MobEntity;
-import com.voxelgame.entity.mob.MobType;
-import com.voxelgame.entity.mob.PolarBear;
 
 /** Kiểm tra hành vi của dê, gấu Bắc Cực và sói bằng nhịp mô phỏng CPU. */
 final class NeutralSnowChecks {

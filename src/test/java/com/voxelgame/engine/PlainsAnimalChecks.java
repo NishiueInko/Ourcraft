@@ -1,14 +1,16 @@
 package com.voxelgame.engine;
 
-import com.voxelgame.entity.Block;
-import com.voxelgame.entity.DamageSource;
-import com.voxelgame.entity.Player;
-import com.voxelgame.entity.mob.Chicken;
-import com.voxelgame.entity.mob.Cow;
-import com.voxelgame.entity.mob.MobAttitude;
-import com.voxelgame.entity.mob.MobEntity;
-import com.voxelgame.entity.mob.Pig;
-import com.voxelgame.entity.mob.Sheep;
+import com.voxelgame.client.render.entity.MobVisualState;
+import com.voxelgame.world.entity.DamageSource;
+import com.voxelgame.world.entity.mob.animal.Chicken;
+import com.voxelgame.world.entity.mob.animal.Cow;
+import com.voxelgame.world.entity.mob.animal.Pig;
+import com.voxelgame.world.entity.mob.animal.Sheep;
+import com.voxelgame.world.entity.mob.MobAttitude;
+import com.voxelgame.world.entity.mob.MobEntity;
+import com.voxelgame.world.entity.player.Player;
+import com.voxelgame.world.level.block.Block;
+import com.voxelgame.world.level.World;
 
 /** Kiểm tra chỉ số và hành vi của bốn loài hiền lành ở Plains trên CPU. */
 final class PlainsAnimalChecks {

@@ -1,16 +1,23 @@
 package com.voxelgame.engine;
 
+import com.voxelgame.client.render.Camera;
+import com.voxelgame.client.render.ItemTextureAtlas;
+import com.voxelgame.client.render.Texture;
+import com.voxelgame.VoxelGameApp;
+import com.voxelgame.world.entity.player.Player;
+import com.voxelgame.world.item.Item;
+import com.voxelgame.world.level.block.Block;
+import com.voxelgame.world.level.block.WoolBlock;
+import com.voxelgame.world.level.World;
+import com.voxelgame.world.physics.Raycast;
+
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.utils.GdxNativesLoader;
-import com.voxelgame.entity.Block;
-import com.voxelgame.entity.Item;
-import com.voxelgame.entity.Player;
 import java.io.InputStream;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.InputEventQueue;
 import com.badlogic.gdx.math.Vector3;
-import com.voxelgame.VoxelGameApp;
 import java.lang.reflect.Proxy;
 
 /** Chạy kiểm tra hồi quy của các hệ thống voxel mà không khởi tạo OpenGL. */
@@ -39,6 +46,7 @@ public final class VoxelRegressionChecks {
         EnvironmentChecks.run();
         VisualsLightingChecks.run();
         SurvivalWorldChecks.run();
+        OopArchitectureChecks.run();
         System.out.println("Các kiểm tra hồi quy voxel đã qua.");
     }
 

@@ -1,12 +1,14 @@
 package com.voxelgame.engine;
 
-import com.voxelgame.entity.Block;
-import com.voxelgame.entity.Player;
-import com.voxelgame.entity.mob.MobEntity;
-import com.voxelgame.entity.mob.MobGoal;
-import com.voxelgame.entity.mob.MobGoalSelector;
-import com.voxelgame.entity.mob.MobGoals;
-import com.voxelgame.entity.mob.MobType;
+import com.voxelgame.world.entity.mob.ai.MobGoal;
+import com.voxelgame.world.entity.mob.ai.MobGoals;
+import com.voxelgame.world.entity.mob.ai.MobGoalSelector;
+import com.voxelgame.world.entity.mob.MobEntity;
+import com.voxelgame.world.entity.mob.MobType;
+import com.voxelgame.world.entity.player.Hotbar;
+import com.voxelgame.world.entity.player.Player;
+import com.voxelgame.world.level.block.Block;
+import com.voxelgame.world.level.World;
 
 /** Kiểm tra bộ chọn mục tiêu AI, thứ tự ưu tiên và vòng đời các kênh điều khiển. */
 final class MobGoalChecks {

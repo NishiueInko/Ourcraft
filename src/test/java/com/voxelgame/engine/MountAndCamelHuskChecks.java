@@ -1,15 +1,21 @@
 package com.voxelgame.engine;
 
-import com.voxelgame.entity.Block;
-import com.voxelgame.entity.Player;
-import com.voxelgame.entity.mob.Camel;
-import com.voxelgame.entity.mob.CamelHusk;
-import com.voxelgame.entity.mob.Horse;
-import com.voxelgame.entity.mob.Husk;
-import com.voxelgame.entity.mob.MobCategory;
-import com.voxelgame.entity.mob.MountableMob;
-import com.voxelgame.entity.mob.MobType;
-import com.voxelgame.entity.mob.Parched;
+import com.voxelgame.client.render.entity.MobAppearance;
+import com.voxelgame.world.entity.mob.animal.Camel;
+import com.voxelgame.world.entity.mob.animal.Horse;
+import com.voxelgame.world.entity.mob.MobCategory;
+import com.voxelgame.world.entity.mob.MobSpawner;
+import com.voxelgame.world.entity.mob.MobSpawnTable;
+import com.voxelgame.world.entity.mob.MobType;
+import com.voxelgame.world.entity.mob.monster.CamelHusk;
+import com.voxelgame.world.entity.mob.monster.Husk;
+import com.voxelgame.world.entity.mob.monster.Parched;
+import com.voxelgame.world.entity.mob.MountableMob;
+import com.voxelgame.world.entity.player.Player;
+import com.voxelgame.world.level.biome.BiomeType;
+import com.voxelgame.world.level.block.Block;
+import com.voxelgame.world.level.World;
+import com.voxelgame.world.level.WorldTime;
 
 import java.util.Random;
 

@@ -1,7 +1,13 @@
 package com.voxelgame.engine;
 
+import com.voxelgame.world.level.biome.BiomeType;
+import com.voxelgame.world.level.block.Block;
+import com.voxelgame.world.level.Chunk;
+import com.voxelgame.world.level.gen.DesertPyramid;
+import com.voxelgame.world.level.gen.TerrainGenerator;
+import com.voxelgame.world.level.World;
+
 import com.badlogic.gdx.math.Vector3;
-import com.voxelgame.entity.Block;
 
 /** Kiểm tra CPU cho vùng khí hậu và tính liên tục của địa hình. */
 final class TerrainGenerationChecks {

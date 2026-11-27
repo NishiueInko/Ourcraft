@@ -1,16 +1,18 @@
 package com.voxelgame.engine;
 
-import com.voxelgame.entity.Block;
-import com.voxelgame.entity.DamageSource;
-import com.voxelgame.entity.Player;
-import com.voxelgame.entity.StatusEffectType;
-import com.voxelgame.entity.mob.Creeper;
-import com.voxelgame.entity.mob.Enderman;
-import com.voxelgame.entity.mob.Husk;
-import com.voxelgame.entity.mob.MobAttitude;
-import com.voxelgame.entity.mob.Spider;
-import com.voxelgame.entity.mob.Zombie;
-import com.voxelgame.entity.mob.ZombieVillager;
+import com.voxelgame.world.effect.StatusEffectType;
+import com.voxelgame.world.entity.DamageSource;
+import com.voxelgame.world.entity.mob.animal.Camel;
+import com.voxelgame.world.entity.mob.MobAttitude;
+import com.voxelgame.world.entity.mob.monster.Creeper;
+import com.voxelgame.world.entity.mob.monster.Enderman;
+import com.voxelgame.world.entity.mob.monster.Husk;
+import com.voxelgame.world.entity.mob.monster.Spider;
+import com.voxelgame.world.entity.mob.monster.Zombie;
+import com.voxelgame.world.entity.mob.monster.ZombieVillager;
+import com.voxelgame.world.entity.player.Player;
+import com.voxelgame.world.level.block.Block;
+import com.voxelgame.world.level.World;
 
 /** Kiểm tra hành vi của nhóm quái cận chiến bằng dữ liệu voxel và nhịp mô phỏng thật. */
 final class CloseHostileChecks {

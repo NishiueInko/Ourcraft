@@ -1,20 +1,22 @@
 package com.voxelgame.engine;
 
-import com.voxelgame.entity.Block;
-import com.voxelgame.entity.DamageSource;
-import com.voxelgame.entity.Entity;
-import com.voxelgame.entity.Player;
-import com.voxelgame.entity.StatusEffectType;
-import com.voxelgame.entity.mob.MobEntity;
-import com.voxelgame.entity.mob.MobType;
-import com.voxelgame.entity.mob.Parched;
-import com.voxelgame.entity.mob.Skeleton;
-import com.voxelgame.entity.mob.Stray;
-import com.voxelgame.entity.mob.Witch;
-import com.voxelgame.entity.projectile.ArrowEntity;
-import com.voxelgame.entity.projectile.PotionType;
-import com.voxelgame.entity.projectile.ProjectileEntity;
-import com.voxelgame.entity.projectile.ThrownPotionEntity;
+import com.voxelgame.client.render.entity.MobVisualState;
+import com.voxelgame.world.effect.StatusEffectType;
+import com.voxelgame.world.entity.DamageSource;
+import com.voxelgame.world.entity.Entity;
+import com.voxelgame.world.entity.mob.MobEntity;
+import com.voxelgame.world.entity.mob.MobType;
+import com.voxelgame.world.entity.mob.monster.Parched;
+import com.voxelgame.world.entity.mob.monster.Skeleton;
+import com.voxelgame.world.entity.mob.monster.Stray;
+import com.voxelgame.world.entity.mob.monster.Witch;
+import com.voxelgame.world.entity.player.Player;
+import com.voxelgame.world.entity.projectile.ArrowEntity;
+import com.voxelgame.world.entity.projectile.PotionType;
+import com.voxelgame.world.entity.projectile.ProjectileEntity;
+import com.voxelgame.world.entity.projectile.ThrownPotionEntity;
+import com.voxelgame.world.level.block.Block;
+import com.voxelgame.world.level.World;
 
 /** Kiểm tra AI đánh xa, nhắm mục tiêu và hiệu ứng của các mob bước bốn trên CPU. */
 final class RangedHostileChecks {

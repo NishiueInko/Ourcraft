@@ -1,10 +1,15 @@
 package com.voxelgame.engine;
 
+import com.voxelgame.client.render.Camera;
+import com.voxelgame.client.render.entity.MobVisualState;
+import com.voxelgame.world.entity.DamageSource;
+import com.voxelgame.world.entity.mob.animal.Camel;
+import com.voxelgame.world.entity.player.Hotbar;
+import com.voxelgame.world.entity.player.Player;
+import com.voxelgame.world.level.block.Block;
+import com.voxelgame.world.level.World;
+
 import com.badlogic.gdx.math.Vector3;
-import com.voxelgame.entity.Block;
-import com.voxelgame.entity.DamageSource;
-import com.voxelgame.entity.Player;
-import com.voxelgame.entity.mob.Camel;
 
 /** Kiểm tra lạc đà với địa hình và giao diện tương tác cũng dùng trong trò chơi. */
 final class CamelMountChecks {

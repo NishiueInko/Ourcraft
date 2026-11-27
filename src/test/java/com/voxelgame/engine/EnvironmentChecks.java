@@ -1,8 +1,13 @@
 package com.voxelgame.engine;
 
+import com.voxelgame.client.render.Camera;
+import com.voxelgame.world.entity.player.Player;
+import com.voxelgame.world.level.block.Block;
+import com.voxelgame.world.level.weather.WeatherManager;
+import com.voxelgame.world.level.World;
+import com.voxelgame.world.level.WorldTime;
+
 import com.badlogic.gdx.math.Vector3;
-import com.voxelgame.entity.Block;
-import com.voxelgame.entity.Player;
 
 /** Kiểm tra đồng hồ, chu kỳ thời tiết chuẩn Minecraft, tích tuyết và mái che trên CPU. */
 final class EnvironmentChecks {

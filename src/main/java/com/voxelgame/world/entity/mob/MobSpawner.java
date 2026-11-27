@@ -1,0 +1,628 @@
+package com.voxelgame.world.entity.mob;
+
+import com.voxelgame.client.render.entity.MobAppearance;
+import com.voxelgame.world.entity.mob.animal.Donkey;
+import com.voxelgame.world.entity.mob.animal.Horse;
+import com.voxelgame.world.entity.mob.animal.PolarBear;
+import com.voxelgame.world.entity.mob.MobCategory;
+import com.voxelgame.world.entity.mob.MobEntity;
+import com.voxelgame.world.entity.mob.MobType;
+import com.voxelgame.world.entity.mob.monster.CamelHusk;
+import com.voxelgame.world.entity.mob.monster.Husk;
+import com.voxelgame.world.entity.player.Player;
+import com.voxelgame.world.level.biome.BiomeType;
+import com.voxelgame.world.level.biome.SnowSubZone;
+import com.voxelgame.world.level.block.Block;
+import com.voxelgame.world.level.Chunk;
+import com.voxelgame.world.level.gen.DesertPyramid;
+import com.voxelgame.world.level.World;
+import com.voxelgame.world.level.WorldTime;
+
+import com.badlogic.gdx.math.MathUtils;
+import com.badlogic.gdx.math.Vector3;
+import java.util.Random;
+
+/** Điều phối lượt sinh tự nhiên và loại quái quá xa trên luồng cập nhật World. */
+public final class MobSpawner {
+    /** So sánh bình phương khoảng cách 3D để tránh căn bậc hai khi kiểm tra. */
+    private static final int MIN_SPAWN_DISTANCE = 24;
+    private static final int MAX_DISTANCE = 128;
+    private static final int MIN_SPAWN_DISTANCE_SQUARED = MIN_SPAWN_DISTANCE * MIN_SPAWN_DISTANCE;
+    public static final int MAX_DISTANCE_SQUARED = MAX_DISTANCE * MAX_DISTANCE;
+    private static final int MIN_DESPAWN_DISTANCE_SQUARED = 32 * 32;
+    /** Chu kỳ sinh tách riêng theo chuẩn Minecraft: quái 1 tick (0,05s), thú định kỳ 400 tick (20s), quét chunk mới 0,25s. */
+    public static final float MONSTER_INTERVAL = 0.05f;
+    public static final float CREATURE_INTERVAL = 20.0f;
+    private static final float POPULATION_INTERVAL = 0.25f;
+    private static final double TIMER_EPSILON = 1e-5d;
+    private static final int MONSTER_ATTEMPTS_PER_TICK = 1;
+    private static final int CREATURE_ATTEMPTS = 4;
+    private static final int POPULATION_COLUMNS = 6;
+    private static final int POPULATION_ATTEMPTS = 4;
+    private static final int PACK_ATTEMPTS = 16;
+    private static final int CHUNK_SPAN = (MAX_DISTANCE / Chunk.SIZE + 1) * 2 + 1;
+    /** Dung sai để chạm mặt đất mà không tính là đâm vào mặt đất. */
+    private static final float EPSILON = 0.001f;
+    /** Giới hạn các tầng thử ngầm và tầng tìm nền bên dưới tán. */
+    private static final int UNDERGROUND_SPAN = 19;
+    private static final int CANOPY_DEPTH = 14;
+    /** Chiều cao trống gồm lưng lạc đà xác sống và không gian cho kỵ sĩ. */
+    private static final float JOCKEY_HEIGHT = 4.38f;
+    private static final int TICKS_PER_SECOND = 20;
+    private static final int DESPAWN_DELAY_TICKS = 600;
+    private static final int DESPAWN_CHANCE_DIVISOR = 800;
+
+    private final long[] populated = new long[(World.WORLD_CHUNKS_X * World.WORLD_CHUNKS_Z + 63) >>> 6];
+    private final Random spawnRandom;
+    private final Random despawnRandom;
+    /** Bộ đệm vị trí người chơi dùng lại trên luồng World. */
+    private final Vector3 playerPosition = new Vector3();
+    /** Bộ đệm tính từng điểm ngồi trước khi đăng ký bộ kỵ sĩ. */
+    private final Vector3 jockeySeat = new Vector3();
+    private int populationCursor;
+    private double monsterElapsed;
+    private double populationElapsed;
+    private double creatureElapsed;
+    private boolean pyramidCamelSpawned;
+
+    /** Tách ngẫu nhiên biến mất khỏi lượt sinh và bầy khám phá. */
+    public MobSpawner(long seed) {
+        spawnRandom = new Random(seed);
+        despawnRandom = new Random(seed ^ 0x643B7935L);
+    }
+
+    /** Chạy từng nhịp sinh riêng biệt: quái 1 tick, khám phá chunk 0,25s, thú định kỳ 400 tick (20s). */
+    public void update(World world, WorldTime time, float dt) {
+        Player player = world.getPlayer();
+        if (player == null || !player.isAlive() || !(dt > 0) || !Float.isFinite(dt)) {
+            return;
+        }
+        boolean creatures = MobType.anyImplemented(MobCategory.CREATURE);
+        boolean monsters = MobType.anyImplemented(MobCategory.MONSTER);
+        if (!creatures && !monsters) {
+            return;
+        }
+
+        int monsterSteps = 0;
+        if (monsters) {
+            monsterElapsed += dt;
+            if (monsterElapsed + TIMER_EPSILON >= MONSTER_INTERVAL) {
+                monsterSteps = Math.min(5, (int) Math.floor((monsterElapsed + TIMER_EPSILON) / MONSTER_INTERVAL));
+                monsterElapsed = Math.max(0d, monsterElapsed - monsterSteps * (double) MONSTER_INTERVAL);
+            }
+        }
+        boolean runPopulation = false;
+        boolean runCreature = false;
+        if (creatures) {
+            populationElapsed += dt;
+            if (populationElapsed + TIMER_EPSILON >= POPULATION_INTERVAL) {
+                populationElapsed %= POPULATION_INTERVAL;
+                runPopulation = true;
+            }
+            creatureElapsed += dt;
+            if (creatureElapsed + TIMER_EPSILON >= CREATURE_INTERVAL) {
+                creatureElapsed %= CREATURE_INTERVAL;
+                runCreature = true;
+            }
+        }
+        if (monsterSteps == 0 && !runPopulation && !runCreature) {
+            return;
+        }
+
+        int creatureCount = 0;
+        int monsterCount = 0;
+        for (int i = 0; i < world.entityCount(); i++) {
+            if (world.entityAt(i) instanceof MobEntity mob && mob.isAlive()
+                    && distanceSquared(mob, player) <= MAX_DISTANCE_SQUARED) {
+                if (mob.type().category() == MobCategory.MONSTER) {
+                    monsterCount++;
+                } else {
+                    creatureCount++;
+                }
+            }
+        }
+
+        if (monsterSteps > 0) {
+            int monsterRoom = MobCategory.MONSTER.cap() - monsterCount;
+            for (int step = 0; step < monsterSteps && monsterRoom > 0; step++) {
+                for (int i = 0; i < MONSTER_ATTEMPTS_PER_TICK && monsterRoom > 0; i++) {
+                    monsterRoom -= sampleAroundPlayer(world, time, MobCategory.MONSTER, monsterRoom);
+                }
+            }
+        }
+
+        if (runPopulation) {
+            if (!pyramidCamelSpawned && MobType.CAMEL.implemented()) {
+                if (trySpawnPyramidCamel(world)) {
+                    creatureCount++;
+                }
+            }
+            creatureCount += populateNearbyChunks(world, time);
+        }
+        if (runCreature) {
+            int creatureRoom = MobCategory.CREATURE.cap() - creatureCount;
+            for (int i = 0; i < CREATURE_ATTEMPTS && creatureRoom > 0; i++) {
+                creatureRoom -= sampleAroundPlayer(world, time, MobCategory.CREATURE, creatureRoom);
+            }
+        }
+    }
+
+    /** Sinh cố định một con Camel hiền lành gần kim tự tháp sa mạc khi người chơi khám phá tới nơi. */
+    private boolean trySpawnPyramidCamel(World world) {
+        DesertPyramid pyramid = world.desertPyramid();
+        if (pyramid == null) {
+            return false;
+        }
+        Vector3 player = world.getPlayer().copyPosition(playerPosition);
+        float dx = pyramid.centerX() + 0.5f - player.x;
+        float dy = pyramid.baseY() + 1f - player.y;
+        float dz = pyramid.centerZ() + 0.5f - player.z;
+        if (dx * dx + dy * dy + dz * dz > MAX_DISTANCE_SQUARED) {
+            return false;
+        }
+        // Ưu tiên phía cửa nam kim tự tháp trước, sau đó quét các vành xung quanh.
+        for (int z = pyramid.centerZ() + 12; z <= pyramid.centerZ() + 20; z++) {
+            for (int x = pyramid.centerX() - 6; x <= pyramid.centerX() + 6; x++) {
+                if (spawnPyramidCamelAt(world, x, z, pyramid.baseY())) {
+                    return true;
+                }
+            }
+        }
+        for (int radius = 12; radius <= 20; radius++) {
+            for (int offsetX = -radius; offsetX <= radius; offsetX++) {
+                for (int offsetZ = -radius; offsetZ <= radius; offsetZ++) {
+                    if (Math.max(Math.abs(offsetX), Math.abs(offsetZ)) != radius) {
+                        continue;
+                    }
+                    if (spawnPyramidCamelAt(world, pyramid.centerX() + offsetX, pyramid.centerZ() + offsetZ,
+                            pyramid.baseY())) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /** Kiểm tra cột cát hoặc đá cát ngoài trời gần kim tự tháp và đặt Camel trưởng thành. */
+    private boolean spawnPyramidCamelAt(World world, int x, int z, int refY) {
+        if (!world.isInsideWorld(x, 0, z) || world.getBiome(x, z) != BiomeType.DESERT) {
+            return false;
+        }
+        int topY = Math.min(World.WORLD_SIZE_Y - 4, refY + 12);
+        int bottomY = Math.max(1, refY - 12);
+        for (int y = topY; y >= bottomY; y--) {
+            Block ground = Block.fromId(world.getBlock(x, y, z));
+            if (ground != Block.SAND && ground != Block.SANDSTONE) {
+                continue;
+            }
+            Block.Bounds bounds = ground.getCollisionBounds(world.getBlockState(x, y, z));
+            if (bounds == null) {
+                continue;
+            }
+            float feet = y + bounds.maxY();
+            if (hasClearance(world, x + 0.5f, feet, z + 0.5f, MobType.CAMEL.width(), MobType.CAMEL.height())) {
+                MobEntity camel = MobType.CAMEL.create(x + 0.5f, feet, z + 0.5f);
+                if (camel == null) {
+                    return false;
+                }
+                camel.setBaby(false);
+                camel.setPersistent(true);
+                world.addEntity(camel);
+                pyramidCamelSpawned = true;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Duyệt dần tọa độ chunk mới trong vành hoạt động, ghi một bit sau lần xét đầu tiên. */
+    private int populateNearbyChunks(World world, WorldTime time) {
+        Vector3 player = world.getPlayer().copyPosition(playerPosition);
+        int centerChunkX = Math.floorDiv(MathUtils.floor(player.x), Chunk.SIZE);
+        int centerChunkZ = Math.floorDiv(MathUtils.floor(player.z), Chunk.SIZE);
+        int created = 0;
+        for (int i = 0; i < POPULATION_COLUMNS; i++) {
+            int chunkX = centerChunkX + populationCursor / CHUNK_SPAN - CHUNK_SPAN / 2;
+            int chunkZ = centerChunkZ + populationCursor % CHUNK_SPAN - CHUNK_SPAN / 2;
+            populationCursor = (populationCursor + 1) % (CHUNK_SPAN * CHUNK_SPAN);
+            if (chunkX < 0 || chunkX >= World.WORLD_CHUNKS_X || chunkZ < 0 || chunkZ >= World.WORLD_CHUNKS_Z) {
+                continue;
+            }
+            int x0 = chunkX * Chunk.SIZE;
+            int z0 = chunkZ * Chunk.SIZE;
+            int centerX = Math.min(World.WORLD_SIZE_X - 1, x0 + Chunk.SIZE / 2);
+            int centerZ = z0 + Chunk.SIZE / 2;
+            float dx = centerX + 0.5f - player.x;
+            float dz = centerZ + 0.5f - player.z;
+            float horizontal = dx * dx + dz * dz;
+            if (horizontal > MAX_DISTANCE_SQUARED) {
+                continue;
+            }
+            int bit = chunkX * World.WORLD_CHUNKS_Z + chunkZ;
+            int index = bit >>> 6;
+            long mask = 1L << (bit & 63);
+            if ((populated[index] & mask) != 0L) {
+                continue;
+            }
+            float surface = world.getPrecipitationSurface(centerX, centerZ);
+            float dy = surface - player.y;
+            float distance = horizontal + dy * dy;
+            if (surface <= 0 || distance < MIN_SPAWN_DISTANCE_SQUARED || distance > MAX_DISTANCE_SQUARED) {
+                continue;
+            }
+            BiomeType biome = world.getBiome(centerX, centerZ);
+            if (!MobSpawnTable.anyImplementedCreatures(biome) || biome.hasRain() && !isDaylight(time)) {
+                continue;
+            }
+            populated[index] |= mask;
+            if (spawnRandom.nextInt(10) != 0) {
+                continue;
+            }
+            for (int attempt = 0; attempt < POPULATION_ATTEMPTS; attempt++) {
+                int x = x0 + spawnRandom.nextInt(Chunk.SIZE);
+                int z = z0 + spawnRandom.nextInt(Chunk.SIZE);
+                int count = spawnPack(world, time, MobCategory.CREATURE, x, z, Integer.MAX_VALUE);
+                if (count > 0) {
+                    created += count;
+                    break;
+                }
+            }
+        }
+        return created;
+    }
+
+    /** Chọn ô ngang bằng lấy mẫu đều trên hình vuông rồi loại điểm ngoài vành. */
+    private int sampleAroundPlayer(World world, WorldTime time, MobCategory category, int room) {
+        Vector3 player = world.getPlayer().copyPosition(playerPosition);
+        int dx = spawnRandom.nextInt(2 * MAX_DISTANCE + 1) - MAX_DISTANCE;
+        int dz = spawnRandom.nextInt(2 * MAX_DISTANCE + 1) - MAX_DISTANCE;
+        return spawnPack(world, time, category, MathUtils.floor(player.x) + dx, MathUtils.floor(player.z) + dz, room);
+    }
+
+    /** Chọn loài một lần và thử sinh các thành viên gần điểm gốc cùng biome và phân vùng. */
+    public int spawnPack(World world, WorldTime time, MobCategory category, int x, int z, int room) {
+        if (!world.isInsideWorld(x, 0, z)) {
+            return 0;
+        }
+        Vector3 player = world.getPlayer().copyPosition(playerPosition);
+        float dx = x + 0.5f - player.x;
+        float dz = z + 0.5f - player.z;
+        if (dx * dx + dz * dz > MAX_DISTANCE_SQUARED) {
+            return 0;
+        }
+        BiomeType biome = world.getBiome(x, z);
+        if (category == MobCategory.CREATURE && biome.hasRain() && !isDaylight(time)) {
+            return 0;
+        }
+        float surface = world.getPrecipitationSurface(x, z);
+        boolean nearSurface = category == MobCategory.CREATURE || isNightDark(time) && spawnRandom.nextInt(4) != 0;
+        int topY = MathUtils.floor(nearSurface ? surface - EPSILON
+                : Math.min(surface - 1, MathUtils.floor(player.y) + spawnRandom.nextInt(11)));
+        if (topY < 0) {
+            return 0;
+        }
+        if (category == MobCategory.CREATURE) {
+            topY = terrainBelowCanopy(world, x, topY, z);
+        }
+        SnowSubZone zone = category == MobCategory.CREATURE && biome == BiomeType.SNOWY_PLAINS
+                ? SnowSubZone.classify(world, x, topY + 1, z) : null;
+        MobSpawnTable table = MobSpawnTable.forBiome(biome, category, zone);
+        MobSpawnTable.Entry entry = table.select(spawnRandom.nextInt(table.totalWeight()));
+        MobType type = entry.type();
+        if (!type.implemented()) {
+            return 0;
+        }
+
+        float feet = findSpawnFeet(world, time, type, x, z, topY, nearSurface ? CANOPY_DEPTH : UNDERGROUND_SPAN);
+        if (feet < 0 || !matchesSnowZone(world, zone, x, feet, z)) {
+            return 0;
+        }
+        int desired = entry.minPackSize() + spawnRandom.nextInt(entry.maxPackSize() - entry.minPackSize() + 1);
+        MobAppearance coat = type == MobType.HORSE ? Horse.randomCoat(spawnRandom) : null;
+        int first = spawnMember(world, time, type, x + 0.5f, feet, z + 0.5f, room, false, coat);
+        int created = first;
+        int members = first == 0 ? 0 : 1;
+        for (int attempt = 0; attempt < PACK_ATTEMPTS && members < desired && created < room; attempt++) {
+            int packX = x + spawnRandom.nextInt(11) - 5;
+            int packZ = z + spawnRandom.nextInt(11) - 5;
+            if (!world.isInsideWorld(packX, 0, packZ) || world.getBiome(packX, packZ) != biome) {
+                continue;
+            }
+            int packTop = MathUtils.floor(feet + 2 - EPSILON);
+            float packFeet = findSpawnFeet(world, time, type, packX, packZ, packTop, 5);
+            if (packFeet < 0 || !matchesSnowZone(world, zone, packX, packFeet, packZ)) {
+                continue;
+            }
+            boolean bearCub = type == MobType.POLAR_BEAR && members == 1;
+            int added = spawnMember(world, time, type, packX + 0.5f, packFeet, packZ + 0.5f,
+                    room - created, bearCub, coat);
+            if (added > 0) {
+                created += added;
+                members++;
+            }
+        }
+        return created;
+    }
+
+    /** Bỏ qua tán hoặc thân cây khi lấy cao độ để phân vùng địa hình sinh thú. */
+    private static int terrainBelowCanopy(World world, int x, int topY, int z) {
+        for (int y = topY; y >= Math.max(0, topY - CANOPY_DEPTH); y--) {
+            Block block = Block.fromId(world.getBlock(x, y, z));
+            if (block != Block.OAK_LEAVES && block != Block.SPRUCE_LEAVES
+                    && block != Block.OAK_LOG && block != Block.SPRUCE_LOG
+                    && (block.isLiquid() || world.getCollisionBounds(x, y, z) != null)) {
+                return y;
+            }
+        }
+        return topY;
+    }
+
+    /** Chỉ áp dụng phân vùng tuyết cho các loại thú có bảng riêng. */
+    private static boolean matchesSnowZone(World world, SnowSubZone zone, int x, float feet, int z) {
+        return zone == null || zone == SnowSubZone.classify(world, x, MathUtils.ceil(feet), z);
+    }
+
+    /** Duyệt một đoạn cột ngắn cho mặt cỏ, dưới tán hoặc dải tầng hầm đã chọn. */
+    private float findSpawnFeet(World world, WorldTime time, MobType type, int x, int z, int topY, int depth) {
+        int bottom = Math.max(0, topY - depth + 1);
+        for (int y = Math.min(topY, World.WORLD_SIZE_Y - 1); y >= bottom; y--) {
+            Block ground = Block.fromId(world.getBlock(x, y, z));
+            Block.Bounds bounds = ground.getCollisionBounds(world.getBlockState(x, y, z));
+            if (bounds != null) {
+                float feet = y + bounds.maxY();
+                int feetCell = MathUtils.floor(feet + EPSILON);
+                Block.Bounds above = feetCell == y ? null : world.getCollisionBounds(x, feetCell, z);
+                if ((above == null || above.minY() > EPSILON) && canSpawn(world, type, x + 0.5f, feet, z + 0.5f, time)) {
+                    return feet;
+                }
+            }
+        }
+        return -1;
+    }
+
+    /** Ghi một cá thể hoặc ba thành viên kỵ sĩ sau khi kiểm tra khoảng trống và hạn mức. */
+    private int spawnMember(World world, WorldTime time, MobType type, float x, float y, float z, int room,
+                            boolean bearCub, MobAppearance coat) {
+        if (type == MobType.HUSK && room >= 3 && MobType.CAMEL_HUSK.implemented()
+                && MobType.PARCHED.implemented() && isDesertSurfaceAtNight(world, time, x, y, z)
+                && spawnRandom.nextInt(10) == 0
+                && hasClearance(world, x, y, z, MobType.CAMEL_HUSK.width(), JOCKEY_HEIGHT)
+                && spawnJockey(world, x, y, z)) {
+            return 3;
+        }
+        if (type == MobType.SPIDER && room >= 2 && spawnRandom.nextInt(100) == 0
+                && spawnSpiderJockey(world, x, y, z)) {
+            return 2;
+        }
+        // Chỉ con thứ hai trong bầy gấu là con non, với hộp va chạm bằng nửa con trưởng thành.
+        MobEntity mob = bearCub ? new PolarBear(x, y, z, true) : type.create(x, y, z);
+        if (mob == null) {
+            return 0;
+        }
+        if (mob instanceof Horse horse) {
+            horse.mobVisualState().setAppearance(coat);
+        }
+        // Áp dụng tỉ lệ cá thể non chuẩn Minecraft cho các loài thú sinh từ spawner.
+        switch (type) {
+            case HORSE, DONKEY -> mob.setBaby(spawnRandom.nextInt(5) == 0);
+            case RABBIT, SNOW_RABBIT -> mob.setBaby(spawnRandom.nextInt(10) == 0);
+            case COW, SHEEP, PIG, CHICKEN, WOLF, GOAT -> mob.setBaby(spawnRandom.nextInt(20) == 0);
+            default -> {
+            }
+        }
+        world.addEntity(mob);
+        return 1;
+    }
+
+    /** Chọn cung thủ bản địa trên bề mặt và Skeleton thường trong phòng kín. */
+    public boolean spawnSpiderJockey(World world, float x, float y, float z) {
+        int bx = MathUtils.floor(x);
+        int bz = MathUtils.floor(z);
+        MobType riderType = MobType.SKELETON;
+        if (!world.hasWeatherRoof(bx, y + 1f, bz)) {
+            riderType = switch (world.getBiome(bx, bz)) {
+                case PLAINS, FOREST, FLOWER_FOREST -> MobType.SKELETON;
+                case DESERT -> MobType.PARCHED;
+                case SNOWY_PLAINS -> MobType.STRAY;
+            };
+        }
+        float riderY = y + MobType.SPIDER.height();
+        if (!riderType.implemented() || !hasClearance(world, x, y, z, MobType.SPIDER.width(),
+                riderY - y + riderType.height())) {
+            return false;
+        }
+        MobEntity mount = MobType.SPIDER.create(x, y, z);
+        MobEntity rider = riderType.create(x, riderY, z);
+        if (mount == null || rider == null || !rider.tryMount(mount, 0)) {
+            return false;
+        }
+        world.addEntity(mount);
+        world.addEntity(rider);
+        return true;
+    }
+
+    /** Dựng bộ kỵ sĩ đồng thời, chỉ đăng ký vào World khi cả hai ghế đã gắn thành công. */
+    private boolean spawnJockey(World world, float x, float y, float z) {
+        MobEntity mount = MobType.CAMEL_HUSK.create(x, y, z);
+        if (mount == null || mount.getSeatCount() < 2) {
+            return false;
+        }
+        mount.copySeatPosition(0, jockeySeat);
+        // Husk cầm giáo cưỡi Camel Husk luôn là cá thể trưởng thành.
+        MobEntity front = mount instanceof CamelHusk ? new Husk(jockeySeat.x, jockeySeat.y, jockeySeat.z, true, false)
+                : MobType.HUSK.create(jockeySeat.x, jockeySeat.y, jockeySeat.z);
+        mount.copySeatPosition(1, jockeySeat);
+        MobEntity back = MobType.PARCHED.create(jockeySeat.x, jockeySeat.y, jockeySeat.z);
+        if (front == null || back == null || !front.tryMount(mount, 0) || !back.tryMount(mount, 1)) {
+            return false;
+        }
+        world.addEntity(mount);
+        world.addEntity(front);
+        world.addEntity(back);
+        return true;
+    }
+
+    /** Một lượt Husk chỉ có thể đổi thành bộ kỵ sĩ ở mặt thoáng của Desert vào đêm. */
+    private static boolean isDesertSurfaceAtNight(World world, WorldTime time, float x, float y, float z) {
+        int bx = MathUtils.floor(x);
+        int bz = MathUtils.floor(z);
+        return isNightDark(time) && world.getBiome(bx, bz) == BiomeType.DESERT
+                && Math.abs(world.getPrecipitationSurface(bx, bz) - y) < EPSILON;
+    }
+
+    /** Kiểm tra khoảng cách, ánh sáng, nền và hộp va chạm ở vị trí chân được đề xuất. */
+    public boolean canSpawn(World world, MobType type, float x, float y, float z, WorldTime time) {
+        Player player = world.getPlayer();
+        if (player == null) {
+            return false;
+        }
+        float distance = player.copyPosition(playerPosition).dst2(x, y, z);
+        if (distance < MIN_SPAWN_DISTANCE_SQUARED || distance > MAX_DISTANCE_SQUARED) {
+            return false;
+        }
+        int blockX = MathUtils.floor(x);
+        int blockY = MathUtils.floor(y - EPSILON);
+        int blockZ = MathUtils.floor(z);
+        if (!world.isInsideWorld(blockX, blockY, blockZ)) {
+            return false;
+        }
+        Block ground = Block.fromId(world.getBlock(blockX, blockY, blockZ));
+        Block.Bounds support = ground.getCollisionBounds(world.getBlockState(blockX, blockY, blockZ));
+        if (support == null || Math.abs(blockY + support.maxY() - y) >= EPSILON) {
+            return false;
+        }
+        Block base = ground == Block.SNOW_LAYER ? Block.fromId(world.getBlock(blockX, blockY - 1, blockZ)) : ground;
+        if (base == Block.BEDROCK || base == Block.CACTUS || base == Block.OAK_LEAVES || base == Block.SPRUCE_LEAVES
+                || base == Block.ICE && type != MobType.POLAR_BEAR) {
+            return false;
+        }
+        if (type.category() == MobCategory.MONSTER) {
+            if (!isNightDark(time) && !world.hasWeatherRoof(blockX, y + 0.5f, blockZ)) {
+                return false;
+            }
+            if (requiresOpenSky(type) && world.hasWeatherRoof(blockX, y + 1, blockZ)) {
+                return false;
+            }
+        } else if (!allowsCreatureGround(type, ground, world, blockX, blockY, blockZ, time)) {
+            return false;
+        }
+        return hasClearance(world, x, y, z, type.width(), type.height());
+    }
+
+    /** Các biến thể khí hậu đêm chỉ sinh trực tiếp dưới bầu trời. */
+    private static boolean requiresOpenSky(MobType type) {
+        return type == MobType.HUSK || type == MobType.PARCHED || type == MobType.STRAY || type == MobType.CAMEL_HUSK;
+    }
+
+    /** Kiểm tra nền của thú theo loài và khí hậu, kể cả tuyết mỏng nằm trên nền cứng. */
+    private static boolean allowsCreatureGround(MobType type, Block ground, World world, int x, int y, int z,
+                                                WorldTime time) {
+        BiomeType biome = world.getBiome(x, z);
+        if (type == MobType.CAMEL) {
+            return biome == BiomeType.DESERT && ground == Block.SAND;
+        }
+        if (biome.hasRain()) {
+            return ground == Block.GRASS && isDaylight(time);
+        }
+        if (biome == BiomeType.DESERT) {
+            return ground == Block.SAND || ground == Block.GRASS;
+        }
+        boolean snow = ground == Block.SNOW_BLOCK || ground == Block.SNOW_LAYER
+                || world.getBlock(x, y + 1, z) == Block.SNOW_LAYER.getId();
+        if (type == MobType.POLAR_BEAR) {
+            return snow || ground == Block.ICE;
+        }
+        if (type == MobType.GOAT) {
+            return snow || ground == Block.STONE || ground == Block.GRAVEL || ground == Block.GRASS;
+        }
+        return snow || ground == Block.GRASS;
+    }
+
+    /** Quét hộp va chạm nguyên chiều rộng và cao, chặn cả chất lỏng và thực thể sống. */
+    private boolean hasClearance(World world, float x, float y, float z, float width, float height) {
+        float half = width * 0.5f;
+        float minX = x - half;
+        float maxX = x + half;
+        float minZ = z - half;
+        float maxZ = z + half;
+        float top = y + height;
+        if (minX < 0 || maxX > World.WORLD_SIZE_X || minZ < 0 || maxZ > World.WORLD_SIZE_Z || top > World.WORLD_SIZE_Y) {
+            return false;
+        }
+        int y1 = MathUtils.floor(top - EPSILON);
+        int z0 = MathUtils.floor(minZ + EPSILON);
+        int z1 = MathUtils.floor(maxZ - EPSILON);
+        int x1 = MathUtils.floor(maxX - EPSILON);
+        for (int bx = MathUtils.floor(minX + EPSILON); bx <= x1; bx++) {
+            for (int by = MathUtils.floor(y + EPSILON); by <= y1; by++) {
+                for (int bz = z0; bz <= z1; bz++) {
+                    Block block = Block.fromId(world.getBlock(bx, by, bz));
+                    Block.Bounds bounds = block.getCollisionBounds(world.getBlockState(bx, by, bz));
+                    if (block.isLiquid() || block == Block.CACTUS || bounds != null
+                            && bx + bounds.maxX() > minX + EPSILON && bx + bounds.minX() < maxX - EPSILON
+                            && bz + bounds.maxZ() > minZ + EPSILON && bz + bounds.minZ() < maxZ - EPSILON
+                            && by + bounds.maxY() > y + EPSILON && by + bounds.minY() < top - EPSILON) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return !world.hasLivingOverlap(x, y, z, half, height, null);
+    }
+
+    /** Đánh giá bóng đêm theo tick và cao độ mặt trời hiện có, không thêm lưới ánh sáng. */
+    public static boolean isNightDark(WorldTime time) {
+        int tick = time.tickOfDay();
+        return (tick >= 13_000 && tick <= 23_000) || time.sunY() < -0.15f;
+    }
+
+    /** Ban ngày từ bình minh tới hoàng hôn là điều kiện sinh thú đồng bằng. */
+    private static boolean isDaylight(WorldTime time) {
+        return time.tickOfDay() < 12_000;
+    }
+
+    /** Tính khoảng cách chân trong vành hoạt động mà không tạo bản sao tọa độ. */
+    public float distanceSquared(MobEntity mob, Player player) {
+        // Các ghế cùng vùng hoạt động với thú cưỡi, kể cả ở sát ranh 128 block.
+        MobEntity origin = mob.getMount() instanceof MobEntity mount ? mount : mob;
+        return player.copyPosition(playerPosition).dst2(origin.x(), origin.y(), origin.z());
+    }
+
+    /** Hai loại thú cưỡi tự nhiên được thu hồi cùng kỵ sĩ chưa lưu giữ. */
+    public static boolean isNaturalJockeyMount(MobEntity mob) {
+        return mob.type() == MobType.CAMEL_HUSK || mob.type() == MobType.SPIDER;
+    }
+
+    /** Kiểm tra tức thì ở xa và rút thăm ở từng tick 20 Hz đã trôi sau 30 giây. */
+    public boolean shouldDespawn(MobEntity mob, float distance, float dt) {
+        if (!mob.isAlive() || mob.type().category() != MobCategory.MONSTER || mob.isPersistent()) {
+            return false;
+        }
+        // Lạc đà xác sống quyết định khi nào thu hồi cả bộ kỵ sĩ.
+        if (mob.getMount() instanceof MobEntity mount && isNaturalJockeyMount(mount)) {
+            return false;
+        }
+        if (distance > MAX_DISTANCE_SQUARED) {
+            return true;
+        }
+        if (distance < MIN_DESPAWN_DISTANCE_SQUARED) {
+            mob.setNoActionTime(0);
+            return false;
+        }
+        if (!(dt > 0) || !Float.isFinite(dt)) {
+            return false;
+        }
+        float previous = mob.noActionTime();
+        float current = previous + dt;
+        mob.setNoActionTime(current);
+        int from = Math.max(DESPAWN_DELAY_TICKS, (int) (previous * TICKS_PER_SECOND));
+        int to = (int) (current * TICKS_PER_SECOND);
+        for (int tick = from; tick < to; tick++) {
+            if (despawnRandom.nextInt(DESPAWN_CHANCE_DIVISOR) == 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+}

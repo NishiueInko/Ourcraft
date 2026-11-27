@@ -1,13 +1,17 @@
 package com.voxelgame.engine;
 
-import com.voxelgame.entity.Block;
-import com.voxelgame.entity.DamageSource;
-import com.voxelgame.entity.ItemEntity;
-import com.voxelgame.entity.Player;
-import com.voxelgame.entity.mob.MobEntity;
-import com.voxelgame.entity.mob.MobType;
-import com.voxelgame.entity.mob.Rabbit;
-import com.voxelgame.entity.mob.SnowFox;
+import com.voxelgame.client.render.entity.MobAppearance;
+import com.voxelgame.client.render.entity.MobVisualState;
+import com.voxelgame.world.entity.DamageSource;
+import com.voxelgame.world.entity.ItemEntity;
+import com.voxelgame.world.entity.mob.animal.Rabbit;
+import com.voxelgame.world.entity.mob.animal.SnowFox;
+import com.voxelgame.world.entity.mob.MobEntity;
+import com.voxelgame.world.entity.mob.MobType;
+import com.voxelgame.world.entity.player.Hotbar;
+import com.voxelgame.world.entity.player.Player;
+import com.voxelgame.world.level.block.Block;
+import com.voxelgame.world.level.World;
 
 /** Kiểm tra biến thể, cách đi, hành vi ngủ, săn mồi và mang vật phẩm bằng CPU. */
 final class RabbitFoxChecks {
@@ -73,12 +77,12 @@ final class RabbitFoxChecks {
         World world = arena(false);
         try {
             Rabbit rabbit = new Rabbit(100.5f, 20f, 100.5f);
-            MobEntity wolf = new MobEntity(MobType.WOLF, 109.5f, 20f, 100.5f);
+            MobEntity wolf = new MobEntity(MobType.WOLF, 109.5f, 20f, 100.5f) { };
             world.addLivingEntity(wolf);
             tick(world, rabbit, 0.6);
             require(rabbit.x() < 100f, "Thỏ phải nhận ra sói ở ngoài bán kính sợ người chơi");
             wolf.setPosition(150.5f, 20f, 100.5f);
-            world.addLivingEntity(new MobEntity(MobType.ZOMBIE, 103.5f, 20f, 100.5f));
+            world.addLivingEntity(new MobEntity(MobType.ZOMBIE, 103.5f, 20f, 100.5f) { });
             Rabbit againstMonster = new Rabbit(100.5f, 20f, 100.5f);
             tick(world, againstMonster, 0.6);
             require(againstMonster.x() < 100f, "Thỏ phải tránh quái ở trong bốn block");

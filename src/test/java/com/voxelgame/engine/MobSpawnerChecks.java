@@ -1,10 +1,17 @@
 package com.voxelgame.engine;
 
-import com.voxelgame.entity.Block;
-import com.voxelgame.entity.Player;
-import com.voxelgame.entity.mob.MobCategory;
-import com.voxelgame.entity.mob.MobEntity;
-import com.voxelgame.entity.mob.MobType;
+import com.voxelgame.world.entity.mob.animal.Camel;
+import com.voxelgame.world.entity.mob.MobCategory;
+import com.voxelgame.world.entity.mob.MobEntity;
+import com.voxelgame.world.entity.mob.MobSpawner;
+import com.voxelgame.world.entity.mob.MobType;
+import com.voxelgame.world.entity.mob.monster.Husk;
+import com.voxelgame.world.entity.mob.monster.Parched;
+import com.voxelgame.world.entity.player.Player;
+import com.voxelgame.world.level.block.Block;
+import com.voxelgame.world.level.gen.DesertPyramid;
+import com.voxelgame.world.level.World;
+import com.voxelgame.world.level.WorldTime;
 
 /** Kiểm tra luật sinh và thu hồi mob qua dữ liệu voxel thực, không cần OpenGL. */
 final class MobSpawnerChecks {
@@ -68,7 +75,7 @@ final class MobSpawnerChecks {
         MobType[] types = MobType.values();
         MobType.Factory[] previousFactories = new MobType.Factory[types.length];
         for (MobType type : types) {
-            previousFactories[type.ordinal()] = type.registerFactory((x, y, z) -> new MobEntity(type, x, y, z));
+            previousFactories[type.ordinal()] = type.registerFactory((x, y, z) -> new MobEntity(type, x, y, z) { });
         }
         try {
             for (int x = 1870; x <= 2130; x++) {
@@ -117,7 +124,7 @@ final class MobSpawnerChecks {
         MobType[] types = MobType.values();
         MobType.Factory[] previousFactories = new MobType.Factory[types.length];
         for (MobType type : types) {
-            previousFactories[type.ordinal()] = type.registerFactory((x, y, z) -> new MobEntity(type, x, y, z));
+            previousFactories[type.ordinal()] = type.registerFactory((x, y, z) -> new MobEntity(type, x, y, z) { });
         }
         try {
             for (int x = 1870; x <= 2130; x++) {
@@ -236,8 +243,8 @@ final class MobSpawnerChecks {
         Player player = new Player(2000.5f, 31f, 800.5f);
         world.registerPlayer(player);
         MobSpawner spawner = new MobSpawner(17);
-        MobEntity zombie = new MobEntity(MobType.ZOMBIE, 2129.5f, 31, 800.5f);
-        MobEntity cow = new MobEntity(MobType.COW, 2129.5f, 31, 800.5f);
+        MobEntity zombie = new MobEntity(MobType.ZOMBIE, 2129.5f, 31, 800.5f) { };
+        MobEntity cow = new MobEntity(MobType.COW, 2129.5f, 31, 800.5f) { };
         try {
             require(despawn(spawner, zombie, player), "Quái xa hơn 128 block phải biến mất");
             require(!despawn(spawner, cow, player), "Thú thường được giữ lại");
@@ -279,9 +286,9 @@ final class MobSpawnerChecks {
         for (MobType type : types) {
             previous[type.ordinal()] = type.registerFactory(null);
         }
-        MobType.HUSK.registerFactory((x, y, z) -> new MobEntity(MobType.HUSK, x, y, z));
+        MobType.HUSK.registerFactory((x, y, z) -> new MobEntity(MobType.HUSK, x, y, z) { });
         MobType.PARCHED.registerFactory(
-                (x, y, z) -> new MobEntity(MobType.PARCHED, x, y, z));
+                (x, y, z) -> new MobEntity(MobType.PARCHED, x, y, z) { });
         MobType.CAMEL_HUSK.registerFactory(
                 (x, y, z) -> new MobEntity(MobType.CAMEL_HUSK, x, y, z, 2) { });
         try {
@@ -318,9 +325,9 @@ final class MobSpawnerChecks {
         Player player = new Player(2000.5f, 31f, 800.5f);
         world.registerPlayer(player);
         MobEntity camel = new MobEntity(MobType.CAMEL_HUSK, 2130.5f, 31, 800.5f, 2) { };
-        MobEntity front = new MobEntity(MobType.HUSK, 2130.5f, 34, 800.5f);
-        MobEntity back = new MobEntity(MobType.PARCHED, 2130.5f, 34, 800.5f);
-        MobEntity cow = new MobEntity(MobType.COW, 2130.5f, 31, 800.5f);
+        MobEntity front = new MobEntity(MobType.HUSK, 2130.5f, 34, 800.5f) { };
+        MobEntity back = new MobEntity(MobType.PARCHED, 2130.5f, 34, 800.5f) { };
+        MobEntity cow = new MobEntity(MobType.COW, 2130.5f, 31, 800.5f) { };
         try {
             require(front.tryMount(camel, 0) && back.tryMount(camel, 1), "Gắn bộ kỵ sĩ trước lượt cập nhật");
             world.addEntity(front);

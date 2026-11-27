@@ -1,28 +1,37 @@
 package com.voxelgame.engine;
 
+import com.voxelgame.client.audio.AudioManager;
+import com.voxelgame.client.render.Camera;
+import com.voxelgame.client.render.entity.MobAppearance;
+import com.voxelgame.client.render.entity.MobVisualState;
+import com.voxelgame.client.render.FirstPersonRenderer;
+import com.voxelgame.world.effect.StatusEffectType;
+import com.voxelgame.world.entity.DamageSource;
+import com.voxelgame.world.entity.mob.animal.Chicken;
+import com.voxelgame.world.entity.mob.animal.Pig;
+import com.voxelgame.world.entity.mob.animal.Rabbit;
+import com.voxelgame.world.entity.mob.animal.Sheep;
+import com.voxelgame.world.entity.mob.animal.Wolf;
+import com.voxelgame.world.entity.mob.MobEntity;
+import com.voxelgame.world.entity.mob.MobType;
+import com.voxelgame.world.entity.mob.monster.Creeper;
+import com.voxelgame.world.entity.mob.monster.Skeleton;
+import com.voxelgame.world.entity.mob.monster.Zombie;
+import com.voxelgame.world.entity.player.Hotbar;
+import com.voxelgame.world.entity.player.Player;
+import com.voxelgame.world.entity.projectile.ArrowEntity;
+import com.voxelgame.world.entity.projectile.ArrowType;
+import com.voxelgame.world.entity.projectile.ThrownEggEntity;
+import com.voxelgame.world.entity.projectile.ThrownEnderPearlEntity;
+import com.voxelgame.world.item.FoodRegistry;
+import com.voxelgame.world.item.Item;
+import com.voxelgame.world.item.ItemUseHandler;
+import com.voxelgame.world.level.block.Block;
+import com.voxelgame.world.level.World;
+
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
-import com.voxelgame.entity.Block;
-import com.voxelgame.entity.DamageSource;
-import com.voxelgame.entity.FoodRegistry;
-import com.voxelgame.entity.Item;
-import com.voxelgame.entity.Player;
-import com.voxelgame.entity.StatusEffectType;
-import com.voxelgame.entity.mob.Chicken;
-import com.voxelgame.entity.mob.Creeper;
-import com.voxelgame.entity.mob.MobEntity;
-import com.voxelgame.entity.mob.MobType;
-import com.voxelgame.entity.mob.Pig;
-import com.voxelgame.entity.mob.Rabbit;
-import com.voxelgame.entity.mob.Sheep;
-import com.voxelgame.entity.mob.Wolf;
-import com.voxelgame.entity.mob.Zombie;
-import com.voxelgame.entity.projectile.ArrowEntity;
-import com.voxelgame.entity.projectile.ArrowType;
-import com.voxelgame.entity.projectile.ThrownEggEntity;
-import com.voxelgame.entity.projectile.ThrownEnderPearlEntity;
 import com.badlogic.gdx.math.Vector3;
-
 import java.lang.reflect.Proxy;
 
 /**
@@ -1068,7 +1077,7 @@ final class CombatItemsChecks {
             meleeAttacker.discard();
 
             // 3. Mob <-> Mob (Skeleton bắn ArrowEntity trúng Mob đứng trên mặt đất) -> bật nảy, đẩy lùi & tăng hitSound
-            MobEntity shooter = new MobEntity(MobType.SKELETON, 25.0f, 11.0f, 10.5f);
+            MobEntity shooter = new MobEntity(MobType.SKELETON, 25.0f, 11.0f, 10.5f) { };
             MobEntity arrowVictim = new MobEntity(MobType.CREEPER, 28.0f, 11.0f, 10.5f) {
                 @Override
                 protected void updateGoals(World w, float dt) {

@@ -1,10 +1,18 @@
 package com.voxelgame.engine;
 
-import com.voxelgame.entity.Block;
-import com.voxelgame.entity.Player;
-import com.voxelgame.entity.mob.MobCategory;
-import com.voxelgame.entity.mob.MobEntity;
-import com.voxelgame.entity.mob.MobType;
+import com.voxelgame.world.entity.mob.animal.Rabbit;
+import com.voxelgame.world.entity.mob.animal.Wolf;
+import com.voxelgame.world.entity.mob.MobCategory;
+import com.voxelgame.world.entity.mob.MobEntity;
+import com.voxelgame.world.entity.mob.MobSpawner;
+import com.voxelgame.world.entity.mob.MobSpawnTable;
+import com.voxelgame.world.entity.mob.MobType;
+import com.voxelgame.world.entity.player.Player;
+import com.voxelgame.world.level.biome.BiomeType;
+import com.voxelgame.world.level.biome.SnowSubZone;
+import com.voxelgame.world.level.block.Block;
+import com.voxelgame.world.level.World;
+import com.voxelgame.world.level.WorldTime;
 
 import java.util.Random;
 

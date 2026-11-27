@@ -1,16 +1,20 @@
 package com.voxelgame.engine;
 
-import com.voxelgame.entity.Block;
-import com.voxelgame.entity.DamageSource;
-import com.voxelgame.entity.Entity;
-import com.voxelgame.entity.LivingEntity;
-import com.voxelgame.entity.StatusEffectType;
-import com.voxelgame.entity.mob.MobEntity;
-import com.voxelgame.entity.mob.MobType;
-import com.voxelgame.entity.projectile.ArrowEntity;
-import com.voxelgame.entity.projectile.ArrowType;
-import com.voxelgame.entity.projectile.PotionType;
-import com.voxelgame.entity.projectile.ThrownPotionEntity;
+import com.voxelgame.client.render.ShaderProgram;
+import com.voxelgame.world.effect.StatusEffectType;
+import com.voxelgame.world.entity.DamageSource;
+import com.voxelgame.world.entity.Entity;
+import com.voxelgame.world.entity.LivingEntity;
+import com.voxelgame.world.entity.mob.MobEntity;
+import com.voxelgame.world.entity.mob.MobType;
+import com.voxelgame.world.entity.mob.monster.Parched;
+import com.voxelgame.world.entity.mob.monster.Stray;
+import com.voxelgame.world.entity.projectile.ArrowEntity;
+import com.voxelgame.world.entity.projectile.ArrowType;
+import com.voxelgame.world.entity.projectile.PotionType;
+import com.voxelgame.world.entity.projectile.ThrownPotionEntity;
+import com.voxelgame.world.level.block.Block;
+import com.voxelgame.world.level.World;
 
 /** Kiểm tra đường đi và tác động của đạn đạo trên CPU. */
 final class ProjectileChecks {
@@ -64,9 +68,9 @@ final class ProjectileChecks {
     /** Một đoạn dài vẫn chọn nạn nhân gần nhất bằng hộp và loại chủ, thú cưỡi, đồng phe. */
     private static void checkSweptArrowAndRetaliation(World world) {
         Dummy mount = new Dummy(11.3f, 10f, 10.5f, false, 1);
-        MobEntity shooter = new MobEntity(MobType.SKELETON, 10.5f, 10f, 10.5f);
-        MobEntity ally = new MobEntity(MobType.SKELETON, 12.8f, 10f, 10.5f);
-        MobEntity victim = new MobEntity(MobType.ZOMBIE, 15.5f, 10f, 10.5f);
+        MobEntity shooter = new MobEntity(MobType.SKELETON, 10.5f, 10f, 10.5f) { };
+        MobEntity ally = new MobEntity(MobType.SKELETON, 12.8f, 10f, 10.5f) { };
+        MobEntity victim = new MobEntity(MobType.ZOMBIE, 15.5f, 10f, 10.5f) { };
         Dummy far = new Dummy(17.5f, 10f, 10.5f, false, 0);
         require(shooter.tryMount(mount, 0), "Chuẩn bị thú cưỡi cho người bắn");
         world.addEntity(far);

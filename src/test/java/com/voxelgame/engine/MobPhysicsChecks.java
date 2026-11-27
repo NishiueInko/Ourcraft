@@ -1,8 +1,12 @@
 package com.voxelgame.engine;
 
-import com.voxelgame.entity.Block;
-import com.voxelgame.entity.mob.MobEntity;
-import com.voxelgame.entity.mob.MobType;
+import com.voxelgame.world.entity.mob.MobEntity;
+import com.voxelgame.world.entity.mob.MobType;
+import com.voxelgame.world.entity.mob.monster.Zombie;
+import com.voxelgame.world.level.biome.BiomeType;
+import com.voxelgame.world.level.block.Block;
+import com.voxelgame.world.level.weather.WeatherManager;
+import com.voxelgame.world.level.World;
 
 /** Kiểm tra chuyển động mob với địa hình nhỏ, không cần GPU hoặc bộ phát âm thanh. */
 final class MobPhysicsChecks {
