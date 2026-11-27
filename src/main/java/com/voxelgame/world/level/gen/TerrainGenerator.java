@@ -11,9 +11,14 @@ import static com.voxelgame.world.level.World.MAX_TERRAIN_Y;
 import static com.voxelgame.world.level.World.WORLD_SIZE_X;
 import static com.voxelgame.world.level.World.WORLD_SIZE_Z;
 
-/** Sinh địa tầng, mặt nước và hệ sinh thái theo seed, trước khi bắt đầu cập nhật gameplay. */
+/**
+ * Sinh địa tầng, mặt nước và hệ sinh thái theo seed, trước khi bắt đầu cập nhật
+ * gameplay.
+ */
 public final class TerrainGenerator {
-    /** Các trường noise độc lập để độ cao, lớp phủ và thực vật không lặp cùng mẫu. */
+    /**
+     * Các trường noise độc lập để độ cao, lớp phủ và thực vật không lặp cùng mẫu.
+     */
     private static final long HEIGHT = 0x380678E2B9DA63C8L;
     private static final long DUNES = 0x6F6017CBC5CF12ABL;
     private static final long STRATA = 0x5A771538F0B488F1L;
@@ -34,23 +39,34 @@ public final class TerrainGenerator {
     private static final long RIVERS = 0x63C628D5188333F3L;
     private static final long FOREST = 0x472440A1512B0DC9L;
 
-    /** Mực sông theo cao độ của ô mặt nước, dùng chung cho cả sông lạnh và sông ấm. */
-    public static final int WATER_LEVEL = 28;
+    /**
+     * Mực sông theo cao độ của ô mặt nước, dùng chung cho cả sông lạnh và sông ấm.
+     */
+    static final int WATER_LEVEL = 28;
     /** Chỉ giữ ứng viên hồ ở vùng thấp hoặc thung lũng dưới chân đồi. */
     private static final int MAX_LAKE_LEVEL = 48;
-    /** Vùng xuất phát bằng phẳng và thoáng, dùng cả dấu chân của người chơi và phần mép tán cây. */
+    /**
+     * Vùng xuất phát bằng phẳng và thoáng, dùng cả dấu chân của người chơi và phần
+     * mép tán cây.
+     */
     private static final int SPAWN_HEIGHT = 30;
     private static final int SPAWN_CLEARANCE = 8;
     /** Ba bit thấp trong bộ đệm lưu mã của năm biome (0..4). */
     static final int BIOME_MASK = 7;
-    /** Cờ dùng chung với mã biome trong bộ đệm để chỉ kiểm tra nguồn nhiệt ở vùng có Lava. */
+    /**
+     * Cờ dùng chung với mã biome trong bộ đệm để chỉ kiểm tra nguồn nhiệt ở vùng có
+     * Lava.
+     */
     private static final int NEAR_LAVA = 8;
     /** Cờ nhận diện dải sông và cột đã được lượt hồ sử dụng. */
-    public static final int RIVER = 16;
+    static final int RIVER = 16;
     private static final int LAKE = 32;
     /** Bốn loài hoa dùng cho dải gradient của Flower Forest. */
     private static final Block[] FLOWERS = { Block.DANDELION, Block.POPPY, Block.CORNFLOWER, Block.OXEYE_DAISY };
-    /** Bảng trọng số hoa của Plains chuẩn Minecraft (Dandelion 2 : Poppy 1 : Cornflower 1 : Oxeye Daisy 1). */
+    /**
+     * Bảng trọng số hoa của Plains chuẩn Minecraft (Dandelion 2 : Poppy 1 :
+     * Cornflower 1 : Oxeye Daisy 1).
+     */
     private static final Block[] PLAINS_FLOWERS = {
             Block.DANDELION, Block.DANDELION, Block.POPPY, Block.CORNFLOWER, Block.OXEYE_DAISY
     };
@@ -67,7 +83,10 @@ public final class TerrainGenerator {
         this.seed = seed;
     }
 
-    /** Tra cùng biome đã dùng để chọn vật liệu, lớp phủ và thực vật cho năm dải khí hậu. */
+    /**
+     * Tra cùng biome đã dùng để chọn vật liệu, lớp phủ và thực vật cho năm dải khí
+     * hậu.
+     */
     public BiomeType getBiome(int x, int z) {
         float warpedX = climateX(x, z);
         if (warpedX < BIOME_WIDTH) {
@@ -87,7 +106,9 @@ public final class TerrainGenerator {
         return surfaceY(x, z, riverDistance(x, z));
     }
 
-    /** Sinh toàn bộ nội dung; hai bộ đệm cột chỉ tồn tại trong quá trình khởi tạo. */
+    /**
+     * Sinh toàn bộ nội dung; hai bộ đệm cột chỉ tồn tại trong quá trình khởi tạo.
+     */
     public DesertPyramid generate(World world) {
         short[] heights = new short[WORLD_SIZE_X * WORLD_SIZE_Z];
         byte[] biomes = new byte[heights.length];
@@ -175,7 +196,9 @@ public final class TerrainGenerator {
         }
     }
 
-    /** Ghi địa tầng theo dải và dùng cao độ nguyên gốc để chọn vật liệu theo độ dốc. */
+    /**
+     * Ghi địa tầng theo dải và dùng cao độ nguyên gốc để chọn vật liệu theo độ dốc.
+     */
     private void generateStrata(World world, short[] heights, byte[] biomes) {
         for (int x = 0; x < WORLD_SIZE_X; x++) {
             for (int z = 0; z < WORLD_SIZE_Z; z++) {
@@ -240,7 +263,10 @@ public final class TerrainGenerator {
         return Math.max(Math.max(west, east), Math.max(north, south));
     }
 
-    /** Sinh hồ dung nham mặt đất theo từng chunk 16×16 với xác suất chuẩn 1/200 chunk (bỏ hồ nước nhỏ). */
+    /**
+     * Sinh hồ dung nham mặt đất theo từng chunk 16×16 với xác suất chuẩn 1/200
+     * chunk (bỏ hồ nước nhỏ).
+     */
     private void generateLakes(World world, short[] heights, byte[] biomes, DesertPyramid pyramid) {
         long lakeSeed = seed ^ LAKES;
         for (int cx = 1; cx < World.WORLD_CHUNKS_X - 1; cx++) {
@@ -256,9 +282,12 @@ public final class TerrainGenerator {
         }
     }
 
-    /** Khoét hồ dung nham có mặt phẳng, đáy cong và bờ nguyên khối bao quanh ngang mực chất lỏng. */
+    /**
+     * Khoét hồ dung nham có mặt phẳng, đáy cong và bờ nguyên khối bao quanh ngang
+     * mực chất lỏng.
+     */
     private boolean carveLavaLake(World world, short[] heights, byte[] biomes, DesertPyramid pyramid,
-                                  int centerX, int centerZ, float radius, int depth) {
+            int centerX, int centerZ, float radius, int depth) {
         // Bờ Lava rộng để bao kín cả những chỗ rìa hồ đổi bán kính qua hai ô kề.
         float shoreWidth = 1.9f;
         float shoreNoise = 1.1f;
@@ -339,7 +368,9 @@ public final class TerrainGenerator {
         return true;
     }
 
-    /** Đánh dấu các cột có thể ở trong bán kính Manhattan 2 tính từ ô Lava mới sinh. */
+    /**
+     * Đánh dấu các cột có thể ở trong bán kính Manhattan 2 tính từ ô Lava mới sinh.
+     */
     private static void markLavaColumns(byte[] biomes, int x, int z) {
         for (int dx = -2; dx <= 2; dx++) {
             int remaining = 2 - Math.abs(dx);
@@ -349,7 +380,10 @@ public final class TerrainGenerator {
         }
     }
 
-    /** Đóng băng mặt sông và phủ đúng 1 lớp tuyết trên toàn bộ cột lộ trời ở Snowy Plains. */
+    /**
+     * Đóng băng mặt sông và phủ đúng 1 lớp tuyết trên toàn bộ cột lộ trời ở Snowy
+     * Plains.
+     */
     private void generateIceAndSnow(World world, short[] heights, byte[] biomes) {
         for (int x = 0; x < WORLD_SIZE_X; x++) {
             for (int z = 0; z < WORLD_SIZE_Z; z++) {
@@ -385,7 +419,9 @@ public final class TerrainGenerator {
         final int crownDepth;
         final boolean conifer;
 
-        /** Lưu kích thước và vật liệu dùng chung cho hai lượt kiểm tra và ghi hình cây. */
+        /**
+         * Lưu kích thước và vật liệu dùng chung cho hai lượt kiểm tra và ghi hình cây.
+         */
         TreeShape(int minHeight, int variation, int crownRadius, int crownDepth, boolean conifer) {
             this.minHeight = minHeight;
             this.variation = variation;
@@ -402,7 +438,10 @@ public final class TerrainGenerator {
         return grove > 0.12f;
     }
 
-    /** Sinh cây theo từng chunk 16×16 khớp mật độ và tỷ lệ loài chuẩn Minecraft 1.21.11. */
+    /**
+     * Sinh cây theo từng chunk 16×16 khớp mật độ và tỷ lệ loài chuẩn Minecraft
+     * 1.21.11.
+     */
     private void generateTrees(World world, short[] heights, byte[] biomes, DesertPyramid pyramid) {
         long treeSeed = seed ^ TREES;
         for (int cx = 0; cx < World.WORLD_CHUNKS_X; cx++) {
@@ -464,7 +503,10 @@ public final class TerrainGenerator {
         };
     }
 
-    /** Kiểm tra thân và mọi ô tán trước khi ghi cây, rồi phủ tuyết lên tán thông hợp lệ. */
+    /**
+     * Kiểm tra thân và mọi ô tán trước khi ghi cây, rồi phủ tuyết lên tán thông hợp
+     * lệ.
+     */
     private void placeTree(World world, byte[] biomes, int x, int baseY, int z, int height, TreeShape shape) {
         int topY = baseY + height - 1;
         byte groundCover = world.getBlock(x, baseY, z);
@@ -532,7 +574,10 @@ public final class TerrainGenerator {
         return Math.min(shape.crownRadius, shape == TreeShape.SPRUCE ? depth : (depth + 1) / 2);
     }
 
-    /** Mọi cột lá vân sam lộ trời ở Snowy Plains (trừ vùng sát Lava) đều phủ 1 lớp tuyết. */
+    /**
+     * Mọi cột lá vân sam lộ trời ở Snowy Plains (trừ vùng sát Lava) đều phủ 1 lớp
+     * tuyết.
+     */
     private void addCanopySnow(World world, byte[] biomes, int x, int topY, int z, TreeShape shape) {
         for (int leafX = x - shape.crownRadius; leafX <= x + shape.crownRadius; leafX++) {
             for (int leafZ = z - shape.crownRadius; leafZ <= z + shape.crownRadius; leafZ++) {
@@ -555,9 +600,13 @@ public final class TerrainGenerator {
         }
     }
 
-    /** Sinh hoa, cỏ, xương rồng, bụi khô và mía theo từng chunk 16×16 chuẩn Minecraft 1.21.11. */
+    /**
+     * Sinh hoa, cỏ, xương rồng, bụi khô và mía theo từng chunk 16×16 chuẩn
+     * Minecraft 1.21.11.
+     */
     private void generatePlants(World world, short[] heights, byte[] biomes, DesertPyramid pyramid) {
-        // Lượt 1: Sinh hoa và cỏ cao trước để cỏ ngắn không chiếm chỗ các cụm hoa và cỏ hai ô.
+        // Lượt 1: Sinh hoa và cỏ cao trước để cỏ ngắn không chiếm chỗ các cụm hoa và cỏ
+        // hai ô.
         for (int cx = 0; cx < World.WORLD_CHUNKS_X; cx++) {
             for (int cz = 0; cz < World.WORLD_CHUNKS_Z; cz++) {
                 BiomeType chunkBiome = biomeAt(biomes, cx * Chunk.SIZE + 8, cz * Chunk.SIZE + 8);
@@ -577,7 +626,8 @@ public final class TerrainGenerator {
             }
         }
 
-        // Lượt 2: Sinh cỏ ngắn, xương rồng, bụi khô và mía theo mật độ chuẩn từng biome.
+        // Lượt 2: Sinh cỏ ngắn, xương rồng, bụi khô và mía theo mật độ chuẩn từng
+        // biome.
         for (int cx = 0; cx < World.WORLD_CHUNKS_X; cx++) {
             for (int cz = 0; cz < World.WORLD_CHUNKS_Z; cz++) {
                 BiomeType chunkBiome = biomeAt(biomes, cx * Chunk.SIZE + 8, cz * Chunk.SIZE + 8);
@@ -595,11 +645,14 @@ public final class TerrainGenerator {
         }
     }
 
-    /** Sinh một cụm hoa theo trọng số bảng loài hoặc theo trường gradient 2D ở Flower Forest. */
+    /**
+     * Sinh một cụm hoa theo trọng số bảng loài hoặc theo trường gradient 2D ở
+     * Flower Forest.
+     */
     private void generateFlowerPatch(World world, short[] heights, byte[] biomes, DesertPyramid pyramid,
-                                     int cx, int cz, BiomeType chunkBiome, long featureSeed,
-                                     float chunkChance, int attempts, int spread,
-                                     Block[] palette, boolean gradient) {
+            int cx, int cz, BiomeType chunkBiome, long featureSeed,
+            float chunkChance, int attempts, int spread,
+            Block[] palette, boolean gradient) {
         if (chunkChance < 1.0f && TerrainNoise.unit(featureSeed, cx, cz) >= chunkChance) {
             return;
         }
@@ -636,7 +689,7 @@ public final class TerrainGenerator {
 
     /** Sinh cụm cỏ cao hai ô ở Plains với rarity 1/5 chunk. */
     private void generateTallGrassPatch(World world, short[] heights, byte[] biomes, DesertPyramid pyramid,
-                                        int cx, int cz, BiomeType chunkBiome) {
+            int cx, int cz, BiomeType chunkBiome) {
         long featureSeed = seed ^ TALL_GRASS_SEED;
         if (TerrainNoise.unit(featureSeed, cx, cz) >= 0.2f) {
             return;
@@ -659,10 +712,13 @@ public final class TerrainGenerator {
         }
     }
 
-    /** Sinh các cụm cỏ ngắn trên mặt cỏ trống theo số patch và lần thử của từng biome. */
+    /**
+     * Sinh các cụm cỏ ngắn trên mặt cỏ trống theo số patch và lần thử của từng
+     * biome.
+     */
     private void generateShortGrassPatches(World world, short[] heights, byte[] biomes, DesertPyramid pyramid,
-                                           int cx, int cz, BiomeType chunkBiome,
-                                           int patches, int attemptsPerPatch, int spread) {
+            int cx, int cz, BiomeType chunkBiome,
+            int patches, int attemptsPerPatch, int spread) {
         long featureSeed = seed ^ GRASS_SEED;
         for (int patch = 0; patch < patches; patch++) {
             int saltBase = patch * (attemptsPerPatch + 1) + 1;
@@ -681,9 +737,12 @@ public final class TerrainGenerator {
         }
     }
 
-    /** Sinh xương rồng (1/5 chunk, chiều cao biased_to_bottom) và 2 bụi khô mỗi chunk ở Desert. */
+    /**
+     * Sinh xương rồng (1/5 chunk, chiều cao biased_to_bottom) và 2 bụi khô mỗi
+     * chunk ở Desert.
+     */
     private void generateDesertPlants(World world, short[] heights, byte[] biomes, DesertPyramid pyramid,
-                                      int cx, int cz) {
+            int cx, int cz) {
         long cactusSeed = seed ^ CACTUS_SEED;
         if (TerrainNoise.unit(cactusSeed, cx, cz) < 0.2f) {
             long h = chunkRoll(cactusSeed, cx, cz, 1);
@@ -708,9 +767,12 @@ public final class TerrainGenerator {
         }
     }
 
-    /** Sinh cụm mía dọc bờ sông ấm: 1/6 chunk ở biome ôn hòa và 1 lượt/chunk ở Desert. */
+    /**
+     * Sinh cụm mía dọc bờ sông ấm: 1/6 chunk ở biome ôn hòa và 1 lượt/chunk ở
+     * Desert.
+     */
     private void generateSugarCanePatch(World world, short[] heights, byte[] biomes, DesertPyramid pyramid,
-                                        int cx, int cz, BiomeType chunkBiome, float chunkChance) {
+            int cx, int cz, BiomeType chunkBiome, float chunkChance) {
         long caneSeed = seed ^ SUGAR_CANE_SEED;
         if (chunkChance < 1.0f && TerrainNoise.unit(caneSeed, cx, cz) >= chunkChance) {
             return;
@@ -731,9 +793,12 @@ public final class TerrainGenerator {
         }
     }
 
-    /** Kiểm tra biên, vùng an toàn, kim tự tháp, đúng biome và ô trống tại mặt đất; trả -1 nếu không hợp lệ. */
+    /**
+     * Kiểm tra biên, vùng an toàn, kim tự tháp, đúng biome và ô trống tại mặt đất;
+     * trả -1 nếu không hợp lệ.
+     */
     private static int canPlaceGroundPlant(World world, short[] heights, byte[] biomes, DesertPyramid pyramid,
-                                           int x, int z, BiomeType expectedBiome) {
+            int x, int z, BiomeType expectedBiome) {
         if (x < 0 || x >= WORLD_SIZE_X || z < 0 || z >= WORLD_SIZE_Z
                 || nearSpawn(x, z, SPAWN_CLEARANCE)
                 || pyramid.contains(x, z, 0)
@@ -752,12 +817,18 @@ public final class TerrainGenerator {
         return soil == Block.GRASS.getId() || soil == Block.DIRT.getId();
     }
 
-    /** Băm tọa độ chunk và muối phụ thành giá trị 64-bit tất định không cấp phát bộ nhớ. */
+    /**
+     * Băm tọa độ chunk và muối phụ thành giá trị 64-bit tất định không cấp phát bộ
+     * nhớ.
+     */
     private static long chunkRoll(long featureSeed, int cx, int cz, int salt) {
         return TerrainNoise.hash(featureSeed ^ (salt * 0x9E3779B97F4A7C15L), cx, cz);
     }
 
-    /** Tạo độ lệch tam giác [-spread, +spread] từ 16 bit băm để mô phỏng phân tán cụm Minecraft. */
+    /**
+     * Tạo độ lệch tam giác [-spread, +spread] từ 16 bit băm để mô phỏng phân tán
+     * cụm Minecraft.
+     */
     private static int triangularOffset(long hash, int shift, int spread) {
         int range = spread + 1;
         int first = (int) ((((hash >>> shift) & 0xFFL) * range) >>> 8);
@@ -765,7 +836,9 @@ public final class TerrainGenerator {
         return first - second;
     }
 
-    /** Sinh từng đoạn liên tục từ gốc và áp dụng cùng luật sinh tồn như lúc chơi. */
+    /**
+     * Sinh từng đoạn liên tục từ gốc và áp dụng cùng luật sinh tồn như lúc chơi.
+     */
     private static void growColumn(World world, int x, int y, int z, int height, Block plant) {
         for (int offset = 0; offset < height; offset++) {
             int partY = y + offset;

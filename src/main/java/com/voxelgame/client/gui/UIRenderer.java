@@ -7,6 +7,7 @@ import com.voxelgame.client.render.ShaderProgram;
 import com.voxelgame.client.render.Texture;
 import com.voxelgame.world.entity.player.Hotbar;
 import com.voxelgame.world.entity.player.Player;
+import com.voxelgame.world.gamemode.GameMode;
 import com.voxelgame.world.level.World;
 import com.voxelgame.world.level.WorldTime;
 import com.voxelgame.world.level.block.Block;
@@ -58,6 +59,21 @@ public class UIRenderer implements Disposable {
     /** Gắn màn hình túi đồ 36 ô để vẽ trong lượt HUD 2D. */
     public void setInventoryScreen(InventoryScreen inventoryScreen) {
         hudRenderer.setInventoryScreen(inventoryScreen);
+    }
+
+    /** Gắn màn hình Kho Creative để vẽ trong lượt HUD 2D khi đang ở Creative. */
+    public void setCreativeInventoryScreen(CreativeInventoryScreen creativeInventoryScreen) {
+        hudRenderer.setCreativeInventoryScreen(creativeInventoryScreen);
+    }
+
+    /** Hiển thị thông báo ngắn khi chuyển đổi chế độ chơi ({@code F2}). */
+    public void showGameModeToast(GameMode mode) {
+        hudRenderer.showGameModeToast(mode);
+    }
+
+    /** Cập nhật thời gian hiển thị thông báo chế độ chơi mỗi khung hình. */
+    public void updateToast(float deltaTime) {
+        hudRenderer.updateToast(deltaTime);
     }
 
     /** Gắn màn hình thông số F3 và thế giới để vẽ trong lượt HUD 2D. */

@@ -369,15 +369,15 @@ public final class FirstPersonRenderer implements Disposable {
         }
     }
 
-    /** Vẽ tay trần góc nhìn thứ nhất từ skin {@code steve.png}. */
+    /** Vẽ tay trần góc nhìn thứ nhất từ skin {@code steve.png} (bàn tay hướng ra trước, vai áo ở góc dưới phải). */
     private void renderFirstPersonArm(ShaderProgram shader, float bobX, float bobY,
                                       float swingSin, float swingSqrt) {
         modelMatrix.idt()
                 .translate(0.56f + bobX, -0.56f + bobY, -0.76f)
                 .translate(-0.34f * swingSqrt, 0.22f * (float) Math.sin(Math.asin(Math.min(1f, swingSin)) * 2.0), -0.32f * swingSin)
                 .rotate(Vector3.Y, 42.0f - 24.0f * swingSqrt)
-                .rotate(Vector3.X, -66.0f - 45.0f * swingSin)
-                .rotate(Vector3.Z, 12.0f + 20.0f * swingSqrt)
+                .rotate(Vector3.X, 114.0f - 45.0f * swingSin)
+                .rotate(Vector3.Z, -12.0f - 20.0f * swingSqrt)
                 .scale(PIXEL_TO_BLOCK, PIXEL_TO_BLOCK, PIXEL_TO_BLOCK);
         steveTexture.bind(0);
         shader.setUniformMatrix4f("uModel", modelMatrix);

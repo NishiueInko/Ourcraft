@@ -26,18 +26,18 @@ public class Chunk implements Disposable {
     public static final int SIZE = 16;
     private static final float HALF_SIZE = SIZE / 2.0f;
 
-    // Thứ tự thuộc tính mỗi đỉnh: x, y, z, u, v, hệ số ánh sáng, màu đỉnh đóng gói (aColor).
+    // Thứ tự thuộc tính mỗi đỉnh: x, y, z, u, v, hệ số ánh sáng, màu đỉnh đóng gói
+    // (aColor).
     public static final int FLOATS_PER_VERTEX = 7;
     /** Vị trí offset của thuộc tính {@code aShade} trong một đỉnh. */
-    public static final int SHADE_OFFSET = 5;
+    static final int SHADE_OFFSET = 5;
     /** Vị trí offset của thuộc tính {@code aColor} đóng gói trong một đỉnh. */
-    public static final int COLOR_OFFSET = 6;
+    static final int COLOR_OFFSET = 6;
     private static final VertexAttributes VERTEX_ATTRIBUTES = new VertexAttributes(
             new VertexAttribute(Usage.Position, 3, "aPos"),
             new VertexAttribute(Usage.TextureCoordinates, 2, "aTexCoord"),
             new VertexAttribute(Usage.Generic, 1, "aShade"),
-            new VertexAttribute(Usage.ColorPacked, 4, "aColor")
-    );
+            new VertexAttribute(Usage.ColorPacked, 4, "aColor"));
 
     // Tọa độ UV và giá trị enum được tính một lần cho tất cả lần dựng.
     private static final float[][] TILE_UVS = createTileUvs();
@@ -54,7 +54,10 @@ public class Chunk implements Disposable {
     /** Mức giảm độ sáng ở mỗi bậc che góc và độ che một phần của lá khoét alpha. */
     private static final float AO_STEP = 0.17f;
     private static final float LEAF_OCCLUSION = 0.5f;
-    /** Ánh sáng mặc định 4-bit đóng gói: Sky Light = 15 (nibble cao), Block Light = 0 (nibble thấp). */
+    /**
+     * Ánh sáng mặc định 4-bit đóng gói: Sky Light = 15 (nibble cao), Block Light =
+     * 0 (nibble thấp).
+     */
     static final byte DEFAULT_LIGHT = (byte) 0xF0;
 
     // Tọa độ góc nhỏ nhất của chunk trong thế giới.
@@ -62,7 +65,8 @@ public class Chunk implements Disposable {
     private final int baseWorldY;
     private final int baseWorldZ;
 
-    // Mỗi ID chiếm một byte. Mảng metadata và light chỉ xuất hiện khi có dữ liệu khác mặc định.
+    // Mỗi ID chiếm một byte. Mảng metadata và light chỉ xuất hiện khi có dữ liệu
+    // khác mặc định.
     private final byte[] blocks = new byte[SIZE * SIZE * SIZE];
     private byte[] metadata;
     private byte defaultLight = DEFAULT_LIGHT;
@@ -73,7 +77,8 @@ public class Chunk implements Disposable {
     private Mesh translucentMesh;
     private boolean dirty = true;
 
-    // Bộ đệm RGB dùng lại khi tính màu biome trong buildVertices để tránh cấp phát rác GC.
+    // Bộ đệm RGB dùng lại khi tính màu biome trong buildVertices để tránh cấp phát
+    // rác GC.
     private final float[] biomeTintBuffer = new float[3];
 
     // Khung hình gần nhất mà hộp bao chunk giao khung nhìn.
@@ -116,9 +121,10 @@ public class Chunk implements Disposable {
     }
 
     /** Đọc metadata dạng không dấu. Ô chưa từng lưu trạng thái trả 0. */
-    public int getStateLocal(int x, int y, int z) {
+    int getStateLocal(int x, int y, int z) {
         return metadata != null && contains(x, y, z)
-                ? Byte.toUnsignedInt(metadata[blockIndex(x, y, z)]) : 0;
+                ? Byte.toUnsignedInt(metadata[blockIndex(x, y, z)])
+                : 0;
     }
 
     /** Đọc Sky Light cục bộ (0..15) từ nibble cao của byte ánh sáng. */
@@ -143,7 +149,10 @@ public class Chunk implements Disposable {
         return packed & 0x0F;
     }
 
-    /** Ghi Sky Light cục bộ (0..15), cấp phát lười mảng byte[4096] khi khác mặc định. */
+    /**
+     * Ghi Sky Light cục bộ (0..15), cấp phát lười mảng byte[4096] khi khác mặc
+     * định.
+     */
     boolean setSkyLightLocal(int x, int y, int z, int level) {
         if (!contains(x, y, z)) {
             return false;
@@ -162,7 +171,10 @@ public class Chunk implements Disposable {
         return true;
     }
 
-    /** Ghi Block Light cục bộ (0..15), cấp phát lười mảng byte[4096] khi khác mặc định. */
+    /**
+     * Ghi Block Light cục bộ (0..15), cấp phát lười mảng byte[4096] khi khác mặc
+     * định.
+     */
     boolean setBlockLightLocal(int x, int y, int z, int level) {
         if (!contains(x, y, z)) {
             return false;
@@ -181,7 +193,10 @@ public class Chunk implements Disposable {
         return true;
     }
 
-    /** Đặt ánh sáng đồng nhất cho cả chunk để giữ `light = null` (tiết kiệm RAM ở vùng đồng nhất). */
+    /**
+     * Đặt ánh sáng đồng nhất cho cả chunk để giữ `light = null` (tiết kiệm RAM ở
+     * vùng đồng nhất).
+     */
     void setUniformLight(byte packedLight) {
         defaultLight = packedLight;
         light = null;
@@ -195,7 +210,10 @@ public class Chunk implements Disposable {
         System.arraycopy(source, 0, light, 0, light.length);
     }
 
-    /** Kiểm tra chunk có lưu dữ liệu ánh sáng khác mặc định (sky=15, block=0) hay không. */
+    /**
+     * Kiểm tra chunk có lưu dữ liệu ánh sáng khác mặc định (sky=15, block=0) hay
+     * không.
+     */
     boolean hasNonDefaultLight() {
         if (light == null) {
             return defaultLight != DEFAULT_LIGHT;
@@ -209,12 +227,14 @@ public class Chunk implements Disposable {
     }
 
     /** Ghi ID với trạng thái mặc định, đồng thời loại bỏ metadata của ô cũ. */
-    public boolean setBlockLocal(int x, int y, int z, byte blockId) {
+    boolean setBlockLocal(int x, int y, int z, byte blockId) {
         return setBlockLocal(x, y, z, blockId, 0);
     }
 
-    /** Ghi ID và trạng thái cùng lúc. ID hoặc metadata thay đổi đều làm bẩn mesh. */
-    public boolean setBlockLocal(int x, int y, int z, byte blockId, int state) {
+    /**
+     * Ghi ID và trạng thái cùng lúc. ID hoặc metadata thay đổi đều làm bẩn mesh.
+     */
+    boolean setBlockLocal(int x, int y, int z, byte blockId, int state) {
         int index = blockIndex(x, y, z);
         byte previous = blocks[index];
         byte nextState = blockId == 0 ? 0 : (byte) state;
@@ -238,7 +258,9 @@ public class Chunk implements Disposable {
         return true;
     }
 
-    /** Ghi dải địa tầng khác Air trong một cột đã được World cắt theo biên chunk. */
+    /**
+     * Ghi dải địa tầng khác Air trong một cột đã được World cắt theo biên chunk.
+     */
     void fillGeneratedColumnSegment(int x, int z, int firstY, int endY, byte blockId) {
         int position = blockIndex(x, firstY, z);
         for (int y = firstY; y < endY; y++, position += SIZE) {
@@ -254,12 +276,12 @@ public class Chunk implements Disposable {
     }
 
     /** Kiểm tra chunk chỉ còn không khí. */
-    public boolean isEmpty() {
+    boolean isEmpty() {
         return blockCount == 0;
     }
 
     /** Với mỗi mặt phẳng, thử đúng góc hộp xa nhất về phía trong của khung nhìn. */
-    public boolean intersectsFrustum(Frustum frustum) {
+    boolean intersectsFrustum(Frustum frustum) {
         for (Plane plane : frustum.planes) {
             Vector3 normal = plane.normal;
             int x = normal.x >= 0f ? baseWorldX + SIZE : baseWorldX;
@@ -310,16 +332,22 @@ public class Chunk implements Disposable {
     }
 
     /** Báo dữ liệu block đã thay đổi kể từ lần dựng gần nhất. */
-    public boolean isDirty() {
+    boolean isDirty() {
         return dirty;
     }
 
-    /** Đánh dấu cần dựng lại khi hình học hoặc ánh sáng phụ thuộc chunk bên cạnh thay đổi. */
+    /**
+     * Đánh dấu cần dựng lại khi hình học hoặc ánh sáng phụ thuộc chunk bên cạnh
+     * thay đổi.
+     */
     void markDirty() {
         dirty = true;
     }
 
-    /** Dựng lại hai mesh từ các bộ đệm số thực được thế giới dùng lại giữa các chunk. */
+    /**
+     * Dựng lại hai mesh từ các bộ đệm số thực được thế giới dùng lại giữa các
+     * chunk.
+     */
     void rebuildMesh(World world, FloatArray opaqueVertices, FloatArray translucentVertices) {
         buildVertices(world, opaqueVertices, translucentVertices);
         opaqueMesh = uploadMesh(opaqueMesh, opaqueVertices);
@@ -328,7 +356,7 @@ public class Chunk implements Disposable {
     }
 
     /** Tính các mặt lộ ra của khối và ghi đỉnh vào đúng pha kết xuất. */
-    public void buildVertices(World world, FloatArray opaqueVertices, FloatArray translucentVertices) {
+    void buildVertices(World world, FloatArray opaqueVertices, FloatArray translucentVertices) {
         opaqueVertices.clear();
         translucentVertices.clear();
 
@@ -351,7 +379,8 @@ public class Chunk implements Disposable {
                     int state = metadata == null ? 0 : Byte.toUnsignedInt(metadata[index]);
                     Block above = Block.fromId(world.getBlock(wx, wy + 1, wz));
                     FloatArray vertices = block.getRenderLayer() == RenderLayer.TRANSLUCENT
-                            ? translucentVertices : opaqueVertices;
+                            ? translucentVertices
+                            : opaqueVertices;
                     if (block.getGeometryType() == GeometryType.CROSS_PLANT) {
                         float[] uv = tileUv(block.getTileIndex(Face.SOUTH, state, above));
                         float plantLight = computeLightFactor(world, wx, wy, wz);
@@ -366,8 +395,8 @@ public class Chunk implements Disposable {
                         addBox(world, vertices, block, state, above, wx, wy, wz, biomeTintBuffer);
                         // Dùng dấu của hệ số mặt để đánh dấu phát sáng mà không tăng kích thước đỉnh.
                         if (block == Block.LAVA) {
-                            for (int shade = firstVertex + SHADE_OFFSET;
-                                 shade < vertices.size; shade += FLOATS_PER_VERTEX) {
+                            for (int shade = firstVertex
+                                    + SHADE_OFFSET; shade < vertices.size; shade += FLOATS_PER_VERTEX) {
                                 vertices.items[shade] = -vertices.items[shade];
                             }
                         }
@@ -377,7 +406,10 @@ public class Chunk implements Disposable {
         }
     }
 
-    /** Cập nhật bộ đệm hiện có hoặc thay bằng mesh lớn hơn khi số đỉnh vượt dung lượng. */
+    /**
+     * Cập nhật bộ đệm hiện có hoặc thay bằng mesh lớn hơn khi số đỉnh vượt dung
+     * lượng.
+     */
     private static Mesh uploadMesh(Mesh current, FloatArray vertices) {
         if (vertices.size == 0) {
             if (current != null) {
@@ -412,8 +444,11 @@ public class Chunk implements Disposable {
         return replacement;
     }
 
-    /** Ưu tiên bốn đỉnh mỗi mặt để giảm kích thước tải và công việc của vertex shader. */
-    public static void compactQuads(FloatArray vertices, int quads) {
+    /**
+     * Ưu tiên bốn đỉnh mỗi mặt để giảm kích thước tải và công việc của vertex
+     * shader.
+     */
+    static void compactQuads(FloatArray vertices, int quads) {
         for (int quad = 0; quad < quads; quad++) {
             int from = quad * 6 * FLOATS_PER_VERTEX;
             int to = quad * 4 * FLOATS_PER_VERTEX;
@@ -480,9 +515,12 @@ public class Chunk implements Disposable {
         }
     }
 
-    /** Dựng tối đa sáu mặt cho hình hộp, cắt phần bên cạnh đã bị phủ kín và áp dụng nhuộm biome phù hợp. */
+    /**
+     * Dựng tối đa sáu mặt cho hình hộp, cắt phần bên cạnh đã bị phủ kín và áp dụng
+     * nhuộm biome phù hợp.
+     */
     private static void addBox(World world, FloatArray v, Block block, int state, Block above,
-                               int x, int y, int z, float[] tintRgb) {
+            int x, int y, int z, float[] tintRgb) {
         float inset = horizontalInset(block);
         float height = renderHeight(world, block, state, x, y, z);
         float leavesColor = BiomeTint.WHITE_PACKED_COLOR;
@@ -527,7 +565,8 @@ public class Chunk implements Disposable {
                 }
                 if (visibleFrom < height) {
                     float[] uv = tileUv(block.getTileIndex(face, state, above));
-                    // Mặt bên GRASS có phần đất bên dưới nên giữ trắng 0xFFFFFFFF để không nhuộm sai màu đất.
+                    // Mặt bên GRASS có phần đất bên dưới nên giữ trắng 0xFFFFFFFF để không nhuộm
+                    // sai màu đất.
                     addSideFace(v, face, x, y, z, inset, visibleFrom, height, uv, leavesColor);
                 }
             }
@@ -541,7 +580,8 @@ public class Chunk implements Disposable {
 
     /**
      * Kết hợp ánh sáng bầu trời / ánh sáng khối theo công thức
-     * {@code max(skyLight/15f * skyFactor, blockLight/15f)} với sàn tối thiểu 0.04f.
+     * {@code max(skyLight/15f * skyFactor, blockLight/15f)} với sàn tối thiểu
+     * 0.04f.
      */
     private static float computeLightFactor(World world, int x, int y, int z) {
         int sky = world.getSkyLight(x, y, z);
@@ -551,10 +591,13 @@ public class Chunk implements Disposable {
         return Math.max(ChunkLighting.MIN_LIGHT_LEVEL, combined);
     }
 
-    /** Lấy độ che ở bốn góc của mặt và nhân thêm cường độ Sky/Block Light lên đỉnh. */
+    /**
+     * Lấy độ che ở bốn góc của mặt và nhân thêm cường độ Sky/Block Light lên đỉnh.
+     */
     private static void shadeFace(World world, FloatArray vertices, int first, Face face,
-                                  int x, int y, int z, int sampleX, int sampleY, int sampleZ) {
-        // Nếu ô lấy mẫu bị khối đục chiếm (ví dụ mặt cạnh Cactus sát tường), đọc ánh sáng ngay trong ô khối.
+            int x, int y, int z, int sampleX, int sampleY, int sampleZ) {
+        // Nếu ô lấy mẫu bị khối đục chiếm (ví dụ mặt cạnh Cactus sát tường), đọc ánh
+        // sáng ngay trong ô khối.
         boolean sampleOpaque = Block.fromId(world.getBlock(sampleX, sampleY, sampleZ)).isOpaque();
         float lightFactor = sampleOpaque
                 ? computeLightFactor(world, x, y, z)
@@ -601,7 +644,9 @@ public class Chunk implements Disposable {
         }
     }
 
-    /** Đọc ô từ thế giới để tính che khuất cả qua mặt, cạnh và đỉnh chung của chunk. */
+    /**
+     * Đọc ô từ thế giới để tính che khuất cả qua mặt, cạnh và đỉnh chung của chunk.
+     */
     private static float occlusionAt(World world, int x, int y, int z) {
         Block block = Block.fromId(world.getBlock(x, y, z));
         if (block.isOpaque() || (block == Block.SNOW_LAYER && world.getBlockState(x, y, z) == 7)) {
@@ -633,7 +678,10 @@ public class Chunk implements Disposable {
         System.arraycopy(items, first + 3 * vertex, items, first, vertex);
     }
 
-    /** Lá và cây khoét alpha không che kín mặt kề. Nước hoặc băng che mặt tiếp xúc cùng loại. */
+    /**
+     * Lá và cây khoét alpha không che kín mặt kề. Nước hoặc băng che mặt tiếp xúc
+     * cùng loại.
+     */
     private static boolean canCover(Block current, Block neighbor) {
         if (neighbor == Block.AIR) {
             return false;
@@ -654,7 +702,9 @@ public class Chunk implements Disposable {
         return renderHeight(world, block, state, x, y, z);
     }
 
-    /** Dùng chiều cao hiển thị của khối lỏng và tuyết, các hộp còn lại cao một ô. */
+    /**
+     * Dùng chiều cao hiển thị của khối lỏng và tuyết, các hộp còn lại cao một ô.
+     */
     private static float renderHeight(World world, Block block, int state, int x, int y, int z) {
         return switch (block.getGeometryType()) {
             case LIQUID -> block.getTopHeight(world, x, y, z);
@@ -665,7 +715,7 @@ public class Chunk implements Disposable {
 
     /** Vẽ nguyên mặt ngang hoặc bốn dải viền còn lộ quanh hình hộp hẹp kề bên. */
     private static void addHorizontalFace(FloatArray v, Face face, float x, float y, float z,
-                                          float inset, float coverInset, float[] uv, float color) {
+            float inset, float coverInset, float[] uv, float color) {
         float edge = 1.0f - inset;
         if (coverInset == 0.5f) {
             addHorizontalRect(v, face, x, y, z, inset, edge, inset, edge, inset, uv, color);
@@ -680,8 +730,8 @@ public class Chunk implements Disposable {
 
     /** Quy đổi hình chữ nhật ngang sang tọa độ thế giới và UV của mặt gốc. */
     private static void addHorizontalRect(FloatArray v, Face face, float x, float y, float z,
-                                          float minX, float maxX, float minZ, float maxZ,
-                                          float inset, float[] uv, float color) {
+            float minX, float maxX, float minZ, float maxZ,
+            float inset, float[] uv, float color) {
         // Tọa độ UV đã bỏ viền PNG. Quy đổi phần lộ ra theo bề rộng thực của mặt.
         float width = 1.0f - 2.0f * inset;
         float u0 = lerp(uv[0], uv[2], (minX - inset) / width);
@@ -701,7 +751,7 @@ public class Chunk implements Disposable {
 
     /** Dựng một thành bên từ độ cao bắt đầu thấy cho đến mép trên của khối. */
     private static void addSideFace(FloatArray v, Face face, float x, float y, float z,
-                                    float inset, float visibleFrom, float height, float[] uv, float color) {
+            float inset, float visibleFrom, float height, float[] uv, float color) {
         float x0 = x + inset;
         float x1 = x + 1.0f - inset;
         float z0 = z + inset;
@@ -722,9 +772,11 @@ public class Chunk implements Disposable {
         }
     }
 
-    /** Tạo hai tấm chéo nằm trong hộp chọn để vùng vẽ và vùng ngắm cùng kích thước. */
+    /**
+     * Tạo hai tấm chéo nằm trong hộp chọn để vùng vẽ và vùng ngắm cùng kích thước.
+     */
     private static void addCross(FloatArray v, float x, float y, float z, Block.Bounds bounds, float[] uv,
-                                 float lightFactor, float color) {
+            float lightFactor, float color) {
         float minX = x + bounds.minX();
         float maxX = x + bounds.maxX();
         float minZ = z + bounds.minZ();
@@ -738,7 +790,7 @@ public class Chunk implements Disposable {
 
     /** Thêm hai mặt quay ngược nhau của một tấm chéo để vẫn dùng culling chung. */
     private static void addPlantPlane(FloatArray v, float x0, float bottom, float z0,
-                                      float x1, float top, float z1, float[] uv, float shade, float color) {
+            float x1, float top, float z1, float[] uv, float shade, float color) {
         addQuad(v, x0, bottom, z0, x1, bottom, z1, x1, top, z1, x0, top, z0,
                 uv[0], uv[1], uv[2], uv[3], shade, color);
         addQuad(v, x1, bottom, z1, x0, bottom, z0, x0, top, z0, x1, top, z1,
@@ -752,8 +804,8 @@ public class Chunk implements Disposable {
 
     /** Nối bốn góc theo hai tam giác cùng chiều để OpenGL có thể bỏ mặt sau. */
     private static void addQuad(FloatArray v, float ax, float ay, float az, float bx, float by, float bz,
-                                float cx, float cy, float cz, float dx, float dy, float dz,
-                                float u0, float v0, float u1, float v1, float shade, float color) {
+            float cx, float cy, float cz, float dx, float dy, float dz,
+            float u0, float v0, float u1, float v1, float shade, float color) {
         putVertex(v, ax, ay, az, u0, v1, shade, color);
         putVertex(v, bx, by, bz, u1, v1, shade, color);
         putVertex(v, cx, cy, cz, u1, v0, shade, color);
@@ -762,9 +814,12 @@ public class Chunk implements Disposable {
         putVertex(v, dx, dy, dz, u0, v0, shade, color);
     }
 
-    /** Ghi một đỉnh theo thứ tự thuộc tính 7 floats của shader chunk (không cấp phát varargs). */
+    /**
+     * Ghi một đỉnh theo thứ tự thuộc tính 7 floats của shader chunk (không cấp phát
+     * varargs).
+     */
     private static void putVertex(FloatArray vertices, float x, float y, float z,
-                                  float u, float v, float shade, float color) {
+            float u, float v, float shade, float color) {
         vertices.add(x, y, z);
         vertices.add(u, v, shade, color);
     }

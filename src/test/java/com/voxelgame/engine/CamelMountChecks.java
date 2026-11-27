@@ -164,7 +164,7 @@ final class CamelMountChecks {
                     "Lạc đà đứng phải có đúng kích thước, tầm bước bậc và máu");
             camel.damage(world, 8f, DamageSource.MELEE, null, 0f, 0f);
             require(player.getHotbar().addItem(Block.CACTUS, 2), "Cần xương rồng trong Hotbar");
-            player.getHotbar().selectSlot(5);
+            player.getHotbar().selectSlot(0);
             require(camel.onPlayerInteract(world, player) && camel.getHealth() > 24f
                     && player.getHotbar().getSelectedCount() == 1 && player.getMount() == null,
                     "Tương tác khi cầm xương rồng phải cho ăn và hồi máu trước khi cưỡi");

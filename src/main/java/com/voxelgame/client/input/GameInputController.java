@@ -1,6 +1,7 @@
 package com.voxelgame.client.input;
 
 import com.voxelgame.client.audio.AudioManager;
+import com.voxelgame.client.gui.CreativeInventoryScreen;
 import com.voxelgame.client.gui.DebugOverlayRenderer;
 import com.voxelgame.client.gui.InventoryScreen;
 import com.voxelgame.client.gui.UIRenderer;
@@ -9,6 +10,7 @@ import com.voxelgame.client.render.ParticleManager;
 import com.voxelgame.world.entity.ItemEntity;
 import com.voxelgame.world.entity.player.Hotbar;
 import com.voxelgame.world.entity.player.Player;
+import com.voxelgame.world.gamemode.GameMode;
 import com.voxelgame.world.item.Item;
 import com.voxelgame.world.item.ItemUseHandler;
 import com.voxelgame.world.level.LeafDecaySystem;
@@ -49,6 +51,7 @@ public class GameInputController implements InputProcessor {
         AudioManager getAudioManager();
         UIRenderer getUiRenderer();
         InventoryScreen getInventoryScreen();
+        CreativeInventoryScreen getCreativeInventoryScreen();
         DebugOverlayRenderer getDebugOverlay();
         ItemUseHandler getItemUseHandler();
         ParticleManager getParticleManager();
@@ -69,6 +72,8 @@ public class GameInputController implements InputProcessor {
     public static final float RAYCAST_REACH = 5.0f;
     /** Tầm với cơ bản dành cho đòn cận chiến tay không. */
     private static final float MELEE_REACH = 3.0f;
+    /** Nhịp hồi ngắn (giây) giữa hai lần phá khối tức thì liên tiếp khi giữ chuột trái ở Creative. */
+    private static final float CREATIVE_BREAK_COOLDOWN = 0.18f;
 
     /** Cầu nối tới các hệ thống con của ứng dụng. */
     private final Host host;
@@ -97,6 +102,7 @@ public class GameInputController implements InputProcessor {
     private int miningTargetZ = Integer.MIN_VALUE;
     private float miningElapsedTime = 0.0f;
     private float nextMiningSoundTime;
+    private float creativeBreakCooldown;
 
     /** Các bộ đệm tái sử dụng cho Raycast và sinh vật phẩm rơi (zero-GC). */
     private final Vector3 eyePosition = new Vector3();
@@ -131,10 +137,12 @@ public class GameInputController implements InputProcessor {
         return isLeftMouseDown && miningTargetX != Integer.MIN_VALUE;
     }
 
-    /** Kiểm tra giao diện túi đồ 36 ô hiện có đang mở hay không. */
+    /** Kiểm tra giao diện túi đồ (Survival 36 ô hoặc Kho Creative) hiện có đang mở hay không. */
     public boolean isInventoryOpen() {
         InventoryScreen screen = host.getInventoryScreen();
-        return screen != null && screen.isOpen();
+        CreativeInventoryScreen creativeScreen = host.getCreativeInventoryScreen();
+        return (screen != null && screen.isOpen())
+                || (creativeScreen != null && creativeScreen.isOpen());
     }
 
     /**
@@ -154,38 +162,59 @@ public class GameInputController implements InputProcessor {
         }
     }
 
-    /** Bật/tắt giao diện túi đồ 36 ô khi nhấn phím {@code E}, giữ nguyên vòng đời thế giới. */
+    /** Bật/tắt túi đồ tương ứng với chế độ chơi hiện tại ({@code CreativeInventoryScreen} hoặc {@code InventoryScreen}). */
     public void toggleInventory() {
-        InventoryScreen inventoryScreen = host.getInventoryScreen();
         Player player = host.getPlayer();
-        if (inventoryScreen == null || player == null) {
+        if (player == null) {
             return;
         }
-        if (inventoryScreen.isOpen()) {
+        if (isInventoryOpen()) {
             closeInventory();
-        } else {
-            inventoryScreen.open();
-            isLeftMouseDown = false;
-            resetMiningProgress();
-            ItemUseHandler itemUseHandler = host.getItemUseHandler();
-            if (itemUseHandler != null) {
-                itemUseHandler.onHotbarSlotChanged();
-            }
-            Gdx.input.setCursorCatched(false);
-            skipNextMouseDelta = true;
-        }
-    }
-
-    /** Đóng giao diện túi đồ, trả item trên con trỏ về kho/đất và khóa lại chuột. */
-    public void closeInventory() {
-        InventoryScreen inventoryScreen = host.getInventoryScreen();
-        if (inventoryScreen == null || !inventoryScreen.isOpen()) {
             return;
         }
-        inventoryScreen.close(host.getPlayer(), host.getWorld());
+        boolean useCreative = player.getGameMode().usesCreativeInventory();
+        CreativeInventoryScreen creativeScreen = host.getCreativeInventoryScreen();
+        InventoryScreen inventoryScreen = host.getInventoryScreen();
+        if (useCreative && creativeScreen != null) {
+            creativeScreen.open();
+        } else if (inventoryScreen != null) {
+            inventoryScreen.open();
+        } else {
+            return;
+        }
         isLeftMouseDown = false;
         resetMiningProgress();
-        Gdx.input.setCursorCatched(true);
+        ItemUseHandler itemUseHandler = host.getItemUseHandler();
+        if (itemUseHandler != null) {
+            itemUseHandler.onHotbarSlotChanged();
+        }
+        if (Gdx.input != null) {
+            Gdx.input.setCursorCatched(false);
+        }
+        skipNextMouseDelta = true;
+    }
+
+    /** Đóng mọi màn hình túi đồ đang mở (Survival hoặc Creative) và khóa lại con trỏ chuột. */
+    public void closeInventory() {
+        InventoryScreen inventoryScreen = host.getInventoryScreen();
+        CreativeInventoryScreen creativeScreen = host.getCreativeInventoryScreen();
+        boolean closedAny = false;
+        if (inventoryScreen != null && inventoryScreen.isOpen()) {
+            inventoryScreen.close(host.getPlayer(), host.getWorld());
+            closedAny = true;
+        }
+        if (creativeScreen != null && creativeScreen.isOpen()) {
+            creativeScreen.close();
+            closedAny = true;
+        }
+        if (!closedAny) {
+            return;
+        }
+        isLeftMouseDown = false;
+        resetMiningProgress();
+        if (Gdx.input != null) {
+            Gdx.input.setCursorCatched(true);
+        }
         skipNextMouseDelta = true;
     }
 
@@ -231,17 +260,25 @@ public class GameInputController implements InputProcessor {
     }
 
     /**
-     * Cập nhật tiến trình đào block khi đang giữ chuột trái, áp dụng hệ số đa hình
-     * {@link Item#getMiningSpeedMultiplier(Block)} của vật phẩm đang cầm.
+     * Cập nhật tiến trình đào block khi đang giữ chuột trái:
+     * - Ở Creative ({@link GameMode#breaksInstantly()}): phá tức thì mọi khối hợp lệ (gồm Bedrock)
+     *   không rơi vật phẩm với nhịp hồi ngắn {@link #CREATIVE_BREAK_COOLDOWN}.
+     * - Ở Survival: tính thời gian theo độ cứng nhân {@link Item#getMiningSpeedMultiplier(Block)}.
      */
     public float updateMiningProgress(Raycast.HitResult currentHit, float deltaTime) {
+        if (creativeBreakCooldown > 0.0f) {
+            creativeBreakCooldown = Math.max(0.0f, creativeBreakCooldown - deltaTime);
+        }
         if (!isLeftMouseDown || currentHit == null || !currentHit.isHit()) {
             resetMiningProgress();
             return 0.0f;
         }
 
+        Player player = host.getPlayer();
+        GameMode mode = player != null ? player.getGameMode() : null;
         Block targetBlock = currentHit.getBlock();
-        if (!targetBlock.isBreakable()) {
+        boolean canBreak = mode != null ? mode.canBreakBlock(targetBlock) : targetBlock.isBreakable();
+        if (!canBreak) {
             resetMiningProgress();
             return 0.0f;
         }
@@ -249,6 +286,29 @@ public class GameInputController implements InputProcessor {
         int hitX = currentHit.getBlockX();
         int hitY = currentHit.getBlockY();
         int hitZ = currentHit.getBlockZ();
+
+        if (mode != null && mode.breaksInstantly()) {
+            if (creativeBreakCooldown <= 0.0f) {
+                World world = host.getWorld();
+                if (world != null) {
+                    boolean broken = mode.dropsBlockItems()
+                            ? breakWithDrop(world, hitX, hitY, hitZ)
+                            : world.breakBlockWithoutDrop(hitX, hitY, hitZ);
+                    if (broken) {
+                        ParticleManager particleManager = host.getParticleManager();
+                        if (particleManager != null) {
+                            particleManager.spawnBlockBreak(hitX, hitY, hitZ, targetBlock, 20);
+                        }
+                        if (player != null) {
+                            player.triggerSwing();
+                        }
+                    }
+                }
+                creativeBreakCooldown = CREATIVE_BREAK_COOLDOWN;
+            }
+            resetMiningProgress();
+            return 0.0f;
+        }
 
         if (hitX != miningTargetX || hitY != miningTargetY || hitZ != miningTargetZ) {
             miningTargetX = hitX;
@@ -258,7 +318,6 @@ public class GameInputController implements InputProcessor {
             nextMiningSoundTime = 0.0f;
         }
 
-        Player player = host.getPlayer();
         Item heldItem = (player != null && player.getHotbar().getSelectedCount() > 0
                 && player.getHotbar().getSelectedItem() != null)
                 ? player.getHotbar().getSelectedItem() : Item.NONE;
@@ -286,6 +345,12 @@ public class GameInputController implements InputProcessor {
         }
 
         return Math.min(1.0f, miningElapsedTime / requiredTime);
+    }
+
+    /** Tiện ích gọi phá khối kèm rơi vật phẩm và trả về {@code true}. */
+    private static boolean breakWithDrop(World world, int x, int y, int z) {
+        world.breakBlockAndSpawnDrop(x, y, z);
+        return true;
     }
 
     /** Đặt lại trạng thái đào block về mặc định. */
@@ -396,11 +461,13 @@ public class GameInputController implements InputProcessor {
 
         if (selectedItem == Item.MILK_BUCKET && hotbar.getSelectedCount() > 0) {
             player.clearStatusEffects();
-            hotbar.consumeSelectedItemStack();
-            if (!hotbar.addItem(Item.BUCKET, 1)) {
-                player.copyPosition(dropPosBuffer);
-                world.spawnDroppedItem(new ItemEntity(dropPosBuffer.x,
-                        dropPosBuffer.y + 1.0f, dropPosBuffer.z, Item.BUCKET));
+            if (player.getGameMode().consumesItems()) {
+                hotbar.consumeSelectedItemStack();
+                if (!hotbar.addItem(Item.BUCKET, 1)) {
+                    player.copyPosition(dropPosBuffer);
+                    world.spawnDroppedItem(new ItemEntity(dropPosBuffer.x,
+                            dropPosBuffer.y + 1.0f, dropPosBuffer.z, Item.BUCKET));
+                }
             }
             AudioManager audioManager = host.getAudioManager();
             if (audioManager != null) {
@@ -439,12 +506,48 @@ public class GameInputController implements InputProcessor {
         }
     }
 
-    /** Trừ vật phẩm trên Hotbar và phát SFX vật liệu sau khi đặt block thành công. */
+    /** Trừ vật phẩm trên Hotbar (nếu chế độ tiêu hao đồ) và phát SFX vật liệu sau khi đặt block thành công. */
     private void finishBlockPlacement(Hotbar hotbar, Block placedBlock) {
-        hotbar.consumeSelectedItem();
+        Player player = host.getPlayer();
+        if (player == null || player.getGameMode().consumesItems()) {
+            hotbar.consumeSelectedItem();
+        }
         AudioManager audioManager = host.getAudioManager();
         if (audioManager != null) {
             audioManager.playPlace(placedBlock);
+        }
+    }
+
+    /**
+     * Kiểm tra phím Ctrl trái hoặc phải có đang được giữ hay không, kết hợp cả cờ sự kiện hàng đợi
+     * (cho kiểm thử headless) lẫn trạng thái trực tiếp từ {@code Gdx.input} (chống lệch trạng thái khi đổi cửa sổ).
+     */
+    private boolean isControlDown() {
+        return leftControlDown
+                || rightControlDown
+                || (Gdx.input != null && (Gdx.input.isKeyPressed(Input.Keys.CONTROL_LEFT)
+                || Gdx.input.isKeyPressed(Input.Keys.CONTROL_RIGHT)));
+    }
+
+    /**
+     * Chuyển đổi chế độ chơi ({@code Creative ↔ Survival}) khi bấm phím {@code F2},
+     * đồng thời đóng màn hình túi đồ đang mở, đặt lại tiến trình đào và hủy phiên dùng vật phẩm.
+     */
+    private void toggleGameMode(Player player) {
+        if (isInventoryOpen()) {
+            closeInventory();
+        }
+        GameMode nextMode = player.toggleGameMode();
+        isLeftMouseDown = false;
+        creativeBreakCooldown = 0.0f;
+        resetMiningProgress();
+        ItemUseHandler itemUseHandler = host.getItemUseHandler();
+        if (itemUseHandler != null) {
+            itemUseHandler.onHotbarSlotChanged();
+        }
+        UIRenderer uiRenderer = host.getUiRenderer();
+        if (uiRenderer != null) {
+            uiRenderer.showGameModeToast(nextMode);
         }
     }
 
@@ -471,7 +574,7 @@ public class GameInputController implements InputProcessor {
     @Override
     public boolean keyDown(int keycode) {
         Player player = host.getPlayer();
-        if (keycode == Input.Keys.F1 && player != null) {
+        if (keycode == Input.Keys.F1 && player != null && player.getGameMode().canUseTerrainTools()) {
             player.cycleTerrainSpeed();
             return true;
         }
@@ -499,7 +602,12 @@ public class GameInputController implements InputProcessor {
         }
 
         if (!host.isPaused() && player != null) {
-            if (keycode == Input.Keys.C && (leftControlDown || rightControlDown)) {
+            if (keycode == Input.Keys.F2) {
+                toggleGameMode(player);
+                return true;
+            }
+            if (keycode == Input.Keys.C && isControlDown()
+                    && player.getGameMode().canUseTerrainTools()) {
                 teleportToNextBiome(player, host.getWorld());
                 return true;
             }
@@ -538,7 +646,7 @@ public class GameInputController implements InputProcessor {
             }
             World world = host.getWorld();
             if (keycode == Input.Keys.Q && world != null && !isInventoryOpen()) {
-                player.dropSelectedItem(world, leftControlDown || rightControlDown);
+                player.dropSelectedItem(world, isControlDown());
                 return true;
             }
             DebugOverlayRenderer debugOverlay = host.getDebugOverlay();
@@ -589,8 +697,14 @@ public class GameInputController implements InputProcessor {
 
         Player player = host.getPlayer();
         if (isInventoryOpen() && player != null) {
-            boolean shiftDown = Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT)
-                    || Gdx.input.isKeyPressed(Input.Keys.SHIFT_RIGHT);
+            boolean shiftDown = Gdx.input != null && (Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT)
+                    || Gdx.input.isKeyPressed(Input.Keys.SHIFT_RIGHT));
+            CreativeInventoryScreen creativeScreen = host.getCreativeInventoryScreen();
+            if (creativeScreen != null && creativeScreen.isOpen()) {
+                creativeScreen.handleClick(player.getInventory(), screenX, screenY,
+                        Gdx.graphics.getWidth(), Gdx.graphics.getHeight(), button, shiftDown);
+                return true;
+            }
             host.getInventoryScreen().handleClick(player.getInventory(), screenX, screenY,
                     Gdx.graphics.getWidth(), Gdx.graphics.getHeight(), button, shiftDown);
             return true;
@@ -631,6 +745,7 @@ public class GameInputController implements InputProcessor {
 
         if (button == Input.Buttons.LEFT) {
             isLeftMouseDown = false;
+            creativeBreakCooldown = 0.0f;
             resetMiningProgress();
         }
         ItemUseHandler itemUseHandler = host.getItemUseHandler();
@@ -667,13 +782,20 @@ public class GameInputController implements InputProcessor {
 
     @Override
     public boolean scrolled(float amountX, float amountY) {
-        Player player = host.getPlayer();
-        if (!host.isPaused() && !isInventoryOpen() && player != null) {
-            int previousSlot = player.getHotbar().getSelectedSlot();
-            player.getHotbar().scroll(-amountY);
-            ItemUseHandler itemUseHandler = host.getItemUseHandler();
-            if (itemUseHandler != null && player.getHotbar().getSelectedSlot() != previousSlot) {
-                itemUseHandler.onHotbarSlotChanged();
+        if (!host.isPaused()) {
+            CreativeInventoryScreen creativeScreen = host.getCreativeInventoryScreen();
+            if (creativeScreen != null && creativeScreen.isOpen()) {
+                creativeScreen.scroll(amountY);
+                return true;
+            }
+            Player player = host.getPlayer();
+            if (!isInventoryOpen() && player != null) {
+                int previousSlot = player.getHotbar().getSelectedSlot();
+                player.getHotbar().scroll(-amountY);
+                ItemUseHandler itemUseHandler = host.getItemUseHandler();
+                if (itemUseHandler != null && player.getHotbar().getSelectedSlot() != previousSlot) {
+                    itemUseHandler.onHotbarSlotChanged();
+                }
             }
         }
         return true;

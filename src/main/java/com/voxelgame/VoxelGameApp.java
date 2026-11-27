@@ -1,6 +1,7 @@
 package com.voxelgame;
 
 import com.voxelgame.client.audio.AudioManager;
+import com.voxelgame.client.gui.CreativeInventoryScreen;
 import com.voxelgame.client.gui.DebugOverlayRenderer;
 import com.voxelgame.client.gui.InventoryScreen;
 import com.voxelgame.client.gui.UIRenderer;
@@ -21,6 +22,7 @@ import com.voxelgame.world.entity.Entity;
 import com.voxelgame.world.entity.ItemEntity;
 import com.voxelgame.world.entity.LivingEntity;
 import com.voxelgame.world.entity.player.Player;
+import com.voxelgame.world.gamemode.CreativeGameMode;
 import com.voxelgame.world.item.ItemUseHandler;
 import com.voxelgame.world.level.World;
 import com.voxelgame.world.level.WorldTime;
@@ -114,8 +116,9 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor, 
     private final Vector3 renderCameraPos = new Vector3();
     private final Matrix4 renderViewMatrix = new Matrix4();
 
-    /** Màn hình túi đồ 36 ô và bảng thông số gỡ lỗi F3. */
+    /** Màn hình túi đồ 36 ô (Survival), Kho Creative và bảng thông số gỡ lỗi F3. */
     private InventoryScreen inventoryScreen;
+    private CreativeInventoryScreen creativeInventoryScreen;
     private DebugOverlayRenderer debugOverlay;
 
     /** Đảm bảo {@link GameInputController} luôn sẵn sàng kể cả khi bài test chưa gọi {@link #create()}. */
@@ -175,6 +178,8 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor, 
         );
 
         player = new Player(world.getSpawnPosition());
+        // Mặc định khởi chạy trò chơi ở chế độ Creative (F2 để chuyển qua lại Survival)
+        player.setGameMode(CreativeGameMode.INSTANCE);
         player.attachControls(camera);
         world.registerPlayer(player);
 
@@ -191,8 +196,10 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor, 
         }
 
         inventoryScreen = new InventoryScreen();
+        creativeInventoryScreen = new CreativeInventoryScreen();
         debugOverlay = new DebugOverlayRenderer();
         uiRenderer.setInventoryScreen(inventoryScreen);
+        uiRenderer.setCreativeInventoryScreen(creativeInventoryScreen);
         uiRenderer.setDebugOverlay(debugOverlay, world);
 
         GameInputController controller = ensureInputController();
@@ -213,6 +220,9 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor, 
 
         if (audioManager != null) {
             audioManager.update();
+        }
+        if (uiRenderer != null) {
+            uiRenderer.updateToast(deltaTime);
         }
 
         if (!isPaused && !controller.isInventoryOpen()) {
@@ -548,6 +558,10 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor, 
             inventoryScreen.dispose();
             inventoryScreen = null;
         }
+        if (creativeInventoryScreen != null) {
+            creativeInventoryScreen.dispose();
+            creativeInventoryScreen = null;
+        }
         if (debugOverlay != null) {
             debugOverlay.dispose();
             debugOverlay = null;
@@ -586,6 +600,11 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor, 
     @Override
     public InventoryScreen getInventoryScreen() {
         return inventoryScreen;
+    }
+
+    @Override
+    public CreativeInventoryScreen getCreativeInventoryScreen() {
+        return creativeInventoryScreen;
     }
 
     @Override

@@ -21,8 +21,8 @@ import com.badlogic.gdx.utils.Disposable;
  */
 public class DebugOverlayRenderer implements Disposable {
 
-    /** Tổng số dòng thông số hiển thị trên màn hình F3. */
-    public static final int LINE_COUNT = 7;
+    /** Tổng số dòng thông số hiển thị trên màn hình F3 (gồm dòng MODE). */
+    public static final int LINE_COUNT = 8;
 
     /** Thông số bố cục pixel tại góc trên-trái (ngay dưới dòng thời gian của HUD). */
     private static final float ORIGIN_X = 10.0f;
@@ -169,6 +169,10 @@ public class DebugOverlayRenderer implements Disposable {
         // 7. ENTITIES
         StringBuilder entitiesLine = resetLine(6);
         entitiesLine.append("ENTITIES: ").append(world != null ? world.entityCount() : 0);
+
+        // 8. MODE (Chế độ chơi hiện tại: CREATIVE / SURVIVAL)
+        StringBuilder modeLine = resetLine(7);
+        modeLine.append("MODE: ").append(player != null ? player.getGameMode().getDisplayName() : "SURVIVAL");
     }
 
     /** Xóa sạch bộ đệm dòng thứ {@code index} để ghi lại nội dung mới. */

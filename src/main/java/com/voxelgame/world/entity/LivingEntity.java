@@ -288,7 +288,7 @@ public abstract class LivingEntity extends Entity {
     }
 
     /** Xóa cả thời gian cháy lẫn phần lẻ của nhịp sát thương. */
-    private void extinguish() {
+    protected final void extinguish() {
         fireTimer = 0f;
         fireElapsed = 0f;
     }

@@ -8,7 +8,10 @@ import static com.voxelgame.world.level.World.CENTER_Z;
 import static com.voxelgame.world.level.World.WORLD_SIZE_X;
 import static com.voxelgame.world.level.World.WORLD_SIZE_Z;
 
-/** Dấu chân và cách dựng kim tự tháp sa mạc có sảnh nổi, cầu thang và phòng ngầm. */
+/**
+ * Dấu chân và cách dựng kim tự tháp sa mạc có sảnh nổi, cầu thang và phòng
+ * ngầm.
+ */
 public record DesertPyramid(int centerX, int centerZ, int baseY) {
     /** Nửa bề rộng thân vuông ở tầng thấp nhất. */
     private static final int BASE_RADIUS = 8;
@@ -48,7 +51,10 @@ public record DesertPyramid(int centerX, int centerZ, int baseY) {
         return best;
     }
 
-    /** Trả độ cao thấp nhất và cao nhất trong dấu chân, hoặc 0 nếu có cột bất hợp lệ. */
+    /**
+     * Trả độ cao thấp nhất và cao nhất trong dấu chân, hoặc 0 nếu có cột bất hợp
+     * lệ.
+     */
     private static int drySiteRange(short[] heights, byte[] biomes, int desert, int centerX, int centerZ) {
         int highest = 0;
         int lowest = World.WORLD_SIZE_Y;
@@ -68,7 +74,9 @@ public record DesertPyramid(int centerX, int centerZ, int baseY) {
         return highest << 16 | lowest;
     }
 
-    /** Kiểm tra một cột có thuộc vùng dành riêng cho công trình, kể cả khoảng đệm. */
+    /**
+     * Kiểm tra một cột có thuộc vùng dành riêng cho công trình, kể cả khoảng đệm.
+     */
     public boolean contains(int x, int z, int margin) {
         return Math.abs(x - centerX) <= SITE_RADIUS + margin && Math.abs(z - centerZ) <= SITE_RADIUS + margin;
     }
@@ -80,7 +88,10 @@ public record DesertPyramid(int centerX, int centerZ, int baseY) {
         buildEntranceAndSupport(world);
     }
 
-    /** Lấp thân móng, chỉ chừa khoảng trống có sàn và vách của cầu thang và phòng rương. */
+    /**
+     * Lấp thân móng, chỉ chừa khoảng trống có sàn và vách của cầu thang và phòng
+     * rương.
+     */
     private void buildFoundation(World world) {
         int bottomY = baseY - CELLAR_DEPTH;
         for (int dx = -BASE_RADIUS; dx <= BASE_RADIUS; dx++) {

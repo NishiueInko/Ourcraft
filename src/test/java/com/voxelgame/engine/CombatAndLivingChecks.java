@@ -6,6 +6,7 @@ import com.voxelgame.world.effect.StatusEffectType;
 import com.voxelgame.world.entity.DamageSource;
 import com.voxelgame.world.entity.LivingEntity;
 import com.voxelgame.world.entity.player.Player;
+import com.voxelgame.world.gamemode.CreativeGameMode;
 import com.voxelgame.world.level.block.Block;
 import com.voxelgame.world.level.weather.WeatherManager;
 import com.voxelgame.world.level.World;
@@ -43,6 +44,8 @@ final class CombatAndLivingChecks {
                         && space[0] && (int) args[0] == Input.Keys.SPACE);
         try {
             Player player = new Player(64.5f, -26f, 60.5f);
+            // Chế độ bay bằng Space x2 thuộc CreativeGameMode
+            player.setGameMode(CreativeGameMode.INSTANCE);
             player.attachControls(new Camera());
             player.update(world, 0.05f);
             near(player.getPosition().y, 20f, "Rơi dưới Y = -25 phải về mặt đỡ an toàn");

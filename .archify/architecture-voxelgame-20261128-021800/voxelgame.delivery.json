@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "bc9e73eb-b490-4cd4-a411-97bce25cdb2f",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "D:\\VoxelGame\\.archify\\architecture-voxelgame-20261128-021800\\candidate.json",
+  "output": "D:\\VoxelGame\\.archify\\architecture-voxelgame-20261128-021800\\voxelgame.html",
+  "specification": {
+    "sha256": "fc86459dfb21062aab81ac886c0f809d7cd50d1f7ab5ab0c404c5c0ec6d67239",
+    "bytes": 4373
+  },
+  "artifact": {
+    "sha256": "5e29eca265beda6fb6bc307a226470672cee8ab414cf7aa90aa8dd3f7b87108f",
+    "bytes": 957430
+  }
+}

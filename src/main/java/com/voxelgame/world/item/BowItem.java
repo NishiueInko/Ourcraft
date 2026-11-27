@@ -39,13 +39,13 @@ public final class BowItem extends Item {
         return ItemUseHandler.BOW_FULL_DRAW_SECONDS;
     }
 
-    /** Chỉ cho phép bắt đầu kéo dây khi người chơi có ít nhất một mũi tên hợp lệ trên Hotbar. */
+    /** Cho phép kéo dây nếu chế độ không tiêu hao đồ (Creative) hoặc có ít nhất một mũi tên trên Hotbar. */
     @Override
     public boolean canStartContinuousUse(World world, Player player) {
-        return player != null && findFirstArrowSlot(player.getHotbar()) >= 0;
+        return player != null && (!player.getGameMode().consumesItems() || findFirstArrowSlot(player.getHotbar()) >= 0);
     }
 
-    /** Khi nhả chuột phải sau tối thiểu 0,15 giây kéo dây, tiêu thụ 1 mũi tên và bắn ra thế giới. */
+    /** Khi nhả chuột phải sau tối thiểu 0,15 giây kéo dây, bắn mũi tên (chỉ trừ stack khi chế độ tiêu hao đồ). */
     @Override
     public void onReleaseUse(World world, Player player, Camera camera, float useElapsed, ItemUseHandler handler) {
         if (world == null || player == null || !player.isAlive() || useElapsed < ItemUseHandler.BOW_MIN_DRAW_SECONDS) {
@@ -55,19 +55,26 @@ public final class BowItem extends Item {
         if (hotbar == null || hotbar.getSelectedItem() != this || hotbar.getSelectedCount() <= 0) {
             return;
         }
+        boolean consumes = player.getGameMode().consumesItems();
         int arrowSlot = findFirstArrowSlot(hotbar);
-        if (arrowSlot < 0) {
-            return;
-        }
-        Item arrowItem = hotbar.getSlotItem(arrowSlot);
-        ArrowType arrowType = toArrowType(arrowItem);
-        if (arrowType == null) {
+        ArrowType arrowType;
+        if (arrowSlot >= 0) {
+            Item arrowItem = hotbar.getSlotItem(arrowSlot);
+            arrowType = toArrowType(arrowItem);
+            if (arrowType == null) {
+                return;
+            }
+            if (consumes) {
+                hotbar.setSlot(arrowSlot, arrowItem, hotbar.getSlotCount(arrowSlot) - 1);
+            }
+        } else if (!consumes) {
+            arrowType = ArrowType.NORMAL;
+        } else {
             return;
         }
         float pull = Math.min(1.0f, useElapsed / ItemUseHandler.BOW_FULL_DRAW_SECONDS);
         float speed = MIN_SPEED + (MAX_SPEED - MIN_SPEED) * pull;
         float damage = MIN_DAMAGE + (MAX_DAMAGE - MIN_DAMAGE) * pull;
-        hotbar.setSlot(arrowSlot, arrowItem, hotbar.getSlotCount(arrowSlot) - 1);
 
         Vector3 eye = handler.aimEye(player, camera);
         Vector3 dir = handler.aimDirection();

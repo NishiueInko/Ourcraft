@@ -23,21 +23,11 @@ public class Hotbar {
     private int selectedSlot = 0;
 
     public Hotbar() {
+        // Khởi tạo toàn bộ 9 ô Hotbar trống hoàn toàn khi người chơi mới vào game
         for (int i = 0; i < SLOT_COUNT; i++) {
             slotItems[i] = Item.NONE;
             slotCounts[i] = 0;
         }
-
-        // Trang bị sẵn 5 loại Block cơ bản ở 5 ô đầu (giữ nguyên hành vi cũ)
-        setSlot(0, Block.DIRT, 16);
-        setSlot(1, Block.GRASS, 16);
-        setSlot(2, Block.STONE, 16);
-        setSlot(3, Block.OAK_LOG, 12);
-        setSlot(4, Block.OAK_LEAVES, 16);
-        // Ô 6 (chỉ số 5) để trống; các ô 7–9 trang bị công cụ tương tác mob
-        setSlot(6, Item.SHEARS, 1);
-        setSlot(7, Item.FLINT_AND_STEEL, 1);
-        setSlot(8, Item.BUCKET, 1);
     }
 
     /**

@@ -63,7 +63,15 @@ public final class SurvivalWorldChecks {
             require(PlayerInventory.TOTAL_SLOTS == 36, "Tổng số ô túi đồ phải bằng 36");
             require(inv.getHotbar() == player.getHotbar(), "Hotbar phải đồng bộ với 9 ô đầu của PlayerInventory");
 
-            // Lấp đầy toàn bộ 9 ô Hotbar (ô 5 vốn trống sẽ chứa tối đa 16 Egg theo maxStackSize)
+            // Khởi tạo Hotbar phải trống hoàn toàn; sau đó điền đầy 9 ô Hotbar để kiểm tra tràn sang balo
+            for (int slot = 0; slot < Hotbar.SLOT_COUNT; slot++) {
+                require(inv.getItem(slot) == Item.NONE && inv.getCount(slot) == 0,
+                        "Ô Hotbar " + slot + " ban đầu phải trống");
+            }
+            player.getHotbar().setSlot(0, Block.DIRT, 16);
+            for (int slot = 1; slot < Hotbar.SLOT_COUNT; slot++) {
+                player.getHotbar().setSlot(slot, Block.STONE, 16);
+            }
             player.getHotbar().setSlot(5, Item.EGG, 20);
             require(inv.getItem(5) == Item.EGG && inv.getCount(5) == 16,
                     "Egg trong ô 5 phải bị giới hạn đúng maxStackSize = 16");
@@ -220,7 +228,15 @@ public final class SurvivalWorldChecks {
 
             // 3. SHIFT + LEFT_CLICK chuyển nhanh từ balo (9..35) về Hotbar (0..8) và ngược lại
             PlayerInventory quickInv = new PlayerInventory();
-            // Hotbar mặc định: ô 2 có 16 Stone, ô 5 trống
+            // Thiết lập ô 0..4 và 6..8 có đồ (ô 2 có 16 Stone, ô 5 trống) để kiểm tra gộp & tràn vào ô trống
+            quickInv.setSlot(0, Block.DIRT, 16);
+            quickInv.setSlot(1, Block.GRASS, 16);
+            quickInv.setSlot(2, Block.STONE, 16);
+            quickInv.setSlot(3, Block.OAK_LOG, 12);
+            quickInv.setSlot(4, Block.OAK_LEAVES, 16);
+            quickInv.setSlot(6, Item.SHEARS, 1);
+            quickInv.setSlot(7, Item.FLINT_AND_STEEL, 1);
+            quickInv.setSlot(8, Item.BUCKET, 1);
             quickInv.setSlot(9, Block.STONE, 10);
             require(screen.handleSlotInteraction(quickInv, 9, InventoryScreen.LEFT_CLICK, true),
                     "Shift-Click Stone từ ô balo 9 phải chuyển về Hotbar");
@@ -270,9 +286,9 @@ public final class SurvivalWorldChecks {
             require(!screen.isOpen(), "close() phải đóng màn hình túi đồ");
             require(screen.getCursorItem() == Item.NONE && screen.getCursorCount() == 0,
                     "close() phải dọn sạch item đang cầm trên con trỏ");
-            require(player.getInventory().getItem(5) == Item.IRON_INGOT
-                    && player.getInventory().getCount(5) == 4,
-                    "close() phải trả lại 4 Iron Ingot từ con trỏ về ô trống đầu tiên trong túi đồ (ô Hotbar 5)");
+            require(player.getInventory().getItem(1) == Item.IRON_INGOT
+                    && player.getInventory().getCount(1) == 4,
+                    "close() phải trả lại 4 Iron Ingot từ con trỏ về ô trống đầu tiên trong túi đồ (ô Hotbar 1)");
         } finally {
             screen.dispose();
             world.dispose();

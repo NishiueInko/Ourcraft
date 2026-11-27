@@ -1,0 +1,704 @@
+{
+  "schema_version": 1,
+  "repository": {
+    "revision": null,
+    "baseRevision": "f23be012249c525de7e84b4554efb6520b401b5f",
+    "sourceKind": "working-tree",
+    "root": ".",
+    "url": "https://github.com/NishiueInko/Ourcraft.git",
+    "language": "java",
+    "adapter": "java-parser@3.0.1",
+    "adapterRevision": 14,
+    "snapshotId": "10745614146181b1824e91836b01025d8faf316df6d71d072e4f8de68c0cb977"
+  },
+  "grouping": {
+    "depth": 2,
+    "packageBoundaries": true,
+    "groups": [],
+    "java": "packages"
+  },
+  "excluded": {
+    "roles": [
+      "generated",
+      "test"
+    ],
+    "files": 19
+  },
+  "modules": [
+    {
+      "id": "gradle",
+      "label": ".gradle",
+      "path": ".gradle",
+      "files": 17,
+      "loc": 2797,
+      "fanIn": 0,
+      "fanOut": 1,
+      "instability": 1,
+      "entry": [
+        ".gradle/AuditMobJfr.java",
+        ".gradle/CombatDesktopSmoke.java",
+        ".gradle/FinalMobFrameSmoke.java"
+      ]
+    },
+    {
+      "id": "gradle-equine-check",
+      "label": ".gradle/equine-check",
+      "path": ".gradle/equine-check",
+      "files": 1,
+      "loc": 7,
+      "fanIn": 0,
+      "fanOut": 0,
+      "instability": null,
+      "entry": [
+        ".gradle/equine-check/EquineMountCheckRunner.java"
+      ]
+    },
+    {
+      "id": "gradle-mob-audio-check",
+      "label": ".gradle/mob-audio-check",
+      "path": ".gradle/mob-audio-check",
+      "files": 4,
+      "loc": 412,
+      "fanIn": 0,
+      "fanOut": 0,
+      "instability": null,
+      "entry": [
+        ".gradle/mob-audio-check/GenerateMobAudio.java",
+        ".gradle/mob-audio-check/MobAudioCheck.java",
+        ".gradle/mob-audio-check/MobAudioLifecycleCheck.java"
+      ]
+    },
+    {
+      "id": "gradle-mob-physics-check",
+      "label": ".gradle/mob-physics-check",
+      "path": ".gradle/mob-physics-check",
+      "files": 2,
+      "loc": 35,
+      "fanIn": 0,
+      "fanOut": 0,
+      "instability": null,
+      "entry": [
+        ".gradle/mob-physics-check/MobCornerCheck.java",
+        ".gradle/mob-physics-check/MobPhysicsRunner.java"
+      ]
+    },
+    {
+      "id": "gradle-plains-check",
+      "label": ".gradle/plains-check",
+      "path": ".gradle/plains-check",
+      "files": 1,
+      "loc": 10,
+      "fanIn": 0,
+      "fanOut": 0,
+      "instability": null,
+      "entry": [
+        ".gradle/plains-check/PlainsRunner.java"
+      ]
+    },
+    {
+      "id": "gradle-projectile-check",
+      "label": ".gradle/projectile-check",
+      "path": ".gradle/projectile-check",
+      "files": 2,
+      "loc": 82,
+      "fanIn": 0,
+      "fanOut": 0,
+      "instability": null,
+      "entry": [
+        ".gradle/projectile-check/ProjectileDifferential.java",
+        ".gradle/projectile-check/ProjectileRunner.java"
+      ]
+    },
+    {
+      "id": "gradle-terrain-shortcuts",
+      "label": ".gradle/terrain-shortcuts",
+      "path": ".gradle/terrain-shortcuts",
+      "files": 1,
+      "loc": 89,
+      "fanIn": 0,
+      "fanOut": 1,
+      "instability": 1,
+      "entry": [
+        ".gradle/terrain-shortcuts/ShortcutChecks.java"
+      ]
+    },
+    {
+      "id": "gradle-vegetation-check",
+      "label": ".gradle/vegetation-check",
+      "path": ".gradle/vegetation-check",
+      "files": 1,
+      "loc": 64,
+      "fanIn": 0,
+      "fanOut": 0,
+      "instability": null,
+      "entry": [
+        ".gradle/vegetation-check/VegetationProbe.java"
+      ]
+    },
+    {
+      "id": "src-main-java-com-voxelgame",
+      "label": "src/main/java/com/voxelgame",
+      "path": "src/main/java/com/voxelgame",
+      "files": 2,
+      "loc": 766,
+      "fanIn": 2,
+      "fanOut": 2,
+      "instability": 0.5,
+      "entry": [
+        "src/main/java/com/voxelgame/VoxelGameApp.java",
+        "src/main/java/com/voxelgame/Main.java"
+      ]
+    },
+    {
+      "id": "src-main-java-com-voxelgame-client",
+      "label": "src/main/java/com/voxelgame/client",
+      "path": "src/main/java/com/voxelgame/client",
+      "files": 33,
+      "loc": 12759,
+      "fanIn": 3,
+      "fanOut": 1,
+      "instability": 0.25,
+      "entry": [
+        "src/main/java/com/voxelgame/client/audio/AudioManager.java",
+        "src/main/java/com/voxelgame/client/render/Camera.java",
+        "src/main/java/com/voxelgame/client/render/Texture.java"
+      ]
+    },
+    {
+      "id": "src-main-java-com-voxelgame-core",
+      "label": "src/main/java/com/voxelgame/core",
+      "path": "src/main/java/com/voxelgame/core",
+      "files": 3,
+      "loc": 59,
+      "fanIn": 1,
+      "fanOut": 2,
+      "instability": 0.667,
+      "entry": [
+        "src/main/java/com/voxelgame/core/Interactable.java",
+        "src/main/java/com/voxelgame/core/Tickable.java",
+        "src/main/java/com/voxelgame/core/Renderable.java"
+      ]
+    },
+    {
+      "id": "src-main-java-com-voxelgame-world",
+      "label": "src/main/java/com/voxelgame/world",
+      "path": "src/main/java/com/voxelgame/world",
+      "files": 135,
+      "loc": 21943,
+      "fanIn": 3,
+      "fanOut": 2,
+      "instability": 0.4,
+      "entry": [
+        "src/main/java/com/voxelgame/world/level/block/Block.java",
+        "src/main/java/com/voxelgame/world/level/World.java",
+        "src/main/java/com/voxelgame/world/entity/LivingEntity.java"
+      ]
+    }
+  ],
+  "fileModules": {
+    ".gradle/AuditMobJfr.java": "gradle",
+    ".gradle/CombatDesktopSmoke.java": "gradle",
+    ".gradle/FinalMobFrameSmoke.java": "gradle",
+    ".gradle/HostileDesktopSmoke.java": "gradle",
+    ".gradle/LiquidFogSmoke.java": "gradle",
+    ".gradle/MobAiDesktopSmoke.java": "gradle",
+    ".gradle/MobDesktopSmoke.java": "gradle",
+    ".gradle/MountDesktopSmoke.java": "gradle",
+    ".gradle/PrepareRainLoop.java": "gradle",
+    ".gradle/RainSample.java": "gradle",
+    ".gradle/TerrainCheckRunner.java": "gradle",
+    ".gradle/TerrainDesktopSmoke.java": "gradle",
+    ".gradle/TerrainFogSmoke.java": "gradle",
+    ".gradle/TerrainProbe.java": "gradle",
+    ".gradle/TerrainTiming.java": "gradle",
+    ".gradle/WeatherSmoke.java": "gradle",
+    ".gradle/WildlifeDesktopSmoke.java": "gradle",
+    ".gradle/equine-check/EquineMountCheckRunner.java": "gradle-equine-check",
+    ".gradle/mob-audio-check/GenerateMobAudio.java": "gradle-mob-audio-check",
+    ".gradle/mob-audio-check/MobAudioCheck.java": "gradle-mob-audio-check",
+    ".gradle/mob-audio-check/MobAudioLifecycleCheck.java": "gradle-mob-audio-check",
+    ".gradle/mob-audio-check/MobDecodeCheck.java": "gradle-mob-audio-check",
+    ".gradle/mob-physics-check/MobCornerCheck.java": "gradle-mob-physics-check",
+    ".gradle/mob-physics-check/MobPhysicsRunner.java": "gradle-mob-physics-check",
+    ".gradle/plains-check/PlainsRunner.java": "gradle-plains-check",
+    ".gradle/projectile-check/ProjectileDifferential.java": "gradle-projectile-check",
+    ".gradle/projectile-check/ProjectileRunner.java": "gradle-projectile-check",
+    ".gradle/terrain-shortcuts/ShortcutChecks.java": "gradle-terrain-shortcuts",
+    ".gradle/vegetation-check/VegetationProbe.java": "gradle-vegetation-check",
+    "src/main/java/com/voxelgame/Main.java": "src-main-java-com-voxelgame",
+    "src/main/java/com/voxelgame/VoxelGameApp.java": "src-main-java-com-voxelgame",
+    "src/main/java/com/voxelgame/client/audio/AudioManager.java": "src-main-java-com-voxelgame-client",
+    "src/main/java/com/voxelgame/client/audio/MobSoundBank.java": "src-main-java-com-voxelgame-client",
+    "src/main/java/com/voxelgame/client/audio/MobSoundEvent.java": "src-main-java-com-voxelgame-client",
+    "src/main/java/com/voxelgame/client/gui/BitmapFont.java": "src-main-java-com-voxelgame-client",
+    "src/main/java/com/voxelgame/client/gui/CreativeInventoryScreen.java": "src-main-java-com-voxelgame-client",
+    "src/main/java/com/voxelgame/client/gui/DebugOverlayRenderer.java": "src-main-java-com-voxelgame-client",
+    "src/main/java/com/voxelgame/client/gui/GuiTextureAtlas.java": "src-main-java-com-voxelgame-client",
+    "src/main/java/com/voxelgame/client/gui/HudRenderer.java": "src-main-java-com-voxelgame-client",
+    "src/main/java/com/voxelgame/client/gui/InventoryScreen.java": "src-main-java-com-voxelgame-client",
+    "src/main/java/com/voxelgame/client/gui/PauseScreen.java": "src-main-java-com-voxelgame-client",
+    "src/main/java/com/voxelgame/client/gui/Screen.java": "src-main-java-com-voxelgame-client",
+    "src/main/java/com/voxelgame/client/gui/UIRenderer.java": "src-main-java-com-voxelgame-client",
+    "src/main/java/com/voxelgame/client/input/GameInputController.java": "src-main-java-com-voxelgame-client",
+    "src/main/java/com/voxelgame/client/model/MobModel.java": "src-main-java-com-voxelgame-client",
+    "src/main/java/com/voxelgame/client/model/MobModels.java": "src-main-java-com-voxelgame-client",
+    "src/main/java/com/voxelgame/client/model/ModelPart.java": "src-main-java-com-voxelgame-client",
+    "src/main/java/com/voxelgame/client/render/BlockOutlineRenderer.java": "src-main-java-com-voxelgame-client",
+    "src/main/java/com/voxelgame/client/render/Camera.java": "src-main-java-com-voxelgame-client",
+    "src/main/java/com/voxelgame/client/render/EnvironmentMesh.java": "src-main-java-com-voxelgame-client",
+    "src/main/java/com/voxelgame/client/render/FirstPersonRenderer.java": "src-main-java-com-voxelgame-client",
+    "src/main/java/com/voxelgame/client/render/ItemTextureAtlas.java": "src-main-java-com-voxelgame-client",
+    "src/main/java/com/voxelgame/client/render/LiquidAnimator.java": "src-main-java-com-voxelgame-client",
+    "src/main/java/com/voxelgame/client/render/ParticleManager.java": "src-main-java-com-voxelgame-client",
+    "src/main/java/com/voxelgame/client/render/ShaderProgram.java": "src-main-java-com-voxelgame-client",
+    "src/main/java/com/voxelgame/client/render/SkyRenderer.java": "src-main-java-com-voxelgame-client",
+    "src/main/java/com/voxelgame/client/render/Texture.java": "src-main-java-com-voxelgame-client",
+    "src/main/java/com/voxelgame/client/render/WeatherRenderer.java": "src-main-java-com-voxelgame-client",
+    "src/main/java/com/voxelgame/client/render/entity/MobAppearance.java": "src-main-java-com-voxelgame-client",
+    "src/main/java/com/voxelgame/client/render/entity/MobRenderer.java": "src-main-java-com-voxelgame-client",
+    "src/main/java/com/voxelgame/client/render/entity/MobTextureKey.java": "src-main-java-com-voxelgame-client",
+    "src/main/java/com/voxelgame/client/render/entity/MobTextureManager.java": "src-main-java-com-voxelgame-client",
+    "src/main/java/com/voxelgame/client/render/entity/MobVisual.java": "src-main-java-com-voxelgame-client",
+    "src/main/java/com/voxelgame/client/render/entity/MobVisualState.java": "src-main-java-com-voxelgame-client",
+    "src/main/java/com/voxelgame/core/Interactable.java": "src-main-java-com-voxelgame-core",
+    "src/main/java/com/voxelgame/core/Renderable.java": "src-main-java-com-voxelgame-core",
+    "src/main/java/com/voxelgame/core/Tickable.java": "src-main-java-com-voxelgame-core",
+    "src/main/java/com/voxelgame/world/effect/StatusEffectInstance.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/effect/StatusEffectType.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/DamageSource.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/Entity.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/FallingBlockEntity.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/ItemEntity.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/LivingEntity.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/mob/EquineMob.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/mob/HostileMob.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/mob/MobAttitude.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/mob/MobCategory.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/mob/MobEntity.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/mob/MobLootTable.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/mob/MobSpawnTable.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/mob/MobSpawner.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/mob/MobType.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/mob/MountableMob.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/mob/NeutralMob.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/mob/PassiveMob.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/mob/RangedMob.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/mob/ai/MobGoal.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/mob/ai/MobGoalSelector.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/mob/ai/MobGoals.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/mob/ai/SimpleGridNavigator.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/mob/animal/Camel.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/mob/animal/Chicken.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/mob/animal/Cow.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/mob/animal/Donkey.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/mob/animal/Goat.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/mob/animal/Horse.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/mob/animal/Pig.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/mob/animal/PolarBear.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/mob/animal/Rabbit.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/mob/animal/Sheep.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/mob/animal/SnowFox.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/mob/animal/Wolf.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/mob/monster/CamelHusk.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/mob/monster/Creeper.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/mob/monster/Enderman.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/mob/monster/Husk.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/mob/monster/Parched.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/mob/monster/Skeleton.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/mob/monster/Spider.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/mob/monster/Stray.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/mob/monster/Witch.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/mob/monster/Zombie.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/mob/monster/ZombieVillager.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/player/Hotbar.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/player/Player.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/player/PlayerInventory.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/projectile/ArrowEntity.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/projectile/ArrowType.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/projectile/PotionType.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/projectile/ProjectileEntity.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/projectile/ThrownEggEntity.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/projectile/ThrownEnderPearlEntity.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/entity/projectile/ThrownPotionEntity.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/gamemode/CreativeGameMode.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/gamemode/GameMode.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/gamemode/SurvivalGameMode.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/item/BlockItem.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/item/BowItem.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/item/BucketItem.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/item/ConsumableItem.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/item/CreativeCatalog.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/item/FlintAndSteelItem.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/item/FoodItem.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/item/FoodRegistry.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/item/GoatHornItem.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/item/Item.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/item/ItemUseHandler.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/item/PotionItem.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/item/ShearsItem.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/item/SimpleItem.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/item/SpearItem.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/item/ThrowableItem.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/item/ToolItem.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/BlockUpdateQueue.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/Chunk.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/ChunkLighting.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/LeafDecaySystem.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/LiquidFlowSimulator.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/TranslucentChunkSort.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/World.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/WorldTime.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/biome/Biome.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/biome/BiomeTint.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/biome/BiomeType.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/biome/DesertBiome.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/biome/FlowerForestBiome.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/biome/ForestBiome.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/biome/PlainsBiome.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/biome/SnowSubZone.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/biome/SnowyPlainsBiome.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/block/AirBlock.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/block/BedrockBlock.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/block/Block.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/block/CactusBlock.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/block/DeadBushBlock.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/block/DecorativeChestBlock.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/block/DirtBlock.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/block/FlowerBlock.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/block/GrassBlock.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/block/GravelBlock.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/block/GravityBlock.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/block/IceBlock.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/block/LavaBlock.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/block/LeavesBlock.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/block/LiquidBlock.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/block/LogBlock.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/block/OakLeavesBlock.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/block/OakLogBlock.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/block/PlantBlock.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/block/SandBlock.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/block/SandstoneBlock.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/block/ShortGrassBlock.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/block/SnowBlock.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/block/SnowLayerBlock.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/block/SolidBlock.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/block/SpruceLeavesBlock.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/block/SpruceLogBlock.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/block/StoneBlock.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/block/SugarCaneBlock.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/block/TallGrassBlock.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/block/WaterBlock.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/block/WoolBlock.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/gen/DesertPyramid.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/gen/TerrainGenerator.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/gen/TerrainNoise.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/weather/ClearWeather.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/weather/RainWeather.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/weather/SnowWeather.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/weather/Weather.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/level/weather/WeatherManager.java": "src-main-java-com-voxelgame-world",
+    "src/main/java/com/voxelgame/world/physics/Raycast.java": "src-main-java-com-voxelgame-world"
+  },
+  "edges": [
+    {
+      "from": "gradle",
+      "to": "src-main-java-com-voxelgame",
+      "weight": 18,
+      "kinds": {
+        "eager": 0,
+        "static": 18
+      },
+      "evidence": [
+        {
+          "file": ".gradle/CombatDesktopSmoke.java",
+          "line": 8,
+          "to": "src/main/java/com/voxelgame/VoxelGameApp.java"
+        },
+        {
+          "file": ".gradle/CombatDesktopSmoke.java",
+          "line": 19,
+          "to": "src/main/java/com/voxelgame/VoxelGameApp.java"
+        },
+        {
+          "file": ".gradle/FinalMobFrameSmoke.java",
+          "line": 10,
+          "to": "src/main/java/com/voxelgame/VoxelGameApp.java"
+        },
+        {
+          "file": ".gradle/FinalMobFrameSmoke.java",
+          "line": 20,
+          "to": "src/main/java/com/voxelgame/VoxelGameApp.java"
+        },
+        {
+          "file": ".gradle/HostileDesktopSmoke.java",
+          "line": 10,
+          "to": "src/main/java/com/voxelgame/VoxelGameApp.java"
+        }
+      ]
+    },
+    {
+      "from": "gradle-terrain-shortcuts",
+      "to": "src-main-java-com-voxelgame",
+      "weight": 2,
+      "kinds": {
+        "eager": 0,
+        "static": 2
+      },
+      "evidence": [
+        {
+          "file": ".gradle/terrain-shortcuts/ShortcutChecks.java",
+          "line": 6,
+          "to": "src/main/java/com/voxelgame/VoxelGameApp.java"
+        },
+        {
+          "file": ".gradle/terrain-shortcuts/ShortcutChecks.java",
+          "line": 32,
+          "to": "src/main/java/com/voxelgame/VoxelGameApp.java"
+        }
+      ]
+    },
+    {
+      "from": "src-main-java-com-voxelgame",
+      "to": "src-main-java-com-voxelgame-client",
+      "weight": 19,
+      "kinds": {
+        "eager": 0,
+        "static": 19
+      },
+      "evidence": [
+        {
+          "file": "src/main/java/com/voxelgame/VoxelGameApp.java",
+          "line": 3,
+          "to": "src/main/java/com/voxelgame/client/audio/AudioManager.java"
+        },
+        {
+          "file": "src/main/java/com/voxelgame/VoxelGameApp.java",
+          "line": 4,
+          "to": "src/main/java/com/voxelgame/client/gui/CreativeInventoryScreen.java"
+        },
+        {
+          "file": "src/main/java/com/voxelgame/VoxelGameApp.java",
+          "line": 5,
+          "to": "src/main/java/com/voxelgame/client/gui/DebugOverlayRenderer.java"
+        },
+        {
+          "file": "src/main/java/com/voxelgame/VoxelGameApp.java",
+          "line": 6,
+          "to": "src/main/java/com/voxelgame/client/gui/InventoryScreen.java"
+        },
+        {
+          "file": "src/main/java/com/voxelgame/VoxelGameApp.java",
+          "line": 7,
+          "to": "src/main/java/com/voxelgame/client/gui/UIRenderer.java"
+        }
+      ]
+    },
+    {
+      "from": "src-main-java-com-voxelgame",
+      "to": "src-main-java-com-voxelgame-world",
+      "weight": 11,
+      "kinds": {
+        "eager": 0,
+        "static": 11
+      },
+      "evidence": [
+        {
+          "file": "src/main/java/com/voxelgame/VoxelGameApp.java",
+          "line": 21,
+          "to": "src/main/java/com/voxelgame/world/entity/Entity.java"
+        },
+        {
+          "file": "src/main/java/com/voxelgame/VoxelGameApp.java",
+          "line": 22,
+          "to": "src/main/java/com/voxelgame/world/entity/ItemEntity.java"
+        },
+        {
+          "file": "src/main/java/com/voxelgame/VoxelGameApp.java",
+          "line": 23,
+          "to": "src/main/java/com/voxelgame/world/entity/LivingEntity.java"
+        },
+        {
+          "file": "src/main/java/com/voxelgame/VoxelGameApp.java",
+          "line": 24,
+          "to": "src/main/java/com/voxelgame/world/entity/player/Player.java"
+        },
+        {
+          "file": "src/main/java/com/voxelgame/VoxelGameApp.java",
+          "line": 25,
+          "to": "src/main/java/com/voxelgame/world/gamemode/CreativeGameMode.java"
+        }
+      ]
+    },
+    {
+      "from": "src-main-java-com-voxelgame-client",
+      "to": "src-main-java-com-voxelgame-world",
+      "weight": 86,
+      "kinds": {
+        "eager": 0,
+        "static": 86
+      },
+      "evidence": [
+        {
+          "file": "src/main/java/com/voxelgame/client/audio/AudioManager.java",
+          "line": 3,
+          "to": "src/main/java/com/voxelgame/world/level/block/Block.java"
+        },
+        {
+          "file": "src/main/java/com/voxelgame/client/gui/CreativeInventoryScreen.java",
+          "line": 6,
+          "to": "src/main/java/com/voxelgame/world/entity/player/PlayerInventory.java"
+        },
+        {
+          "file": "src/main/java/com/voxelgame/client/gui/CreativeInventoryScreen.java",
+          "line": 7,
+          "to": "src/main/java/com/voxelgame/world/item/CreativeCatalog.java"
+        },
+        {
+          "file": "src/main/java/com/voxelgame/client/gui/CreativeInventoryScreen.java",
+          "line": 8,
+          "to": "src/main/java/com/voxelgame/world/item/Item.java"
+        },
+        {
+          "file": "src/main/java/com/voxelgame/client/gui/CreativeInventoryScreen.java",
+          "line": 9,
+          "to": "src/main/java/com/voxelgame/world/level/Chunk.java"
+        }
+      ]
+    },
+    {
+      "from": "src-main-java-com-voxelgame-core",
+      "to": "src-main-java-com-voxelgame-client",
+      "weight": 2,
+      "kinds": {
+        "eager": 0,
+        "static": 2
+      },
+      "evidence": [
+        {
+          "file": "src/main/java/com/voxelgame/core/Renderable.java",
+          "line": 3,
+          "to": "src/main/java/com/voxelgame/client/render/ShaderProgram.java"
+        },
+        {
+          "file": "src/main/java/com/voxelgame/core/Renderable.java",
+          "line": 16,
+          "to": "src/main/java/com/voxelgame/client/render/ShaderProgram.java"
+        }
+      ]
+    },
+    {
+      "from": "src-main-java-com-voxelgame-core",
+      "to": "src-main-java-com-voxelgame-world",
+      "weight": 8,
+      "kinds": {
+        "eager": 0,
+        "static": 8
+      },
+      "evidence": [
+        {
+          "file": "src/main/java/com/voxelgame/core/Interactable.java",
+          "line": 3,
+          "to": "src/main/java/com/voxelgame/world/entity/player/Player.java"
+        },
+        {
+          "file": "src/main/java/com/voxelgame/core/Interactable.java",
+          "line": 4,
+          "to": "src/main/java/com/voxelgame/world/item/Item.java"
+        },
+        {
+          "file": "src/main/java/com/voxelgame/core/Interactable.java",
+          "line": 5,
+          "to": "src/main/java/com/voxelgame/world/level/World.java"
+        },
+        {
+          "file": "src/main/java/com/voxelgame/core/Interactable.java",
+          "line": 22,
+          "to": "src/main/java/com/voxelgame/world/item/Item.java"
+        },
+        {
+          "file": "src/main/java/com/voxelgame/core/Interactable.java",
+          "line": 22,
+          "to": "src/main/java/com/voxelgame/world/entity/player/Player.java"
+        }
+      ]
+    },
+    {
+      "from": "src-main-java-com-voxelgame-world",
+      "to": "src-main-java-com-voxelgame-client",
+      "weight": 182,
+      "kinds": {
+        "eager": 0,
+        "static": 182
+      },
+      "evidence": [
+        {
+          "file": "src/main/java/com/voxelgame/world/entity/Entity.java",
+          "line": 3,
+          "to": "src/main/java/com/voxelgame/client/render/ShaderProgram.java"
+        },
+        {
+          "file": "src/main/java/com/voxelgame/world/entity/Entity.java",
+          "line": 269,
+          "to": "src/main/java/com/voxelgame/client/render/ShaderProgram.java"
+        },
+        {
+          "file": "src/main/java/com/voxelgame/world/entity/FallingBlockEntity.java",
+          "line": 3,
+          "to": "src/main/java/com/voxelgame/client/audio/AudioManager.java"
+        },
+        {
+          "file": "src/main/java/com/voxelgame/world/entity/FallingBlockEntity.java",
+          "line": 4,
+          "to": "src/main/java/com/voxelgame/client/render/ShaderProgram.java"
+        },
+        {
+          "file": "src/main/java/com/voxelgame/world/entity/FallingBlockEntity.java",
+          "line": 51,
+          "to": "src/main/java/com/voxelgame/client/audio/AudioManager.java"
+        }
+      ]
+    },
+    {
+      "from": "src-main-java-com-voxelgame-world",
+      "to": "src-main-java-com-voxelgame-core",
+      "weight": 20,
+      "kinds": {
+        "eager": 0,
+        "static": 20
+      },
+      "evidence": [
+        {
+          "file": "src/main/java/com/voxelgame/world/entity/Entity.java",
+          "line": 4,
+          "to": "src/main/java/com/voxelgame/core/Renderable.java"
+        },
+        {
+          "file": "src/main/java/com/voxelgame/world/entity/Entity.java",
+          "line": 5,
+          "to": "src/main/java/com/voxelgame/core/Tickable.java"
+        },
+        {
+          "file": "src/main/java/com/voxelgame/world/entity/Entity.java",
+          "line": 31,
+          "to": "src/main/java/com/voxelgame/core/Renderable.java"
+        },
+        {
+          "file": "src/main/java/com/voxelgame/world/entity/Entity.java",
+          "line": 31,
+          "to": "src/main/java/com/voxelgame/core/Tickable.java"
+        },
+        {
+          "file": "src/main/java/com/voxelgame/world/entity/mob/MobEntity.java",
+          "line": 8,
+          "to": "src/main/java/com/voxelgame/core/Interactable.java"
+        }
+      ]
+    }
+  ],
+  "unresolved": {
+    "external": 560,
+    "outside": 0,
+    "unknown": 1068,
+    "opaque": 0
+  }
+}

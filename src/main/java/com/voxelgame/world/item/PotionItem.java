@@ -10,7 +10,8 @@ import com.badlogic.gdx.math.Vector3;
 
 /**
  * Vật phẩm đồ uống gồm 4 lọ thuốc Witch và {@link Item#MILK_BUCKET}.
- * Tự xác định hiệu ứng áp dụng và vật chứa hoàn trả ({@link Item#GLASS_BOTTLE} hoặc {@link Item#BUCKET}).
+ * Tự xác định hiệu ứng áp dụng và vật chứa hoàn trả ({@link Item#GLASS_BOTTLE}
+ * hoặc {@link Item#BUCKET}).
  */
 public final class PotionItem extends ConsumableItem {
 
@@ -21,7 +22,7 @@ public final class PotionItem extends ConsumableItem {
 
     /** Khởi tạo vật phẩm đồ uống với vật chứa hoàn trả tương ứng. */
     PotionItem(int id, String displayName, int maxStackSize, String textureName,
-               int atlasTileIndex, int fallbackRgb, boolean clearsEffects, Item returnContainer) {
+            int atlasTileIndex, int fallbackRgb, boolean clearsEffects, Item returnContainer) {
         super(id, displayName, maxStackSize, textureName, atlasTileIndex, fallbackRgb);
         this.clearsEffects = clearsEffects;
         this.returnContainer = returnContainer;
@@ -52,7 +53,10 @@ public final class PotionItem extends ConsumableItem {
         return 0.50f;
     }
 
-    /** Thực thi hiệu ứng uống thuốc hoặc xóa hiệu ứng của xô sữa và hoàn trả vật chứa rỗng. */
+    /**
+     * Thực thi hiệu ứng uống thuốc hoặc xóa hiệu ứng của xô sữa và hoàn trả vật
+     * chứa rỗng.
+     */
     @Override
     protected void applyConsumeEffect(World world, Player player) {
         if (player == null) {
@@ -61,7 +65,7 @@ public final class PotionItem extends ConsumableItem {
         Hotbar hotbar = player.getHotbar();
         if (clearsEffects) {
             player.clearStatusEffects();
-            if (hotbar != null) {
+            if (hotbar != null && player.getGameMode().consumesItems()) {
                 int selectedSlot = hotbar.getSelectedSlot();
                 hotbar.consumeSelectedItemStack();
                 if (returnContainer != null) {

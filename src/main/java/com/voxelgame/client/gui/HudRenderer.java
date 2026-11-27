@@ -8,6 +8,7 @@ import com.voxelgame.world.effect.StatusEffectType;
 import com.voxelgame.world.entity.mob.MountableMob;
 import com.voxelgame.world.entity.player.Hotbar;
 import com.voxelgame.world.entity.player.Player;
+import com.voxelgame.world.gamemode.GameMode;
 import com.voxelgame.world.item.Item;
 import com.voxelgame.world.level.Chunk;
 import com.voxelgame.world.level.World;
@@ -139,11 +140,17 @@ public class HudRenderer implements Disposable {
     private GuiTextureAtlas guiAtlas;
     private boolean guiAtlasFailed = false;
 
+    /** Thời lượng hiển thị thông báo ngắn khi chuyển đổi chế độ chơi bằng F2 (giây). */
+    private static final float MODE_TOAST_DURATION = 2.5f;
+
     private WorldTime worldTime;
     private WeatherManager weather;
     private InventoryScreen inventoryScreen;
+    private CreativeInventoryScreen creativeInventoryScreen;
     private DebugOverlayRenderer debugOverlay;
     private World debugWorld;
+    private String modeToastLabel;
+    private float modeToastTimer;
 
     /**
      * Khởi tạo bộ kết xuất HUD. Chỉ cấp phát {@link Mesh} trên GPU khi có OpenGL Context
@@ -164,6 +171,32 @@ public class HudRenderer implements Disposable {
     /** Gắn màn hình túi đồ 36 ô để kết xuất trong lượt HUD 2D. */
     public void setInventoryScreen(InventoryScreen inventoryScreen) {
         this.inventoryScreen = inventoryScreen;
+    }
+
+    /** Gắn màn hình Kho Creative để kết xuất trong lượt HUD 2D khi ở chế độ Creative. */
+    public void setCreativeInventoryScreen(CreativeInventoryScreen creativeInventoryScreen) {
+        this.creativeInventoryScreen = creativeInventoryScreen;
+    }
+
+    /** Kích hoạt thông báo ngắn phía trên Hotbar khi vừa chuyển đổi chế độ chơi ({@code F2}). */
+    public void showGameModeToast(GameMode mode) {
+        if (mode == null) {
+            return;
+        }
+        this.modeToastLabel = mode.getToastLabel();
+        this.modeToastTimer = MODE_TOAST_DURATION;
+    }
+
+    /** Giảm bộ đếm thời gian thông báo chế độ chơi mỗi khung hình (zero-GC). */
+    public void updateToast(float deltaTime) {
+        if (modeToastTimer > 0.0f && deltaTime > 0.0f) {
+            modeToastTimer = Math.max(0.0f, modeToastTimer - deltaTime);
+        }
+    }
+
+    /** Trả về nhãn thông báo chế độ hiện tại nếu đang hiển thị, hoặc {@code null}. */
+    public String getActiveModeToastLabel() {
+        return modeToastTimer > 0.0f ? modeToastLabel : null;
     }
 
     /** Gắn màn hình thông số F3 và thế giới để kết xuất trong lượt HUD 2D. */
@@ -344,7 +377,9 @@ public class HudRenderer implements Disposable {
             renderHotbar(shader, textureAtlas, itemAtlas, atlas, hotbar, windowWidth, windowHeight, mounted);
         }
         if (player != null) {
-            renderVitals(player, atlas, windowWidth, windowHeight);
+            if (player.getGameMode().showsSurvivalHud()) {
+                renderVitals(player, atlas, windowWidth, windowHeight);
+            }
             if (player.getMount() instanceof MountableMob mount) {
                 if (atlas != null) {
                     renderTexturedMountJumpBar(atlas, mount, windowWidth, windowHeight);
@@ -375,16 +410,45 @@ public class HudRenderer implements Disposable {
         if (miningProgress > 0.001f) {
             renderMiningProgressBar(shader, windowWidth, windowHeight, miningProgress);
         }
-        if (player != null && (player.isEyeInWater() || player.getAirTicks() < Player.AIR_MAX_TICKS)) {
+        if (player != null && player.getGameMode().showsSurvivalHud()
+                && (player.isEyeInWater() || player.getAirTicks() < Player.AIR_MAX_TICKS)) {
             renderOxygenBar(player, windowWidth, windowHeight);
+        }
+        if (modeToastTimer > 0.0f && modeToastLabel != null) {
+            renderModeToast(shader, windowWidth, windowHeight);
         }
         if (debugOverlay != null && debugOverlay.isVisible()) {
             debugOverlay.render(shader, uiFacade, debugWorld, player, camera, windowWidth, windowHeight);
         }
-        if (inventoryScreen != null && inventoryScreen.isOpen() && player != null) {
+        if (creativeInventoryScreen != null && creativeInventoryScreen.isOpen() && player != null) {
+            creativeInventoryScreen.render(shader, player.getInventory(), textureAtlas, itemAtlas,
+                    windowWidth, windowHeight, (float) mouseX, (float) mouseY);
+        } else if (inventoryScreen != null && inventoryScreen.isOpen() && player != null) {
             inventoryScreen.render(shader, player.getInventory(), textureAtlas, itemAtlas, atlas,
                     windowWidth, windowHeight, (float) mouseX, (float) mouseY);
         }
+    }
+
+    /** Vẽ thông báo ngắn (toast) phía trên Hotbar khi vừa đổi chế độ chơi bằng phím {@code F2}. */
+    private void renderModeToast(ShaderProgram shader, int windowWidth, int windowHeight) {
+        float scale = 2.0f;
+        float textW = BitmapFont.measureWidth(modeToastLabel, scale);
+        float textH = BitmapFont.measureHeight(scale);
+        float padX = 10.0f;
+        float padY = 6.0f;
+        float boxW = textW + padX * 2.0f;
+        float boxH = textH + padY * 2.0f;
+        float x = Math.round((windowWidth - boxW) * 0.5f);
+        float y = windowHeight - 132.0f;
+        float alpha = Math.min(1.0f, modeToastTimer * 1.5f);
+
+        shader.setUniform1i("uUseTexture", 0);
+        shader.setUniformVec4("uTintColor", 0.06f, 0.08f, 0.12f, 0.78f * alpha);
+        drawRect2D(x, y, boxW, boxH);
+        shader.setUniformVec4("uTintColor", 0.05f, 0.05f, 0.05f, 0.90f * alpha);
+        drawPixelText(modeToastLabel, x + padX + 1.5f, y + padY + 1.5f, scale);
+        shader.setUniformVec4("uTintColor", 1.0f, 0.95f, 0.45f, alpha);
+        drawPixelText(modeToastLabel, x + padX, y + padY, scale);
     }
 
     // =========================================================================

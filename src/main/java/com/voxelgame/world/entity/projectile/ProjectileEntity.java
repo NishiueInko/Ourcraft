@@ -25,6 +25,10 @@ public abstract class ProjectileEntity extends Entity implements MobVisual {
     private final float gravity;
     private float lifeRemaining;
     private boolean finished;
+    /** Tọa độ khối gần nhất bị cắt trúng trong bước quét va chạm hiện tại. */
+    private int hitBlockX;
+    private int hitBlockY;
+    private int hitBlockZ;
 
     /** Tái sử dụng đoạn dịch chuyển và bộ đọc tâm mục tiêu. */
     private final Vector3 segment = new Vector3();
@@ -52,8 +56,11 @@ public abstract class ProjectileEntity extends Entity implements MobVisual {
         if (finished || world == null || !(dt > 0f) || !Float.isFinite(dt)) {
             return;
         }
+        if (updateAnchored(world, dt)) {
+            return;
+        }
         float remaining = Math.min(dt, lifeRemaining);
-        while (remaining > 0f && !finished) {
+        while (remaining > 0f && !finished && !isAnchored()) {
             if (!isInWorld(world)) {
                 finished = true;
                 return;
@@ -61,8 +68,14 @@ public abstract class ProjectileEntity extends Entity implements MobVisual {
             float step = Math.min(remaining, MAX_SWEEP_SECONDS);
             segment.set(velocity.x * step, (velocity.y - 0.5f * gravity * step) * step, velocity.z * step);
             sweep(world);
+            if (finished || isAnchored()) {
+                break;
+            }
             velocity.y -= gravity * step;
             remaining -= step;
+        }
+        if (isAnchored()) {
+            return;
         }
         lifeRemaining -= Math.min(dt, lifeRemaining);
         finished |= lifeRemaining <= 0f || !isInWorld(world);
@@ -98,6 +111,7 @@ public abstract class ProjectileEntity extends Entity implements MobVisual {
         }
         if (Float.isFinite(closest)) {
             position.mulAdd(segment, closest);
+            updateFacing();
             finished = true;
             onImpact(world, directHit);
         } else {
@@ -171,7 +185,12 @@ public abstract class ProjectileEntity extends Entity implements MobVisual {
                             z + bounds.minZ() - halfWidth, x + bounds.maxX() + halfWidth,
                             y + bounds.maxY() + halfWidth, z + bounds.maxZ() + halfWidth,
                             from, Math.min(to, closest));
-                    closest = Math.min(closest, entry);
+                    if (entry < closest) {
+                        closest = entry;
+                        hitBlockX = x;
+                        hitBlockY = y;
+                        hitBlockZ = z;
+                    }
                 }
             }
         }
@@ -251,6 +270,42 @@ public abstract class ProjectileEntity extends Entity implements MobVisual {
 
     /** Phản ứng khi trúng mục tiêu, hoặc khi trúng địa hình nếu target null. */
     protected abstract void onImpact(World world, LivingEntity target);
+
+    /** Báo đạn đang ở trạng thái bám cố định (cắm vào khối hoặc mob) thay vì đang bay tự do. */
+    protected boolean isAnchored() {
+        return false;
+    }
+
+    /** Cập nhật trạng thái bám cố định nếu có; trả về {@code true} để bỏ qua lượt bay parabol. */
+    protected boolean updateAnchored(World world, float dt) {
+        return false;
+    }
+
+    /** Giữ đạn tồn tại trong World sau va chạm (dùng cho mũi tên cắm vào khối hoặc mob). */
+    protected final void keepAliveAfterImpact() {
+        finished = false;
+    }
+
+    /** Đánh dấu đạn đã hoàn tất vòng đời để World thu hồi. */
+    protected final void markFinished() {
+        finished = true;
+    }
+
+    /** Đưa đạn quay lại trạng thái bay với thời gian sống mới (khi khối đỡ bị phá vỡ). */
+    protected final void resumeFlight(float lifetime) {
+        lifeRemaining = lifetime;
+        finished = false;
+        updateFacing();
+    }
+
+    /** Tọa độ X của khối gần nhất mà đạn vừa chạm vào. */
+    protected final int hitBlockX() { return hitBlockX; }
+
+    /** Tọa độ Y của khối gần nhất mà đạn vừa chạm vào. */
+    protected final int hitBlockY() { return hitBlockY; }
+
+    /** Tọa độ Z của khối gần nhất mà đạn vừa chạm vào. */
+    protected final int hitBlockZ() { return hitBlockZ; }
 
     /** Hướng mẫu về phía vận tốc tức thời, dùng trục -Z của mẫu làm hướng trước. */
     private void updateFacing() {

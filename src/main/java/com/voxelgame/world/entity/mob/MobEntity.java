@@ -195,7 +195,7 @@ public abstract class MobEntity extends LivingEntity implements MobVisual {
     protected void updateMounted(World world, float dt) {
     }
 
-    /** Giảm thời gian hốt hoảng, xóa mục tiêu đã chết hoặc khi mob trung lập hết giận. */
+    /** Giảm thời gian hốt hoảng, xóa mục tiêu đã chết, hết giận hoặc người chơi không thể bị nhắm (Creative). */
     private void updateReactionTimers(float dt) {
         panicTime = Math.max(0f, panicTime - dt);
         if (angerTimer > 0f) {
@@ -204,9 +204,15 @@ public abstract class MobEntity extends LivingEntity implements MobVisual {
                 target = null;
             }
         }
-        if (target != null && !target.isAlive()) {
+        if (target != null && !isValidTarget(target)) {
             target = null;
         }
+    }
+
+    /** Kiểm tra mục tiêu còn sống và hợp lệ theo quy tắc chế độ chơi (bỏ qua người chơi Creative). */
+    private static boolean isValidTarget(LivingEntity candidate) {
+        return candidate != null && candidate.isAlive()
+                && (!(candidate instanceof Player player) || player.getGameMode().isTargetableByMobs());
     }
 
     /** Tách vận tốc điều khiển khỏi xung lực rồi quét từng trục của hộp va chạm. */
@@ -578,7 +584,7 @@ public abstract class MobEntity extends LivingEntity implements MobVisual {
 
     /** Tạo phản ứng giận dữ có thời hạn cho một đòn đánh hoặc kích thích riêng của loài. */
     protected final void enrage(LivingEntity victim, float seconds) {
-        if (victim != this && victim.isAlive()) {
+        if (victim != this && isValidTarget(victim)) {
             target = victim;
             angerTimer = Math.max(angerTimer, seconds);
         }
@@ -682,8 +688,10 @@ public abstract class MobEntity extends LivingEntity implements MobVisual {
     }
     /** Trả mục tiêu hiện tại mà goal chiến đấu có thể bám theo. */
     public final LivingEntity target() { return target; }
-    /** Đổi mục tiêu hoặc xóa khi không còn đối tượng phù hợp. */
-    public final void setTarget(LivingEntity target) { this.target = target == this ? null : target; }
+    /** Đổi mục tiêu hoặc xóa khi không còn đối tượng phù hợp (từ chối người chơi ở Creative). */
+    public final void setTarget(LivingEntity target) {
+        this.target = (target == this || !isValidTarget(target)) ? null : target;
+    }
     /** Trả tác nhân của lần bị thương gần nhất, nếu đòn có tác nhân. */
     public final Entity lastAttacker() { return lastAttacker; }
     /** Trả số thứ tự đòn trúng để goal phân biệt các lần gây sát thương. */

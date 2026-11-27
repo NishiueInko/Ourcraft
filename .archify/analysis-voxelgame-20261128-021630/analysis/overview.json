@@ -1,0 +1,2296 @@
+{
+  "verdict": "attention",
+  "counts": {
+    "findings": 110,
+    "error": 1,
+    "warning": 38,
+    "info": 71,
+    "accepted": 0,
+    "acceptedErrors": 0,
+    "offDiagram": null
+  },
+  "review": null,
+  "groups": [
+    {
+      "code": "coupling/cycle",
+      "severity": "error",
+      "count": 1,
+      "ids": [
+        "COUP-aee471180510"
+      ]
+    },
+    {
+      "code": "complexity/function",
+      "severity": "warning",
+      "count": 105,
+      "ids": [
+        "COMP-138aa39280dd",
+        "COMP-e4d173bf4bc6",
+        "COMP-2281e52e2988",
+        "COMP-f0eb327d26fe",
+        "COMP-b41ffb9c0032",
+        "COMP-58dcf080db5c",
+        "COMP-bbf3817bcf05",
+        "COMP-f83bce2138c0",
+        "COMP-7e3d48498345",
+        "COMP-3607945e16fc",
+        "COMP-a00d88cf8d89",
+        "COMP-a62c61ec6219",
+        "COMP-ec47fe53166e",
+        "COMP-6d36bc9ef31c",
+        "COMP-8e7cb7c71ae7",
+        "COMP-c19c18939c4c",
+        "COMP-7cea56b398a1",
+        "COMP-af83e30ec56b",
+        "COMP-19bac61281a8",
+        "COMP-e2027d20c935",
+        "COMP-e7c64df1e688",
+        "COMP-711b7bae9439",
+        "COMP-ad6fad9434ae",
+        "COMP-c13285c0df4d",
+        "COMP-48edae7011e5",
+        "COMP-c1eb8c7166b7",
+        "COMP-0ae92fb09548",
+        "COMP-f290f2905b43",
+        "COMP-c49f6a0a5345",
+        "COMP-6b769dc5674d",
+        "COMP-eaddc298d83d",
+        "COMP-6011a56e6516",
+        "COMP-0256feb29d67",
+        "COMP-bbb5c3341826",
+        "COMP-d0d467d7eb95",
+        "COMP-836f3add07cc",
+        "COMP-4703962ce3b5",
+        "COMP-9dc660ec76fd",
+        "COMP-c98f538a17f9",
+        "COMP-e3a2ca24c5e2",
+        "COMP-efc98e89e9c5",
+        "COMP-f2248fd5101e",
+        "COMP-3422dae7ddbb",
+        "COMP-3ba7635f7b67",
+        "COMP-736c0e9483db",
+        "COMP-fcf55a43f965",
+        "COMP-0a1f367d2417",
+        "COMP-c7cee3c73460",
+        "COMP-60be813a87f3",
+        "COMP-d803fdfade7a",
+        "COMP-d8e404436662",
+        "COMP-dd85fed30276",
+        "COMP-b4dda5296bcf",
+        "COMP-e1862d06f31b",
+        "COMP-1c136ea2eeb5",
+        "COMP-294ea44c46f7",
+        "COMP-4c64c2dfab9b",
+        "COMP-dea6d236242c",
+        "COMP-67844744da30",
+        "COMP-c5e31f35ac29",
+        "COMP-ad75e41b625a",
+        "COMP-534d038829a7",
+        "COMP-194b59ecdca9",
+        "COMP-2469f39cbf01",
+        "COMP-896026129f1d",
+        "COMP-8d316c68698e",
+        "COMP-455aae580273",
+        "COMP-6c8314b3ef29",
+        "COMP-b8e7f62e2cad",
+        "COMP-e3d7d9e78b5b",
+        "COMP-3f943ec75d46",
+        "COMP-07a8611ae063",
+        "COMP-0da10331d3ba",
+        "COMP-595538ec6973",
+        "COMP-8f590e83dbef",
+        "COMP-b983cb3f11bd",
+        "COMP-e8a1e4b9b3b0",
+        "COMP-0c8863864ae4",
+        "COMP-264431609cc3",
+        "COMP-d27b121433e2",
+        "COMP-7f9646e3d49b",
+        "COMP-9278096fb236",
+        "COMP-da7f0b5d90fb",
+        "COMP-06712227dd1d",
+        "COMP-4615bebf164e",
+        "COMP-6612b67ddbb5",
+        "COMP-7ac56420f689",
+        "COMP-7b8a96ed4f31",
+        "COMP-8968160d5d8c",
+        "COMP-aa7abd3403e4",
+        "COMP-bb798128514b",
+        "COMP-bd18a87716cd",
+        "COMP-eb5e1ddc1558",
+        "COMP-ffedb6c5b56e",
+        "COMP-40168d88f152",
+        "COMP-42dec0e3e840",
+        "COMP-52e879914ef5",
+        "COMP-be0b0e5016ea",
+        "COMP-c322b82ec586",
+        "COMP-f2cabe08ac79",
+        "COMP-9665861b1193",
+        "COMP-c63489128bca",
+        "COMP-63e2b6596e3b",
+        "COMP-f68499f0e07e",
+        "COMP-06394b3ed5e7"
+      ]
+    },
+    {
+      "code": "coupling/concentration",
+      "severity": "warning",
+      "count": 3,
+      "ids": [
+        "COUP-1cb67ffde262",
+        "COUP-29bc71d647dc",
+        "COUP-9102abc28627"
+      ]
+    },
+    {
+      "code": "coupling/import-cycle",
+      "severity": "warning",
+      "count": 1,
+      "ids": [
+        "COUP-52f4f50832ee"
+      ]
+    }
+  ],
+  "priorities": [
+    "COUP-aee471180510",
+    "COMP-138aa39280dd",
+    "COMP-e4d173bf4bc6"
+  ],
+  "investigation": {
+    "leads": [
+      {
+        "id": "COUP-aee471180510",
+        "code": "coupling/cycle",
+        "severity": "error",
+        "message": "3 modules form a structural Java dependency cycle: src/main/java/com/voxelgame/client → src/main/java/com/voxelgame/world → src/main/java/com/voxelgame/client. Directory grouping does not establish file cycles or class initialization behavior.",
+        "where": "src/main/java/com/voxelgame/client/audio/AudioManager.java:3",
+        "symbol": null,
+        "impact": {
+          "modules": 3,
+          "size": 0,
+          "fanIn": 7,
+          "files": 171
+        }
+      },
+      {
+        "id": "COMP-138aa39280dd",
+        "code": "complexity/function",
+        "severity": "warning",
+        "message": "MobLootTable.dropDeathLoot(World,MobEntity,boolean,Entity) in src/main/java/com/voxelgame/world/entity/mob/MobLootTable.java has cyclomatic complexity 63 (127 lines). More independent paths make it harder to read and to test fully; this is a maintenance signal, not a defect.",
+        "where": "src/main/java/com/voxelgame/world/entity/mob/MobLootTable.java:52",
+        "symbol": "MobLootTable.dropDeathLoot(World,MobEntity,boolean,Entity)",
+        "impact": {
+          "modules": 1,
+          "size": 63,
+          "fanIn": 3,
+          "files": 135
+        }
+      },
+      {
+        "id": "COMP-e4d173bf4bc6",
+        "code": "complexity/function",
+        "severity": "warning",
+        "message": "MountDesktopSmoke.render() in .gradle/MountDesktopSmoke.java has cyclomatic complexity 55 (170 lines). More independent paths make it harder to read and to test fully; this is a maintenance signal, not a defect.",
+        "where": ".gradle/MountDesktopSmoke.java:128",
+        "symbol": "MountDesktopSmoke.render()",
+        "impact": {
+          "modules": 1,
+          "size": 55,
+          "fanIn": 0,
+          "files": 17
+        }
+      }
+    ],
+    "architecture": {
+      "modules": 12,
+      "edges": 9,
+      "hotspots": [
+        {
+          "id": "src-main-java-com-voxelgame-world",
+          "path": "src/main/java/com/voxelgame/world",
+          "files": 135,
+          "loc": 21943,
+          "fanIn": 3,
+          "fanOut": 2,
+          "instability": 0.4,
+          "entry": [
+            "src/main/java/com/voxelgame/world/level/block/Block.java",
+            "src/main/java/com/voxelgame/world/level/World.java",
+            "src/main/java/com/voxelgame/world/entity/LivingEntity.java"
+          ],
+          "readingWeight": 65829
+        },
+        {
+          "id": "src-main-java-com-voxelgame-client",
+          "path": "src/main/java/com/voxelgame/client",
+          "files": 33,
+          "loc": 12759,
+          "fanIn": 3,
+          "fanOut": 1,
+          "instability": 0.25,
+          "entry": [
+            "src/main/java/com/voxelgame/client/audio/AudioManager.java",
+            "src/main/java/com/voxelgame/client/render/Camera.java",
+            "src/main/java/com/voxelgame/client/render/Texture.java"
+          ],
+          "readingWeight": 38277
+        },
+        {
+          "id": "gradle",
+          "path": ".gradle",
+          "files": 17,
+          "loc": 2797,
+          "fanIn": 0,
+          "fanOut": 1,
+          "instability": 1,
+          "entry": [
+            ".gradle/AuditMobJfr.java",
+            ".gradle/CombatDesktopSmoke.java",
+            ".gradle/FinalMobFrameSmoke.java"
+          ],
+          "readingWeight": 2797
+        },
+        {
+          "id": "src-main-java-com-voxelgame",
+          "path": "src/main/java/com/voxelgame",
+          "files": 2,
+          "loc": 766,
+          "fanIn": 2,
+          "fanOut": 2,
+          "instability": 0.5,
+          "entry": [
+            "src/main/java/com/voxelgame/VoxelGameApp.java",
+            "src/main/java/com/voxelgame/Main.java"
+          ],
+          "readingWeight": 1980.081
+        },
+        {
+          "id": "src-main-java-com-voxelgame-core",
+          "path": "src/main/java/com/voxelgame/core",
+          "files": 3,
+          "loc": 59,
+          "fanIn": 1,
+          "fanOut": 2,
+          "instability": 0.667,
+          "entry": [
+            "src/main/java/com/voxelgame/core/Interactable.java",
+            "src/main/java/com/voxelgame/core/Tickable.java",
+            "src/main/java/com/voxelgame/core/Renderable.java"
+          ],
+          "readingWeight": 118
+        }
+      ],
+      "hotspotRanking": "Connected modules ordered by loc * (1 + log2(1 + fanIn)), then fanIn, fanOut and id. A bounded reading order, not inferred business importance, defect severity or refactoring advice.",
+      "strongestEdges": [
+        {
+          "from": "src-main-java-com-voxelgame-world",
+          "to": "src-main-java-com-voxelgame-client",
+          "weight": 182,
+          "sample": "src/main/java/com/voxelgame/world/entity/Entity.java:3"
+        },
+        {
+          "from": "src-main-java-com-voxelgame-client",
+          "to": "src-main-java-com-voxelgame-world",
+          "weight": 86,
+          "sample": "src/main/java/com/voxelgame/client/audio/AudioManager.java:3"
+        },
+        {
+          "from": "src-main-java-com-voxelgame-world",
+          "to": "src-main-java-com-voxelgame-core",
+          "weight": 20,
+          "sample": "src/main/java/com/voxelgame/world/entity/Entity.java:4"
+        },
+        {
+          "from": "src-main-java-com-voxelgame",
+          "to": "src-main-java-com-voxelgame-client",
+          "weight": 19,
+          "sample": "src/main/java/com/voxelgame/VoxelGameApp.java:3"
+        },
+        {
+          "from": "gradle",
+          "to": "src-main-java-com-voxelgame",
+          "weight": 18,
+          "sample": ".gradle/CombatDesktopSmoke.java:8"
+        }
+      ],
+      "structuralSignals": [
+        {
+          "id": "COUP-1cb67ffde262",
+          "code": "coupling/concentration",
+          "severity": "warning",
+          "message": "src/main/java/com/voxelgame/world: it holds 56% of the analyzed source lines (21943 of 39023, in 135 files). This is a static fact about where the project is concentrated, not proof that the module should be split.",
+          "where": "module src-main-java-com-voxelgame-world",
+          "impact": {
+            "modules": 1,
+            "size": 0,
+            "fanIn": 3,
+            "files": 135
+          }
+        },
+        {
+          "id": "COUP-29bc71d647dc",
+          "code": "coupling/concentration",
+          "severity": "warning",
+          "message": "src/main/java/com/voxelgame/world/level/World.java is 1580 lines long (threshold 1500). A file this size is hard to review and to find things in; whether to split it depends on what it is responsible for.",
+          "where": "src/main/java/com/voxelgame/world/level/World.java",
+          "impact": {
+            "modules": 1,
+            "size": 0,
+            "fanIn": 3,
+            "files": 135
+          }
+        },
+        {
+          "id": "COUP-9102abc28627",
+          "code": "coupling/concentration",
+          "severity": "warning",
+          "message": "src/main/java/com/voxelgame/world/entity/player/Player.java is 1658 lines long (threshold 1500). A file this size is hard to review and to find things in; whether to split it depends on what it is responsible for.",
+          "where": "src/main/java/com/voxelgame/world/entity/player/Player.java",
+          "impact": {
+            "modules": 1,
+            "size": 0,
+            "fanIn": 3,
+            "files": 135
+          }
+        }
+      ]
+    }
+  },
+  "findings": [
+    {
+      "id": "COUP-aee471180510",
+      "code": "coupling/cycle",
+      "severity": "error",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-client",
+        "src-main-java-com-voxelgame-core",
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 3,
+        "size": 0,
+        "fanIn": 7,
+        "files": 171
+      },
+      "relatedIds": [
+        "COUP-52f4f50832ee"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "COUP-52f4f50832ee",
+      "code": "coupling/import-cycle",
+      "severity": "warning",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-client",
+        "src-main-java-com-voxelgame-core",
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 3,
+        "size": 0,
+        "fanIn": 7,
+        "files": 125
+      },
+      "relatedIds": [
+        "COUP-aee471180510"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "COMP-138aa39280dd",
+      "code": "complexity/function",
+      "severity": "warning",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 63,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-e4d173bf4bc6",
+      "code": "complexity/function",
+      "severity": "warning",
+      "componentIds": [],
+      "moduleIds": [
+        "gradle"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 55,
+        "fanIn": 0,
+        "files": 17
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-2281e52e2988",
+      "code": "complexity/function",
+      "severity": "warning",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-client"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 47,
+        "fanIn": 3,
+        "files": 33
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-f0eb327d26fe",
+      "code": "complexity/function",
+      "severity": "warning",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 46,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-b41ffb9c0032",
+      "code": "complexity/function",
+      "severity": "warning",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-client"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 41,
+        "fanIn": 3,
+        "files": 33
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-58dcf080db5c",
+      "code": "complexity/function",
+      "severity": "warning",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-client"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 38,
+        "fanIn": 3,
+        "files": 33
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-bbf3817bcf05",
+      "code": "complexity/function",
+      "severity": "warning",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 34,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-f83bce2138c0",
+      "code": "complexity/function",
+      "severity": "warning",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-client"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 34,
+        "fanIn": 3,
+        "files": 33
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-7e3d48498345",
+      "code": "complexity/function",
+      "severity": "warning",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 34,
+        "fanIn": 2,
+        "files": 2
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-3607945e16fc",
+      "code": "complexity/function",
+      "severity": "warning",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-client"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 33,
+        "fanIn": 3,
+        "files": 33
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-a00d88cf8d89",
+      "code": "complexity/function",
+      "severity": "warning",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 32,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-a62c61ec6219",
+      "code": "complexity/function",
+      "severity": "warning",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 32,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-ec47fe53166e",
+      "code": "complexity/function",
+      "severity": "warning",
+      "componentIds": [],
+      "moduleIds": [
+        "gradle"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 32,
+        "fanIn": 0,
+        "files": 17
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-6d36bc9ef31c",
+      "code": "complexity/function",
+      "severity": "warning",
+      "componentIds": [],
+      "moduleIds": [
+        "gradle"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 31,
+        "fanIn": 0,
+        "files": 17
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-8e7cb7c71ae7",
+      "code": "complexity/function",
+      "severity": "warning",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 30,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-c19c18939c4c",
+      "code": "complexity/function",
+      "severity": "warning",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-client"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 30,
+        "fanIn": 3,
+        "files": 33
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-7cea56b398a1",
+      "code": "complexity/function",
+      "severity": "warning",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 29,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-af83e30ec56b",
+      "code": "complexity/function",
+      "severity": "warning",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 29,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-19bac61281a8",
+      "code": "complexity/function",
+      "severity": "warning",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 28,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-e2027d20c935",
+      "code": "complexity/function",
+      "severity": "warning",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 28,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-e7c64df1e688",
+      "code": "complexity/function",
+      "severity": "warning",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 28,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-711b7bae9439",
+      "code": "complexity/function",
+      "severity": "warning",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-client"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 28,
+        "fanIn": 3,
+        "files": 33
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-ad6fad9434ae",
+      "code": "complexity/function",
+      "severity": "warning",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-client"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 27,
+        "fanIn": 3,
+        "files": 33
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-c13285c0df4d",
+      "code": "complexity/function",
+      "severity": "warning",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-client"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 27,
+        "fanIn": 3,
+        "files": 33
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-48edae7011e5",
+      "code": "complexity/function",
+      "severity": "warning",
+      "componentIds": [],
+      "moduleIds": [
+        "gradle"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 27,
+        "fanIn": 0,
+        "files": 17
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-c1eb8c7166b7",
+      "code": "complexity/function",
+      "severity": "warning",
+      "componentIds": [],
+      "moduleIds": [
+        "gradle-vegetation-check"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 27,
+        "fanIn": 0,
+        "files": 1
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-0ae92fb09548",
+      "code": "complexity/function",
+      "severity": "warning",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 26,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-f290f2905b43",
+      "code": "complexity/function",
+      "severity": "warning",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-client"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 26,
+        "fanIn": 3,
+        "files": 33
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-c49f6a0a5345",
+      "code": "complexity/function",
+      "severity": "warning",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-client"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 25,
+        "fanIn": 3,
+        "files": 33
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-6b769dc5674d",
+      "code": "complexity/function",
+      "severity": "warning",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 22,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-eaddc298d83d",
+      "code": "complexity/function",
+      "severity": "warning",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 21,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-6011a56e6516",
+      "code": "complexity/function",
+      "severity": "warning",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 13,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-0256feb29d67",
+      "code": "complexity/function",
+      "severity": "warning",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-client"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 9,
+        "fanIn": 3,
+        "files": 33
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-bbb5c3341826",
+      "code": "complexity/function",
+      "severity": "warning",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-client"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 9,
+        "fanIn": 3,
+        "files": 33
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COUP-1cb67ffde262",
+      "code": "coupling/concentration",
+      "severity": "warning",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 0,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COUP-29bc71d647dc",
+      "code": "coupling/concentration",
+      "severity": "warning",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 0,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COUP-9102abc28627",
+      "code": "coupling/concentration",
+      "severity": "warning",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 0,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-d0d467d7eb95",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 24,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-836f3add07cc",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 23,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-4703962ce3b5",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 22,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-9dc660ec76fd",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 22,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-c98f538a17f9",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 22,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-e3a2ca24c5e2",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 22,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-efc98e89e9c5",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 22,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-f2248fd5101e",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 22,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-3422dae7ddbb",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-client"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 22,
+        "fanIn": 3,
+        "files": 33
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-3ba7635f7b67",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-client"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 22,
+        "fanIn": 3,
+        "files": 33
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-736c0e9483db",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-client"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 22,
+        "fanIn": 3,
+        "files": 33
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-fcf55a43f965",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-client"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 22,
+        "fanIn": 3,
+        "files": 33
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-0a1f367d2417",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 21,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-c7cee3c73460",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 21,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-60be813a87f3",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-client"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 21,
+        "fanIn": 3,
+        "files": 33
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-d803fdfade7a",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-client"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 21,
+        "fanIn": 3,
+        "files": 33
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-d8e404436662",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-client"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 21,
+        "fanIn": 3,
+        "files": 33
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-dd85fed30276",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-client"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 21,
+        "fanIn": 3,
+        "files": 33
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-b4dda5296bcf",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 20,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-e1862d06f31b",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 20,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-1c136ea2eeb5",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 19,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-294ea44c46f7",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 19,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-4c64c2dfab9b",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 19,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-dea6d236242c",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 19,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-67844744da30",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-client"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 19,
+        "fanIn": 3,
+        "files": 33
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-c5e31f35ac29",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-client"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 19,
+        "fanIn": 3,
+        "files": 33
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-ad75e41b625a",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 19,
+        "fanIn": 2,
+        "files": 2
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-534d038829a7",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "gradle-projectile-check"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 19,
+        "fanIn": 0,
+        "files": 2
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-194b59ecdca9",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 18,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-2469f39cbf01",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 18,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-896026129f1d",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 18,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-8d316c68698e",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 18,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-455aae580273",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-client"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 18,
+        "fanIn": 3,
+        "files": 33
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-6c8314b3ef29",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-client"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 18,
+        "fanIn": 3,
+        "files": 33
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-b8e7f62e2cad",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-client"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 18,
+        "fanIn": 3,
+        "files": 33
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-e3d7d9e78b5b",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-client"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 18,
+        "fanIn": 3,
+        "files": 33
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-3f943ec75d46",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "gradle-mob-audio-check"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 18,
+        "fanIn": 0,
+        "files": 4
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-07a8611ae063",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 17,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-0da10331d3ba",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 17,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-595538ec6973",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 17,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-8f590e83dbef",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 17,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-b983cb3f11bd",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 17,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-e8a1e4b9b3b0",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 17,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-0c8863864ae4",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-client"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 17,
+        "fanIn": 3,
+        "files": 33
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-264431609cc3",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-client"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 17,
+        "fanIn": 3,
+        "files": 33
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-d27b121433e2",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "gradle"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 17,
+        "fanIn": 0,
+        "files": 17
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-7f9646e3d49b",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 16,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-9278096fb236",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 16,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-da7f0b5d90fb",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 16,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-06712227dd1d",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-client"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 16,
+        "fanIn": 3,
+        "files": 33
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-4615bebf164e",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 15,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-6612b67ddbb5",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 15,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-7ac56420f689",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 15,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-7b8a96ed4f31",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 15,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-8968160d5d8c",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 15,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-aa7abd3403e4",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 15,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-bb798128514b",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 15,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-bd18a87716cd",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 15,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-eb5e1ddc1558",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 15,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-ffedb6c5b56e",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 15,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-40168d88f152",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-client"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 15,
+        "fanIn": 3,
+        "files": 33
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-42dec0e3e840",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-client"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 15,
+        "fanIn": 3,
+        "files": 33
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-52e879914ef5",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-client"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 15,
+        "fanIn": 3,
+        "files": 33
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-be0b0e5016ea",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-client"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 15,
+        "fanIn": 3,
+        "files": 33
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-c322b82ec586",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-client"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 15,
+        "fanIn": 3,
+        "files": 33
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-f2cabe08ac79",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-client"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 15,
+        "fanIn": 3,
+        "files": 33
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-9665861b1193",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "gradle-mob-audio-check"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 15,
+        "fanIn": 0,
+        "files": 4
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-c63489128bca",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "gradle-projectile-check"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 13,
+        "fanIn": 0,
+        "files": 2
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-63e2b6596e3b",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 12,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-f68499f0e07e",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 11,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    },
+    {
+      "id": "COMP-06394b3ed5e7",
+      "code": "complexity/function",
+      "severity": "info",
+      "componentIds": [],
+      "moduleIds": [
+        "src-main-java-com-voxelgame-world"
+      ],
+      "impact": {
+        "modules": 1,
+        "size": 7,
+        "fanIn": 3,
+        "files": 135
+      },
+      "relatedIds": [],
+      "status": "open"
+    }
+  ],
+  "coverage": {
+    "language": "java",
+    "adapter": "java-parser@3.0.1",
+    "files": {
+      "analyzed": 202,
+      "excludedByRole": 19,
+      "excludedRoles": [
+        "generated",
+        "test"
+      ],
+      "excludePatterns": [
+        "**/node_modules/**",
+        "**/dist/**",
+        "**/build/**",
+        "**/target/**/*.java",
+        "**/coverage/**",
+        "**/*.d.ts",
+        "**/venv/**",
+        "**/venv-*/**",
+        "**/.venv/**",
+        "**/site-packages/**",
+        "**/__pycache__/**",
+        "**/.pytest_cache/**",
+        "**/.git/**",
+        "**/_archive/**"
+      ],
+      "parseErrors": []
+    },
+    "otherLanguages": [
+      {
+        "adapter": "ts",
+        "files": 1
+      },
+      {
+        "adapter": "py",
+        "files": 1
+      }
+    ],
+    "unresolved": {
+      "external": 560,
+      "outside": 0,
+      "unknown": 1068,
+      "opaque": 0
+    },
+    "rules": {
+      "run": [
+        "coupling/import-cycle",
+        "coupling/cycle",
+        "coupling/hub",
+        "coupling/concentration",
+        "complexity/function"
+      ],
+      "suppressed": []
+    },
+    "unmappedModules": [],
+    "boundaries": null,
+    "duplicates": null
+  }
+}

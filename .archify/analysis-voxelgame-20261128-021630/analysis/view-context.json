@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "mode": "standalone",
+  "ir": null,
+  "map": null,
+  "run": {
+    "locale": "en",
+    "openAnalysis": true,
+    "resume": {
+      "command": "node C:\\Users\\Admin\\.gemini\\config\\skills\\archify\\bin\\archify.mjs start d:\\VoxelGame --out d:\\VoxelGame\\.archify\\analysis-voxelgame-20261128-021630 --locale en --language java --baseline d:\\VoxelGame\\.archify\\analysis-voxelgame-20261128-021630\\baseline.json --quality standard",
+      "shell": "cmd.exe"
+    },
+    "suppressed": [],
+    "exclude": [
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/build/**",
+      "**/target/**/*.java",
+      "**/coverage/**",
+      "**/*.d.ts",
+      "**/venv/**",
+      "**/venv-*/**",
+      "**/.venv/**",
+      "**/site-packages/**",
+      "**/__pycache__/**",
+      "**/.pytest_cache/**",
+      "**/.git/**",
+      "**/_archive/**"
+    ],
+    "otherLanguages": [
+      {
+        "adapter": "ts",
+        "files": 1
+      },
+      {
+        "adapter": "py",
+        "files": 1
+      }
+    ],
+    "boundaries": null
+  }
+}

@@ -53,7 +53,7 @@ public final class FoodItem extends ConsumableItem {
             return;
         }
         Hotbar hotbar = player.getHotbar();
-        if (player.consumeFood(this) && hotbar != null) {
+        if (player.consumeFood(this) && hotbar != null && player.getGameMode().consumesItems()) {
             hotbar.consumeSelectedItemStack();
         }
     }

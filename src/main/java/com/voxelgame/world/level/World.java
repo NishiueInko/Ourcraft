@@ -37,23 +37,31 @@ import java.util.List;
 import java.util.Random;
 
 /**
- * Quản lý toàn bộ thế giới Voxel, thuật toán Sinh Địa Hình Tự Nhiên (Procedural World Generation)
- * và danh sách đa hình các Thực thể động (`List<Entity> entities`), triển khai {@link Disposable}.
+ * Quản lý toàn bộ thế giới Voxel, thuật toán Sinh Địa Hình Tự Nhiên (Procedural
+ * World Generation)
+ * và danh sách đa hình các Thực thể động (`List<Entity> entities`), triển khai
+ * {@link Disposable}.
  *
  * THỂ HIỆN CÁC TÍNH CHẤT OOP:
  * 1. Tính Đa hình (Runtime Polymorphism):
- *    - Quản lý chung cả `Player` lẫn mọi `ItemEntity` trong một danh sách duy nhất `List<Entity> entities`.
- *    - Trong `updateEntities` và `render`, `World` duyệt qua
- *      danh sách `entities` và gọi đa hình `entity.update(this, deltaTime)` và `entity.render(shader)`.
- *    - Trong `breakBlockAndSpawnDrop(int, int, int)`, `World` gọi đa hình `target.onBreak(this, worldX, worldY, worldZ)`
- *      để mỗi loại `Block` tự quyết định vật phẩm rơi ra (ví dụ: `GrassBlock` rơi ra `Block.DIRT`).
+ * - Quản lý chung cả `Player` lẫn mọi `ItemEntity` trong một danh sách duy nhất
+ * `List<Entity> entities`.
+ * - Trong `updateEntities` và `render`, `World` duyệt qua
+ * danh sách `entities` và gọi đa hình `entity.update(this, deltaTime)` và
+ * `entity.render(shader)`.
+ * - Trong `breakBlockAndSpawnDrop(int, int, int)`, `World` gọi đa hình
+ * `target.onBreak(this, worldX, worldY, worldZ)`
+ * để mỗi loại `Block` tự quyết định vật phẩm rơi ra (ví dụ: `GrassBlock` rơi ra
+ * `Block.DIRT`).
  * 2. Tính Đóng gói (Encapsulation):
- *    - Đóng gói mảng `chunks` và danh sách `entities` ở phạm vi `private final`,
- *      chỉ cung cấp các phương thức giao tiếp an toàn (`registerPlayer`, `spawnDroppedItem`, `getBlock`, `setBlock`).
+ * - Đóng gói mảng `chunks` và danh sách `entities` ở phạm vi `private final`,
+ * chỉ cung cấp các phương thức giao tiếp an toàn (`registerPlayer`,
+ * `spawnDroppedItem`, `getBlock`, `setBlock`).
  */
 public class World implements Disposable {
 
-    // Năm biome rộng 800 block theo trục X (`SNOWY_PLAINS`, `FOREST`, `PLAINS`, `FLOWER_FOREST`, `DESERT`).
+    // Năm biome rộng 800 block theo trục X (`SNOWY_PLAINS`, `FOREST`, `PLAINS`,
+    // `FLOWER_FOREST`, `DESERT`).
     public static final int BIOME_WIDTH = 800;
     public static final int WORLD_SIZE_X = 5 * BIOME_WIDTH;
     public static final int WORLD_CHUNKS_X = (WORLD_SIZE_X + Chunk.SIZE - 1) / Chunk.SIZE;
@@ -63,16 +71,20 @@ public class World implements Disposable {
     public static final int WORLD_SIZE_Y = WORLD_CHUNKS_Y * Chunk.SIZE;
     public static final int WORLD_SIZE_Z = WORLD_CHUNKS_Z * Chunk.SIZE;
 
-    // Tâm hình học nằm giữa Plains dùng cho lần xuất phát đầu tiên và tọa độ hồi sinh ưu tiên.
+    // Tâm hình học nằm giữa Plains dùng cho lần xuất phát đầu tiên và tọa độ hồi
+    // sinh ưu tiên.
     public static final int CENTER_X = WORLD_SIZE_X / 2;
     public static final int CENTER_Z = WORLD_SIZE_Z / 2;
     public static final int RESPAWN_X = CENTER_X;
     public static final int RESPAWN_Z = 1600;
-    /** Số block tối đa tìm quanh tâm biome để tránh cột ngập nước hoặc bị che kín. */
+    /**
+     * Số block tối đa tìm quanh tâm biome để tránh cột ngập nước hoặc bị che kín.
+     */
     private static final int BIOME_LANDING_RADIUS = 32;
     // Dựng sẵn khu vực 5 × 5 cột chunk quanh spawn.
     private static final int SPAWN_MESH_RADIUS = 2;
-    // Giới hạn công việc dựng mesh mỗi khung hình và thời gian giữ mesh ngoài khung nhìn.
+    // Giới hạn công việc dựng mesh mỗi khung hình và thời gian giữ mesh ngoài khung
+    // nhìn.
     private static final int MESH_BUILDS_PER_FRAME = 16;
     private static final int MESH_RETENTION_FRAMES = 120;
 
@@ -93,14 +105,22 @@ public class World implements Disposable {
     private float randomTickElapsed;
     private final TerrainGenerator terrain = new TerrainGenerator(WORLD_SEED);
 
-    // Tham chiếu tới thực thể người chơi và danh sách đa hình chứa mọi Entity hoạt động trong thế giới
+    // Tham chiếu tới thực thể người chơi và danh sách đa hình chứa mọi Entity hoạt
+    // động trong thế giới
     private Player player;
     private final List<Entity> entities = new ArrayList<>();
-    /** Hệ thống âm thanh do ứng dụng sở hữu và vị trí nghe dùng lại khi tính độ xa. */
+    /**
+     * Hệ thống âm thanh do ứng dụng sở hữu và vị trí nghe dùng lại khi tính độ xa.
+     */
     private AudioManager audio;
-    /** Bộ đếm số lần sự kiện âm thanh trúng đòn giữa các thực thể đã được kích hoạt (dùng cho kiểm thử CPU). */
+    /**
+     * Bộ đếm số lần sự kiện âm thanh trúng đòn giữa các thực thể đã được kích hoạt
+     * (dùng cho kiểm thử CPU).
+     */
     private int entityHitSoundCount;
-    /** Lượt vẽ mob và atlas vật phẩm do ứng dụng cung cấp khi có ngữ cảnh OpenGL. */
+    /**
+     * Lượt vẽ mob và atlas vật phẩm do ứng dụng cung cấp khi có ngữ cảnh OpenGL.
+     */
     private MobRenderer mobRenderer;
     private Texture blockAtlas;
     private ItemTextureAtlas itemAtlas;
@@ -119,10 +139,16 @@ public class World implements Disposable {
     // Các luật có thể ghi thêm ô trong lúc hàng đợi đang được xử lý.
     private final BlockUpdateQueue blockUpdates = new BlockUpdateQueue();
     private final LeafDecaySystem leafDecay = new LeafDecaySystem();
-    /** Bộ mô phỏng dòng chảy Water/Lava và phản ứng tạo Stone (chỉ chạy trên thay đổi gameplay). */
+    /**
+     * Bộ mô phỏng dòng chảy Water/Lava và phản ứng tạo Stone (chỉ chạy trên thay
+     * đổi gameplay).
+     */
     private final LiquidFlowSimulator liquidFlow = new LiquidFlowSimulator();
     private boolean drainingBlockUpdates;
-    /** Hệ thống tính toán và lan truyền Sky Light / Block Light 4-bit cho toàn thế giới. */
+    /**
+     * Hệ thống tính toán và lan truyền Sky Light / Block Light 4-bit cho toàn thế
+     * giới.
+     */
     private final ChunkLighting lighting = new ChunkLighting();
     private boolean incrementalLightingUpdate;
 
@@ -149,7 +175,8 @@ public class World implements Disposable {
     private final Chunk[] pendingMeshes = new Chunk[MESH_BUILDS_PER_FRAME];
     private final float[] pendingDistances = new float[MESH_BUILDS_PER_FRAME];
     private int pendingMeshCount;
-    // Theo dõi riêng các chunk có mesh để thu hồi tài nguyên mà không quét cả lưới lần nữa.
+    // Theo dõi riêng các chunk có mesh để thu hồi tài nguyên mà không quét cả lưới
+    // lần nữa.
     private final Array<Chunk> residentMeshes = new Array<>(false, WORLD_CHUNKS_X * WORLD_CHUNKS_Z);
     private long renderFrame;
     private final DesertPyramid desertPyramid;
@@ -165,7 +192,10 @@ public class World implements Disposable {
         return new World(false, null);
     }
 
-    /** Mở thế giới trống có gắn sẵn dấu chân kim tự tháp để kiểm thử sinh Camel lân cận. */
+    /**
+     * Mở thế giới trống có gắn sẵn dấu chân kim tự tháp để kiểm thử sinh Camel lân
+     * cận.
+     */
     public static World emptyWithPyramid(DesertPyramid pyramid) {
         return new World(false, pyramid);
     }
@@ -201,17 +231,26 @@ public class World implements Disposable {
         }
     }
 
-    /** Trả dấu chân kim tự tháp sa mạc đã dựng khi khởi tạo thế giới (null nếu thế giới trống). */
+    /**
+     * Trả dấu chân kim tự tháp sa mạc đã dựng khi khởi tạo thế giới (null nếu thế
+     * giới trống).
+     */
     public DesertPyramid desertPyramid() {
         return desertPyramid;
     }
 
-    /** Trả về vị trí chân người chơi ở tâm bản đồ, ngay trên mặt đất khi tạo thế giới. */
+    /**
+     * Trả về vị trí chân người chơi ở tâm bản đồ, ngay trên mặt đất khi tạo thế
+     * giới.
+     */
     public Vector3 getSpawnPosition() {
         return new Vector3(CENTER_X, spawnY, CENTER_Z);
     }
 
-    /** Tìm điểm đứng khô theo từng vành vuông quanh tâm biome. Chỉ ghi vị trí khi có nền hợp lệ. */
+    /**
+     * Tìm điểm đứng khô theo từng vành vuông quanh tâm biome. Chỉ ghi vị trí khi có
+     * nền hợp lệ.
+     */
     public boolean setBiomeCenterPosition(Vector3 position, BiomeType biome) {
         int centerX = switch (biome) {
             case SNOWY_PLAINS -> BIOME_WIDTH / 2;
@@ -240,7 +279,10 @@ public class World implements Disposable {
         return false;
     }
 
-    /** Tìm mặt đỡ ngoài trời trong dữ liệu voxel hiện tại, kể cả tuyết và các block đã sửa. */
+    /**
+     * Tìm mặt đỡ ngoài trời trong dữ liệu voxel hiện tại, kể cả tuyết và các block
+     * đã sửa.
+     */
     private float biomeLandingFeetY(int x, int z) {
         for (int y = findHighestBlockY(x, z); y >= 0; y--) {
             Block block = Block.fromId(getBlock(x, y, z));
@@ -262,7 +304,9 @@ public class World implements Disposable {
         return 0f;
     }
 
-    /** Đưa người chơi tới cột hồi sinh thông thoáng, kể cả khi đã có người xây ở đó. */
+    /**
+     * Đưa người chơi tới cột hồi sinh thông thoáng, kể cả khi đã có người xây ở đó.
+     */
     public void setRespawnPosition(Vector3 position) {
         if (tryRespawnNear(position, RESPAWN_X, RESPAWN_Z)
                 || tryRespawnNear(position, CENTER_X, CENTER_Z)) {
@@ -339,7 +383,8 @@ public class World implements Disposable {
     }
 
     /**
-     * Đăng ký thực thể `Player` vào thế giới và đưa vào danh sách cập nhật đa hình `List<Entity>`.
+     * Đăng ký thực thể `Player` vào thế giới và đưa vào danh sách cập nhật đa hình
+     * `List<Entity>`.
      *
      * @param player thực thể người chơi
      */
@@ -358,14 +403,20 @@ public class World implements Disposable {
         addEntity(entity);
     }
 
-    /** Đăng ký thực thể dùng đường cập nhật đa hình, kể cả đối tượng có hình vẽ đạn đạo. */
+    /**
+     * Đăng ký thực thể dùng đường cập nhật đa hình, kể cả đối tượng có hình vẽ đạn
+     * đạo.
+     */
     public void addEntity(Entity entity) {
         if (entity != null && !entities.contains(entity)) {
             entities.add(entity);
         }
     }
 
-    /** Thay một cá thể tại cùng chỉ số để vòng cập nhật không bỏ qua hoặc chạy hai lượt. */
+    /**
+     * Thay một cá thể tại cùng chỉ số để vòng cập nhật không bỏ qua hoặc chạy hai
+     * lượt.
+     */
     public void replaceLivingEntity(LivingEntity previous, LivingEntity replacement) {
         if (previous == player || replacement == null || previous == replacement || entities.contains(replacement)) {
             return;
@@ -387,7 +438,10 @@ public class World implements Disposable {
         return entities.get(index);
     }
 
-    /** Trao khối rơi gần nhất cho mob một lần, giữ nguyên chỉ số trong lượt cập nhật đang chạy. */
+    /**
+     * Trao khối rơi gần nhất cho mob một lần, giữ nguyên chỉ số trong lượt cập nhật
+     * đang chạy.
+     */
     public Block takeNearbyDroppedBlock(float x, float y, float z, float radius) {
         float bestDistance = radius * radius;
         ItemEntity closest = null;
@@ -403,7 +457,10 @@ public class World implements Disposable {
         return closest == null ? null : closest.collectForMob();
     }
 
-    /** Kiểm tra hộp hành lang sinh hoặc dịch chuyển có bị một thực thể sống khác chiếm hay không. */
+    /**
+     * Kiểm tra hộp hành lang sinh hoặc dịch chuyển có bị một thực thể sống khác
+     * chiếm hay không.
+     */
     public boolean hasLivingOverlap(float x, float y, float z, float halfWidth, float height, Entity excluded) {
         float top = y + height;
         for (int i = 0; i < entities.size(); i++) {
@@ -429,7 +486,10 @@ public class World implements Disposable {
         return worldTime;
     }
 
-    /** Trả giáng thủy hiện tại, hoặc null trong thế giới kiểm thử chưa gắn thời tiết. */
+    /**
+     * Trả giáng thủy hiện tại, hoặc null trong thế giới kiểm thử chưa gắn thời
+     * tiết.
+     */
     public WeatherManager weatherManager() {
         return weather;
     }
@@ -445,7 +505,8 @@ public class World implements Disposable {
     }
 
     /**
-     * Thêm một thực thể vật phẩm rơi (`ItemEntity`) vào danh sách đa hình `List<Entity>`.
+     * Thêm một thực thể vật phẩm rơi (`ItemEntity`) vào danh sách đa hình
+     * `List<Entity>`.
      *
      * @param item vật phẩm rơi
      */
@@ -456,7 +517,8 @@ public class World implements Disposable {
     }
 
     /**
-     * Cập nhật đa hình toàn bộ các thực thể và chạy lượt sinh sau khi đã dọn cá thể rời thế giới.
+     * Cập nhật đa hình toàn bộ các thực thể và chạy lượt sinh sau khi đã dọn cá thể
+     * rời thế giới.
      *
      * @param deltaTime khoảng thời gian giữa hai khung hình (giây)
      */
@@ -465,8 +527,10 @@ public class World implements Disposable {
         for (int i = 0; i < frameEntityCount; i++) {
             Entity entity = entities.get(i);
             float mobDistance = entity instanceof MobEntity mob && player != null
-                    ? mobSpawner.distanceSquared(mob, player) : 0;
-            if (entity instanceof MobEntity mob && player != null && mobSpawner.shouldDespawn(mob, mobDistance, deltaTime)) {
+                    ? mobSpawner.distanceSquared(mob, player)
+                    : 0;
+            if (entity instanceof MobEntity mob && player != null
+                    && mobSpawner.shouldDespawn(mob, mobDistance, deltaTime)) {
                 if (MobSpawner.isNaturalJockeyMount(mob)) {
                     // Dọn bộ kỵ sĩ cùng lượt dù các ghế nằm trước hay sau thú cưỡi trong danh sách.
                     for (int seat = 0; seat < mob.getSeatCount(); seat++) {
@@ -491,7 +555,8 @@ public class World implements Disposable {
                 i--;
                 continue;
             }
-            // Mob sống ngoài vùng tương tác giữ trạng thái và tiếp tục AI khi người chơi quay lại.
+            // Mob sống ngoài vùng tương tác giữ trạng thái và tiếp tục AI khi người chơi
+            // quay lại.
             if (mobDistance > MobSpawner.MAX_DISTANCE_SQUARED && ((MobEntity) entity).isAlive()) {
                 continue;
             }
@@ -519,7 +584,9 @@ public class World implements Disposable {
         mobSpawner.update(this, worldTime, deltaTime);
     }
 
-    /** Dùng cùng đồng hồ và giáng thủy với Game Loop trước khi cập nhật thực thể. */
+    /**
+     * Dùng cùng đồng hồ và giáng thủy với Game Loop trước khi cập nhật thực thể.
+     */
     public void updateEntities(float deltaTime, WorldTime worldTime, WeatherManager weather) {
         this.worldTime = worldTime;
         this.weather = weather;
@@ -545,7 +612,10 @@ public class World implements Disposable {
         this.mobRenderer = mobRenderer;
     }
 
-    /** Gắn hai tấm atlas khối và vật phẩm để chuyển đổi sạch khi vẽ ItemEntity độc lập. */
+    /**
+     * Gắn hai tấm atlas khối và vật phẩm để chuyển đổi sạch khi vẽ ItemEntity độc
+     * lập.
+     */
     public void setAtlases(Texture blockAtlas, ItemTextureAtlas itemAtlas) {
         this.blockAtlas = blockAtlas;
         this.itemAtlas = itemAtlas;
@@ -557,7 +627,8 @@ public class World implements Disposable {
     }
 
     /**
-     * Ghi nhận sự kiện trúng đòn giữa các thực thể và phát hiệu ứng {@code damage/hit1..3.ogg}
+     * Ghi nhận sự kiện trúng đòn giữa các thực thể và phát hiệu ứng
+     * {@code damage/hit1..3.ogg}
      * theo khoảng cách nếu hệ thống âm thanh đang hoạt động.
      *
      * @param x tọa độ X tại điểm thực thể nhận sát thương
@@ -571,7 +642,10 @@ public class World implements Disposable {
         }
     }
 
-    /** Trả số lần sự kiện trúng đòn giữa các thực thể đã kích hoạt âm thanh (phục vụ kiểm thử CPU). */
+    /**
+     * Trả số lần sự kiện trúng đòn giữa các thực thể đã kích hoạt âm thanh (phục vụ
+     * kiểm thử CPU).
+     */
     public int getEntityHitSoundCount() {
         return entityHitSoundCount;
     }
@@ -586,7 +660,8 @@ public class World implements Disposable {
     }
 
     /**
-     * Phương thức tương thích hỗ trợ cập nhật riêng các vật phẩm rơi nếu cần gọi tường minh.
+     * Phương thức tương thích hỗ trợ cập nhật riêng các vật phẩm rơi nếu cần gọi
+     * tường minh.
      */
     public void updateDroppedItems(Player player, Hotbar hotbar, float deltaTime) {
         for (int i = 0; i < entities.size(); i++) {
@@ -621,13 +696,16 @@ public class World implements Disposable {
         return 0;
     }
 
-    /** Chia dải địa tầng khác Air tại từng biên chunk; chỉ dùng khi khởi tạo thế giới. */
+    /**
+     * Chia dải địa tầng khác Air tại từng biên chunk; chỉ dùng khi khởi tạo thế
+     * giới.
+     */
     public void fillGeneratedColumn(int x, int z, int firstY, int endY, Block block) {
         int cx = x / Chunk.SIZE;
         int cz = z / Chunk.SIZE;
         int lx = x % Chunk.SIZE;
         int lz = z % Chunk.SIZE;
-        for (int y = firstY; y < endY; ) {
+        for (int y = firstY; y < endY;) {
             int cy = y / Chunk.SIZE;
             int originY = cy * Chunk.SIZE;
             int nextY = Math.min(endY, originY + Chunk.SIZE);
@@ -641,12 +719,17 @@ public class World implements Disposable {
         }
     }
 
-    /** Ghi block và cấp phát hoặc giải phóng chunk khi nó chuyển trạng thái rỗng. */
+    /**
+     * Ghi block và cấp phát hoặc giải phóng chunk khi nó chuyển trạng thái rỗng.
+     */
     private boolean setBlockInternal(int worldX, int worldY, int worldZ, byte blockId) {
         return setBlockInternal(worldX, worldY, worldZ, blockId, 0);
     }
 
-    /** Ghi trạng thái mà không chạy luật lân cận, dùng để sinh địa hình và ghi theo nhóm. */
+    /**
+     * Ghi trạng thái mà không chạy luật lân cận, dùng để sinh địa hình và ghi theo
+     * nhóm.
+     */
     public boolean setBlockInternal(int worldX, int worldY, int worldZ, byte blockId, int state) {
         if (!isInsideWorld(worldX, worldY, worldZ)) {
             return false;
@@ -685,18 +768,25 @@ public class World implements Disposable {
         return true;
     }
 
-    /** Đọc Sky Light (0..15) tại tọa độ thế giới, khởi tạo lười cột chunk nếu chưa tính. */
+    /**
+     * Đọc Sky Light (0..15) tại tọa độ thế giới, khởi tạo lười cột chunk nếu chưa
+     * tính.
+     */
     public int getSkyLight(int x, int y, int z) {
         return lighting.getSkyLight(this, x, y, z);
     }
 
-    /** Đọc Block Light (0..15) tại tọa độ thế giới, khởi tạo lười cột chunk nếu chưa tính. */
+    /**
+     * Đọc Block Light (0..15) tại tọa độ thế giới, khởi tạo lười cột chunk nếu chưa
+     * tính.
+     */
     public int getBlockLight(int x, int y, int z) {
         return lighting.getBlockLight(this, x, y, z);
     }
 
     /**
-     * Hệ số Sky Light dùng khi dựng hình học chunk (1.0f vì độ sáng ngày/đêm được điều chế
+     * Hệ số Sky Light dùng khi dựng hình học chunk (1.0f vì độ sáng ngày/đêm được
+     * điều chế
      * thời gian thực qua uniform {@code uWorldLight} trong ShaderProgram).
      */
     float getSkyLightFactor() {
@@ -704,7 +794,7 @@ public class World implements Disposable {
     }
 
     /** Truy cập trực tiếp Chunk thô theo tọa độ chunk cho {@link ChunkLighting}. */
-    public Chunk getChunkRaw(int cx, int cy, int cz) {
+    Chunk getChunkRaw(int cx, int cy, int cz) {
         if (cx < 0 || cx >= WORLD_CHUNKS_X || cy < 0 || cy >= WORLD_CHUNKS_Y
                 || cz < 0 || cz >= WORLD_CHUNKS_Z) {
             return null;
@@ -737,8 +827,8 @@ public class World implements Disposable {
 
     public boolean isInsideWorld(int worldX, int worldY, int worldZ) {
         return worldX >= 0 && worldX < WORLD_SIZE_X &&
-               worldY >= 0 && worldY < WORLD_SIZE_Y &&
-               worldZ >= 0 && worldZ < WORLD_SIZE_Z;
+                worldY >= 0 && worldY < WORLD_SIZE_Y &&
+                worldZ >= 0 && worldZ < WORLD_SIZE_Z;
     }
 
     public byte getBlock(int worldX, int worldY, int worldZ) {
@@ -761,7 +851,10 @@ public class World implements Disposable {
         return getCollisionBounds(worldX, worldY, worldZ) != null;
     }
 
-    /** Lấy mẫu đều trong mỗi section đã có dữ liệu, độc lập với cache mesh và tốc độ khung hình. */
+    /**
+     * Lấy mẫu đều trong mỗi section đã có dữ liệu, độc lập với cache mesh và tốc độ
+     * khung hình.
+     */
     private void updateRandomBlocks(float deltaTime) {
         if (player == null) {
             return;
@@ -806,7 +899,8 @@ public class World implements Disposable {
                             }
                         }
                     }
-                    // Chuẩn Minecraft: khi đang giáng thủy, mỗi cột chunk có xác suất 1/16 mỗi tick để đóng băng hoặc phủ 1 lớp tuyết.
+                    // Chuẩn Minecraft: khi đang giáng thủy, mỗi cột chunk có xác suất 1/16 mỗi tick
+                    // để đóng băng hoặc phủ 1 lớp tuyết.
                     if (weather != null && weather.strength() > 0.5f && blockRandom.nextInt(16) == 0) {
                         int sampleX = cx * Chunk.SIZE + blockRandom.nextInt(Chunk.SIZE);
                         int sampleZ = cz * Chunk.SIZE + blockRandom.nextInt(Chunk.SIZE);
@@ -826,7 +920,8 @@ public class World implements Disposable {
         int blockZ = (int) Math.floor(z);
         Block block = Block.fromId(getBlock(blockX, blockY, blockZ));
         return block.isLiquid() && y < blockY + block.getTopHeight(this, blockX, blockY, blockZ)
-                ? block : Block.AIR;
+                ? block
+                : Block.AIR;
     }
 
     /** Trả độ cao bề mặt chặn giáng thủy, kể cả mặt chất lỏng và lớp tuyết thấp. */
@@ -873,8 +968,11 @@ public class World implements Disposable {
         return -1;
     }
 
-    /** Thử đóng băng hoặc phủ 1 lớp tuyết trên bề mặt lộ thiên theo chuẩn snowAccumulationHeight = 1. */
-    public void accumulateSnow(int x, int z, Player player, boolean thicken) {
+    /**
+     * Thử đóng băng hoặc phủ 1 lớp tuyết trên bề mặt lộ thiên theo chuẩn
+     * snowAccumulationHeight = 1.
+     */
+    void accumulateSnow(int x, int z, Player player, boolean thicken) {
         if (!isInsideWorld(x, 0, z) || !getBiome(x, z).hasSnow()) {
             return;
         }
@@ -918,7 +1016,10 @@ public class World implements Disposable {
         drainBlockUpdates();
     }
 
-    /** Ghi một ô, dọn nửa cỏ cũ nếu có, cập nhật ánh sáng BFS và xếp lịch các luật phụ thuộc. */
+    /**
+     * Ghi một ô, dọn nửa cỏ cũ nếu có, cập nhật ánh sáng BFS và xếp lịch các luật
+     * phụ thuộc.
+     */
     private void writeGameplayBlock(int x, int y, int z, byte blockId, int state) {
         byte oldId = getBlock(x, y, z);
         int oldState = getBlockState(x, y, z);
@@ -1028,7 +1129,10 @@ public class World implements Disposable {
         return liquidFlow;
     }
 
-    /** Xếp lịch kiểm tra phân hủy trễ cho lá tự nhiên bằng hàng đợi không cấp phát rác. */
+    /**
+     * Xếp lịch kiểm tra phân hủy trễ cho lá tự nhiên bằng hàng đợi không cấp phát
+     * rác.
+     */
     void scheduleLeafDecayCheck(int x, int y, int z) {
         leafDecay.schedule(x, y, z);
     }
@@ -1082,7 +1186,10 @@ public class World implements Disposable {
         return tryPlaceBlock(x, y, z, block, 0, placingPlayer);
     }
 
-    /** Kiểm tra và cam kết thao tác đặt với metadata ban đầu (như state = 1 cho lá đặt tay). */
+    /**
+     * Kiểm tra và cam kết thao tác đặt với metadata ban đầu (như state = 1 cho lá
+     * đặt tay).
+     */
     public boolean tryPlaceBlock(int x, int y, int z, Block block, int state, Player placingPlayer) {
         int normalizedState = block.normalizeState(state);
         if (!isInsideWorld(x, y, z) || block == Block.AIR || !block.canPlaceAt(this, x, y, z)
@@ -1137,7 +1244,8 @@ public class World implements Disposable {
     }
 
     /**
-     * Đập vỡ hoàn toàn một Block tại `(worldX, worldY, worldZ)` và kích hoạt hành vi đa hình `target.onBreak(...)`.
+     * Đập vỡ hoàn toàn một Block tại `(worldX, worldY, worldZ)` và kích hoạt hành
+     * vi đa hình `target.onBreak(...)`.
      *
      * @param worldX tọa độ X thế giới
      * @param worldY tọa độ Y thế giới
@@ -1158,7 +1266,34 @@ public class World implements Disposable {
         drainBlockUpdates();
     }
 
-    /** Gây sát thương tỏa tròn và ghi các ô phá được bằng cùng đường cập nhật block lúc chơi. */
+    /**
+     * Phá vỡ tức thì một khối trong chế độ Creative (cho phép phá cả
+     * {@link Block#BEDROCK})
+     * mà không sinh {@link ItemEntity}, vẫn phát âm thanh và kích hoạt cập nhật
+     * khối lân cận.
+     *
+     * @param worldX tọa độ X thế giới
+     * @param worldY tọa độ Y thế giới
+     * @param worldZ tọa độ Z thế giới
+     * @return {@code true} nếu khối đã được phá vỡ
+     */
+    public boolean breakBlockWithoutDrop(int worldX, int worldY, int worldZ) {
+        Block target = Block.fromId(getBlock(worldX, worldY, worldZ));
+        if (target == Block.AIR || target.isLiquid()) {
+            return false;
+        }
+        writeGameplayBlock(worldX, worldY, worldZ, Block.AIR.getId(), 0);
+        if (audio != null) {
+            audio.playBreak(target, getAudioGain(worldX + 0.5f, worldY + 0.5f, worldZ + 0.5f));
+        }
+        drainBlockUpdates();
+        return true;
+    }
+
+    /**
+     * Gây sát thương tỏa tròn và ghi các ô phá được bằng cùng đường cập nhật block
+     * lúc chơi.
+     */
     public void explode(Entity source, float x, float y, float z, float radius, float maxDamage) {
         float radiusSquared = radius * radius;
         for (int i = 0, count = entities.size(); i < count; i++) {
@@ -1195,16 +1330,18 @@ public class World implements Disposable {
                 }
             }
         }
-        // Chạy một đợt sau khi tất cả ô đã đổi để cát, sỏi và cây bên rìa phản ứng theo nền cuối.
+        // Chạy một đợt sau khi tất cả ô đã đổi để cát, sỏi và cây bên rìa phản ứng theo
+        // nền cuối.
         drainBlockUpdates();
     }
 
     /**
-     * Vẽ các chunk giao khung nhìn và duyệt danh sách đa hình để vẽ các thực thể 3D.
+     * Vẽ các chunk giao khung nhìn và duyệt danh sách đa hình để vẽ các thực thể
+     * 3D.
      *
-     * @param shader chương trình Shader đang kích hoạt
+     * @param shader     chương trình Shader đang kích hoạt
      * @param projection ma trận chiếu phối cảnh đã truyền vào shader
-     * @param view ma trận nhìn đã truyền vào shader
+     * @param view       ma trận nhìn đã truyền vào shader
      */
     public void render(ShaderProgram shader, Matrix4 projection, Matrix4 view) {
         render(shader, projection, view, null);
@@ -1215,16 +1352,22 @@ public class World implements Disposable {
         render(shader, projection, view, cameraPosition, null);
     }
 
-    /** Cho phép vẽ tầng mây sau pha ghi chiều sâu và trước khi hòa màu nước/băng. */
+    /**
+     * Cho phép vẽ tầng mây sau pha ghi chiều sâu và trước khi hòa màu nước/băng.
+     */
     public void render(ShaderProgram shader, Matrix4 projection, Matrix4 view, Vector3 cameraPosition,
-                       Runnable beforeTranslucent) {
+            Runnable beforeTranslucent) {
         render(shader, projection, view, cameraPosition, beforeTranslucent, Float.POSITIVE_INFINITY);
     }
 
-    /** Bỏ các chunk nằm hoàn toàn ngoài tầm nhìn màu sắc khi sương đạt độ đậm tối đa. */
+    /**
+     * Bỏ các chunk nằm hoàn toàn ngoài tầm nhìn màu sắc khi sương đạt độ đậm tối
+     * đa.
+     */
     public void render(ShaderProgram shader, Matrix4 projection, Matrix4 view, Vector3 cameraPosition,
-                       Runnable beforeTranslucent, float drawDistance) {
-        // libGDX dùng nghịch đảo của Projection × View để dựng sáu mặt phẳng khung nhìn.
+            Runnable beforeTranslucent, float drawDistance) {
+        // libGDX dùng nghịch đảo của Projection × View để dựng sáu mặt phẳng khung
+        // nhìn.
         inverseViewProjection.set(projection).mul(view).inv();
         frustum.update(inverseViewProjection);
         // Tâm mặt phẳng gần xấp xỉ vị trí mắt và ưu tiên được cả các chunk theo độ cao.
@@ -1362,7 +1505,8 @@ public class World implements Disposable {
             for (int cy = 0; cy < WORLD_CHUNKS_Y; cy++) {
                 for (int cz = firstZ; cz <= lastZ; cz++) {
                     Chunk chunk = chunks[cx][cy][cz];
-                    // Chunk sạch từng dựng mà không có mặt lộ chỉ cần xét lại khi được đánh dấu bẩn.
+                    // Chunk sạch từng dựng mà không có mặt lộ chỉ cần xét lại khi được đánh dấu
+                    // bẩn.
                     if (chunk != null && (chunk.isDirty() || chunk.hasMesh())
                             && chunk.distanceSquaredTo(eye) <= rangeSquared && chunk.intersectsFrustum(frustum)) {
                         chunk.lastVisibleFrame = renderFrame;
@@ -1408,7 +1552,9 @@ public class World implements Disposable {
         }
     }
 
-    /** Thu hồi mesh đã ở ngoài khung nhìn đủ lâu, giữ dữ liệu block và các sửa đổi. */
+    /**
+     * Thu hồi mesh đã ở ngoài khung nhìn đủ lâu, giữ dữ liệu block và các sửa đổi.
+     */
     private void releaseOffscreenMeshes() {
         for (int i = residentMeshes.size - 1; i >= 0; i--) {
             Chunk chunk = residentMeshes.get(i);
@@ -1419,7 +1565,10 @@ public class World implements Disposable {
         }
     }
 
-    /** Giải phóng các mesh đang còn trong bộ nhớ và tài nguyên dùng chung của vật phẩm. */
+    /**
+     * Giải phóng các mesh đang còn trong bộ nhớ và tài nguyên dùng chung của vật
+     * phẩm.
+     */
     @Override
     public void dispose() {
         for (int i = 0; i < residentMeshes.size; i++) {

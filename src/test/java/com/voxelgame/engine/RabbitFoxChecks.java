@@ -63,7 +63,7 @@ final class RabbitFoxChecks {
             require(rabbit.x() < 99.7f, "Thỏ phải tránh người chơi trong tám block khi không có mồi");
 
             require(player.getHotbar().addItem(Block.DANDELION, 1), "Cần đặt bồ công anh vào Hotbar");
-            player.getHotbar().selectSlot(5);
+            player.getHotbar().selectSlot(0);
             Rabbit following = new Rabbit(100.5f, 20f, 100.5f);
             tick(world, following, 1.1);
             require(following.x() > 101.3f, "Thỏ phải tiến về người chơi đang cầm bồ công anh");

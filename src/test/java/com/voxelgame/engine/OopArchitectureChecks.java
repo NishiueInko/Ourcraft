@@ -1,6 +1,7 @@
 package com.voxelgame.engine;
 
 import com.voxelgame.client.gui.BitmapFont;
+import com.voxelgame.client.gui.CreativeInventoryScreen;
 import com.voxelgame.client.gui.HudRenderer;
 import com.voxelgame.client.gui.InventoryScreen;
 import com.voxelgame.client.gui.PauseScreen;
@@ -44,6 +45,9 @@ import com.voxelgame.world.entity.mob.monster.Zombie;
 import com.voxelgame.world.entity.mob.monster.ZombieVillager;
 import com.voxelgame.world.entity.player.Player;
 import com.voxelgame.world.entity.projectile.ProjectileEntity;
+import com.voxelgame.world.gamemode.CreativeGameMode;
+import com.voxelgame.world.gamemode.GameMode;
+import com.voxelgame.world.gamemode.SurvivalGameMode;
 import com.voxelgame.world.item.BlockItem;
 import com.voxelgame.world.item.BowItem;
 import com.voxelgame.world.item.BucketItem;
@@ -102,7 +106,18 @@ public final class OopArchitectureChecks {
         checkBiomeAndWeatherHierarchy();
         checkEntityAndMobHierarchy();
         checkItemHierarchyAndDispatch();
+        checkGameModeHierarchy();
         checkClientScreenHierarchy();
+    }
+
+    /** Xác nhận hệ phân cấp OOP của GameMode (Trừu tượng, Kế thừa, Đóng gói và Đa hình). */
+    private static void checkGameModeHierarchy() {
+        requireAbstract(GameMode.class);
+        requireSubclass(GameMode.class, CreativeGameMode.class, SurvivalGameMode.class);
+        GameMode creative = CreativeGameMode.INSTANCE;
+        GameMode survival = SurvivalGameMode.INSTANCE;
+        require(creative.toggle() == survival && survival.toggle() == creative,
+                "GameMode.toggle() phải điều phối đa hình giữa Creative và Survival");
     }
 
     /** Xác nhận Block đã tách khỏi Entity, đủ lớp trừu tượng trung gian và bảo toàn 33 ID 0..32. */
@@ -347,14 +362,16 @@ public final class OopArchitectureChecks {
     /** Xác nhận hệ phân cấp màn hình Client/GUI (Screen, PauseScreen, InventoryScreen, BitmapFont, HudRenderer). */
     private static void checkClientScreenHierarchy() {
         requireAbstract(Screen.class);
-        requireSubclass(Screen.class, PauseScreen.class, InventoryScreen.class);
+        requireSubclass(Screen.class, PauseScreen.class, InventoryScreen.class, CreativeInventoryScreen.class);
 
         PauseScreen pauseScreen = new PauseScreen();
         InventoryScreen inventoryScreen = new InventoryScreen();
+        CreativeInventoryScreen creativeScreen = new CreativeInventoryScreen();
         try {
             require(pauseScreen.pausesWorld(), "PauseScreen phải tạm dừng vòng cập nhật thế giới");
             require(!inventoryScreen.pausesWorld(), "InventoryScreen không được tạm dừng thế giới");
-            require(!pauseScreen.isOpen() && !inventoryScreen.isOpen(),
+            require(!creativeScreen.pausesWorld(), "CreativeInventoryScreen không được tạm dừng thế giới");
+            require(!pauseScreen.isOpen() && !inventoryScreen.isOpen() && !creativeScreen.isOpen(),
                     "Màn hình Screen mặc định phải ở trạng thái đóng");
             pauseScreen.open();
             require(pauseScreen.isOpen(), "open() phải mở PauseScreen");
@@ -363,6 +380,7 @@ public final class OopArchitectureChecks {
         } finally {
             pauseScreen.dispose();
             inventoryScreen.dispose();
+            creativeScreen.dispose();
         }
 
         require(com.badlogic.gdx.utils.Disposable.class.isAssignableFrom(Screen.class)

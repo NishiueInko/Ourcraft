@@ -10,6 +10,8 @@ import com.voxelgame.world.entity.ItemEntity;
 import com.voxelgame.world.entity.LivingEntity;
 import com.voxelgame.world.entity.mob.animal.Wolf;
 import com.voxelgame.world.entity.mob.MountableMob;
+import com.voxelgame.world.gamemode.GameMode;
+import com.voxelgame.world.gamemode.SurvivalGameMode;
 import com.voxelgame.world.item.FoodRegistry;
 import com.voxelgame.world.item.Item;
 import com.voxelgame.world.level.biome.BiomeType;
@@ -187,6 +189,9 @@ public class Player extends LivingEntity {
     private boolean isSprinting = false;
     private boolean isSneaking = false;
 
+    /** Chế độ chơi hiện tại (mặc định Survival ở constructor để bảo toàn các bộ test đơn vị). */
+    private GameMode gameMode = SurvivalGameMode.INSTANCE;
+
     /** Các mức tốc độ kiểm tra địa hình áp dụng cho di chuyển ngang và điều khiển độ cao khi bay. */
     private static final int[] TERRAIN_SPEED_MULTIPLIERS = {1, 3, 5, 10, 25, 50};
     private int terrainSpeedIndex;
@@ -207,14 +212,81 @@ public class Player extends LivingEntity {
         super(startX, startY, startZ, PLAYER_HALF_WIDTH, PLAYER_HEIGHT, PLAYER_HEALTH, 0f, false);
     }
 
-    /** Chuyển sang mức tốc độ kế tiếp và quay về 1x sau 50x. */
+    /** Trả về chế độ chơi hiện tại của người chơi ({@code Creative} hoặc {@code Survival}). */
+    public GameMode getGameMode() {
+        return gameMode;
+    }
+
+    /**
+     * Đặt chế độ chơi mới và kích hoạt hook đa hình {@link GameMode#onEnter(Player)}
+     * để đồng bộ trạng thái bay, tốc độ và chỉ số sinh tồn.
+     */
+    public void setGameMode(GameMode mode) {
+        if (mode == null) {
+            return;
+        }
+        this.gameMode = mode;
+        mode.onEnter(this);
+    }
+
+    /** Chuyển đổi qua lại giữa Creative và Survival theo hợp đồng đa hình {@link GameMode#toggle()}. */
+    public GameMode toggleGameMode() {
+        GameMode next = gameMode.toggle();
+        setGameMode(next);
+        return next;
+    }
+
+    /** Đặt trạng thái bay trực tiếp (chỉ bật được khi chế độ hiện tại cho phép {@link GameMode#canFly()}). */
+    public void setFlying(boolean flying) {
+        if (flying && !gameMode.canFly()) {
+            return;
+        }
+        this.isFlying = flying;
+        this.lastSpaceTapTime = Float.NEGATIVE_INFINITY;
+        this.lastShiftTapTime = Float.NEGATIVE_INFINITY;
+        if (flying) {
+            this.onGround = false;
+            this.isSneaking = false;
+            this.velocity.y = 0.0f;
+        } else {
+            resetFallTracking();
+        }
+    }
+
+    /** Đưa hệ số tốc độ kiểm tra địa hình ({@code F1}) về mức cơ sở {@code 1x}. */
+    public void resetTerrainSpeed() {
+        terrainSpeedIndex = 0;
+    }
+
+    /** Trả về hệ số tốc độ địa hình hiện tại ({@code 1, 3, 5, 10, 25, 50}). */
+    public int getTerrainSpeedMultiplier() {
+        return TERRAIN_SPEED_MULTIPLIERS[terrainSpeedIndex];
+    }
+
+    /** Hồi đầy máu, đói, bão hòa, Oxy và dập lửa khi chuyển sang chế độ Creative. */
+    public void restoreCreativeVitals() {
+        restoreLife();
+        hunger = MAX_HUNGER;
+        saturation = INITIAL_SATURATION;
+        airTicksExact = AIR_MAX_TICKS;
+        drownTimer = 0.0f;
+        regenElapsed = 0.0f;
+        cactusCooldown = 0.0f;
+        cactusFlash = 0.0f;
+        extinguish();
+    }
+
+    /** Chuyển sang mức tốc độ kế tiếp và quay về 1x sau 50x (chỉ hiệu lực khi chế độ cho phép). */
     public void cycleTerrainSpeed() {
+        if (!gameMode.canUseTerrainTools()) {
+            return;
+        }
         terrainSpeedIndex = (terrainSpeedIndex + 1) % TERRAIN_SPEED_MULTIPLIERS.length;
     }
 
     /** Đặt chân lên nền hợp lệ gần tâm biome và đồng bộ trạng thái chuyển động với vị trí mới. */
     public boolean teleportToBiome(World world, BiomeType biome) {
-        if (!world.setBiomeCenterPosition(position, biome)) {
+        if (!gameMode.canUseTerrainTools() || world == null || !world.setBiomeCenterPosition(position, biome)) {
             return false;
         }
         leaveMount();
@@ -473,6 +545,9 @@ public class Player extends LivingEntity {
 
     /** Gây sát thương theo cửa sổ miễn đòn và duy trì thời gian cháy khi còn trong dung nham. */
     private void updateLavaContact(World world) {
+        if (gameMode.isInvulnerable()) {
+            return;
+        }
         if (touchesLiquid(world, Block.LAVA)) {
             damage(world, 4f, DamageSource.LAVA, null, 0f, 0f);
             ignite(LAVA_BURN_SECONDS);
@@ -481,6 +556,10 @@ public class Player extends LivingEntity {
 
     /** Tích lũy thời gian hồi máu khi người chơi đang bị thương và còn đủ độ đói. */
     private void updateRegeneration(float deltaTime) {
+        if (gameMode.isInvulnerable()) {
+            regenElapsed = 0f;
+            return;
+        }
         if (hunger < REGEN_HUNGER_THRESHOLD || getHealth() >= getMaxHealth()) {
             regenElapsed = 0f;
             return;
@@ -496,6 +575,9 @@ public class Player extends LivingEntity {
     /** Trừ độ đói theo cấp và số giây Hunger thực sự có hiệu lực. */
     @Override
     protected void onHungerEffect(int amplifier, float activeTime) {
+        if (gameMode.isInvulnerable()) {
+            return;
+        }
         hunger = Math.max(0f, hunger - HUNGER_EFFECT_PER_SECOND * (amplifier + 1f) * activeTime);
     }
 
@@ -526,10 +608,10 @@ public class Player extends LivingEntity {
         }
     }
 
-    /** Bỏ theo dõi rơi khi đang bay hoặc ngồi trên thú. */
+    /** Bỏ theo dõi rơi khi bất tử (Creative), đang bay hoặc ngồi trên thú. */
     @Override
     protected boolean ignoresFall() {
-        return isFlying || super.ignoresFall();
+        return gameMode.isInvulnerable() || isFlying || super.ignoresFall();
     }
 
     /**
@@ -547,8 +629,13 @@ public class Player extends LivingEntity {
         boolean shiftDown = Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT);
         boolean ctrlDown = Gdx.input.isKeyPressed(Input.Keys.CONTROL_LEFT);
 
-        // 1. Xử lý Double-Tap Space để Bật/Tắt chế độ Bay (Fly Mode)
-        if (spaceDown && !wasSpacePressed) {
+        // 1. Xử lý Double-Tap Space để Bật/Tắt chế độ Bay (Fly Mode) chỉ khi chế độ chơi cho phép
+        if (!gameMode.canFly()) {
+            if (isFlying) {
+                isFlying = false;
+            }
+            lastSpaceTapTime = Float.NEGATIVE_INFINITY;
+        } else if (spaceDown && !wasSpacePressed) {
             float now = playerElapsedTime;
             if (now - lastSpaceTapTime <= DOUBLE_TAP_THRESHOLD) {
                 isFlying = !isFlying;
@@ -881,7 +968,7 @@ public class Player extends LivingEntity {
 
     /** Đẩy nhẹ theo mặt tiếp xúc và giới hạn tần suất phản hồi. */
     private void touchCactus(World world, float x, float z, boolean above) {
-        if (cactusCooldown > 0) {
+        if (gameMode.isInvulnerable() || cactusCooldown > 0) {
             return;
         }
         cactusCooldown = CACTUS_COOLDOWN;
@@ -1061,6 +1148,9 @@ public class Player extends LivingEntity {
             return false;
         }
 
+        if (!gameMode.consumesItems()) {
+            return true;
+        }
         // Nếu lọ thuốc đang nằm ở ô Hotbar được chọn thì tiêu thụ và thay bằng lọ thủy tinh rỗng ngay tại ô đó
         if (hotbar.getSelectedItem() == potionItem && hotbar.getSelectedCount() > 0) {
             int selectedSlot = hotbar.getSelectedSlot();
@@ -1135,10 +1225,14 @@ public class Player extends LivingEntity {
 
     /**
      * Khi người chơi nhận sát thương từ một thực thể khác, báo cho đàn sói đã thuần hóa để đánh trả.
+     * Bỏ qua hoàn toàn nếu chế độ chơi hiện tại miễn nhiễm sát thương ({@link GameMode#isInvulnerable()}).
      */
     @Override
     public boolean damage(World world, float amount, DamageSource source, Entity attacker,
                           float knockbackX, float knockbackZ) {
+        if (gameMode.isInvulnerable()) {
+            return false;
+        }
         boolean applied = super.damage(world, amount, source, attacker, knockbackX, knockbackZ);
         if (applied && isAlive() && attacker instanceof LivingEntity threat && threat != this) {
             notifyTamedWolves(world, threat);
@@ -1483,6 +1577,11 @@ public class Player extends LivingEntity {
      */
     private void updateOxygen(World world, float deltaTime) {
         eyeInWater = isEyeInWater(world);
+        if (gameMode.isInvulnerable()) {
+            airTicksExact = AIR_MAX_TICKS;
+            drownTimer = 0.0f;
+            return;
+        }
         if (!eyeInWater) {
             airTicksExact = Math.min(AIR_MAX_TICKS, airTicksExact + AIR_RECOVER_PER_SECOND * deltaTime);
             drownTimer = 0.0f;

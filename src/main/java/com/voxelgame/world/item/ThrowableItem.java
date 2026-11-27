@@ -48,7 +48,9 @@ public final class ThrowableItem extends Item {
         if (hotbar == null || hotbar.getSelectedCount() <= 0) {
             return false;
         }
-        hotbar.consumeSelectedItemStack();
+        if (player.getGameMode().consumesItems()) {
+            hotbar.consumeSelectedItemStack();
+        }
         Vector3 eye = handler.aimEye(player, camera);
         Vector3 dir = handler.aimDirection();
         ProjectileEntity projectile = projectileFactory.create(

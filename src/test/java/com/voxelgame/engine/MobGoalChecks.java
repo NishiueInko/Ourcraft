@@ -130,7 +130,7 @@ final class MobGoalChecks {
         MobGoals.TemptFollowGoal follow = new MobGoals.TemptFollowGoal(1, Block.DANDELION, 9f, 0.8f);
         require(!follow.canStart(world, rabbit), "Ô Hotbar đang chọn không chứa vật phẩm dụ");
         int lureSlot = 5;
-        require(player.getHotbar().addItem(Block.DANDELION, 1), "Cần nạp bồ công anh vào ô trống đầu tiên");
+        player.getHotbar().setSlot(lureSlot, Block.DANDELION, 1);
         require(!follow.canStart(world, rabbit), "Vật phẩm trong ô khác chưa thể dụ mob");
         player.getHotbar().selectSlot(lureSlot);
         require(follow.canStart(world, rabbit), "Thỏ phải nhận ra bồ công anh trên tay");

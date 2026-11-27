@@ -43,7 +43,8 @@ public enum MobAppearance {
     STRAY(MobModels.STRAY, "skeleton", "stray", 0xa2aab0,
             new MobTextureKey("skeleton", "stray_overlay", 0x678c9a), null),
     ARROW(MobModels.ARROW, "projectile", "arrow", 0xb7895a),
-    POTION(MobModels.POTION, "projectile", "potion", 0x9f648e);
+    POTION(MobModels.POTION, "projectile", "potion", 0x9f648e),
+    ENDER_PEARL(MobModels.POTION, "projectile", "ender_pearl", 0x2c8c78);
 
     /** Các lớp đốm ngựa được phối độc lập với bảy màu lông. */
     public enum HorseMarkings {

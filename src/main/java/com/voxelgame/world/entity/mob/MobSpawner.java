@@ -22,7 +22,9 @@ import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector3;
 import java.util.Random;
 
-/** Điều phối lượt sinh tự nhiên và loại quái quá xa trên luồng cập nhật World. */
+/**
+ * Điều phối lượt sinh tự nhiên và loại quái quá xa trên luồng cập nhật World.
+ */
 public final class MobSpawner {
     /** So sánh bình phương khoảng cách 3D để tránh căn bậc hai khi kiểm tra. */
     private static final int MIN_SPAWN_DISTANCE = 24;
@@ -30,7 +32,10 @@ public final class MobSpawner {
     private static final int MIN_SPAWN_DISTANCE_SQUARED = MIN_SPAWN_DISTANCE * MIN_SPAWN_DISTANCE;
     public static final int MAX_DISTANCE_SQUARED = MAX_DISTANCE * MAX_DISTANCE;
     private static final int MIN_DESPAWN_DISTANCE_SQUARED = 32 * 32;
-    /** Chu kỳ sinh tách riêng theo chuẩn Minecraft: quái 1 tick (0,05s), thú định kỳ 400 tick (20s), quét chunk mới 0,25s. */
+    /**
+     * Chu kỳ sinh tách riêng theo chuẩn Minecraft: quái 1 tick (0,05s), thú định kỳ
+     * 400 tick (20s), quét chunk mới 0,25s.
+     */
     public static final float MONSTER_INTERVAL = 0.05f;
     public static final float CREATURE_INTERVAL = 20.0f;
     private static final float POPULATION_INTERVAL = 0.25f;
@@ -71,7 +76,10 @@ public final class MobSpawner {
         despawnRandom = new Random(seed ^ 0x643B7935L);
     }
 
-    /** Chạy từng nhịp sinh riêng biệt: quái 1 tick, khám phá chunk 0,25s, thú định kỳ 400 tick (20s). */
+    /**
+     * Chạy từng nhịp sinh riêng biệt: quái 1 tick, khám phá chunk 0,25s, thú định
+     * kỳ 400 tick (20s).
+     */
     public void update(World world, WorldTime time, float dt) {
         Player player = world.getPlayer();
         if (player == null || !player.isAlive() || !(dt > 0) || !Float.isFinite(dt)) {
@@ -147,7 +155,10 @@ public final class MobSpawner {
         }
     }
 
-    /** Sinh cố định một con Camel hiền lành gần kim tự tháp sa mạc khi người chơi khám phá tới nơi. */
+    /**
+     * Sinh cố định một con Camel hiền lành gần kim tự tháp sa mạc khi người chơi
+     * khám phá tới nơi.
+     */
     private boolean trySpawnPyramidCamel(World world) {
         DesertPyramid pyramid = world.desertPyramid();
         if (pyramid == null) {
@@ -184,7 +195,10 @@ public final class MobSpawner {
         return false;
     }
 
-    /** Kiểm tra cột cát hoặc đá cát ngoài trời gần kim tự tháp và đặt Camel trưởng thành. */
+    /**
+     * Kiểm tra cột cát hoặc đá cát ngoài trời gần kim tự tháp và đặt Camel trưởng
+     * thành.
+     */
     private boolean spawnPyramidCamelAt(World world, int x, int z, int refY) {
         if (!world.isInsideWorld(x, 0, z) || world.getBiome(x, z) != BiomeType.DESERT) {
             return false;
@@ -216,7 +230,10 @@ public final class MobSpawner {
         return false;
     }
 
-    /** Duyệt dần tọa độ chunk mới trong vành hoạt động, ghi một bit sau lần xét đầu tiên. */
+    /**
+     * Duyệt dần tọa độ chunk mới trong vành hoạt động, ghi một bit sau lần xét đầu
+     * tiên.
+     */
     private int populateNearbyChunks(World world, WorldTime time) {
         Vector3 player = world.getPlayer().copyPosition(playerPosition);
         int centerChunkX = Math.floorDiv(MathUtils.floor(player.x), Chunk.SIZE);
@@ -280,8 +297,11 @@ public final class MobSpawner {
         return spawnPack(world, time, category, MathUtils.floor(player.x) + dx, MathUtils.floor(player.z) + dz, room);
     }
 
-    /** Chọn loài một lần và thử sinh các thành viên gần điểm gốc cùng biome và phân vùng. */
-    public int spawnPack(World world, WorldTime time, MobCategory category, int x, int z, int room) {
+    /**
+     * Chọn loài một lần và thử sinh các thành viên gần điểm gốc cùng biome và phân
+     * vùng.
+     */
+    int spawnPack(World world, WorldTime time, MobCategory category, int x, int z, int room) {
         if (!world.isInsideWorld(x, 0, z)) {
             return 0;
         }
@@ -306,7 +326,8 @@ public final class MobSpawner {
             topY = terrainBelowCanopy(world, x, topY, z);
         }
         SnowSubZone zone = category == MobCategory.CREATURE && biome == BiomeType.SNOWY_PLAINS
-                ? SnowSubZone.classify(world, x, topY + 1, z) : null;
+                ? SnowSubZone.classify(world, x, topY + 1, z)
+                : null;
         MobSpawnTable table = MobSpawnTable.forBiome(biome, category, zone);
         MobSpawnTable.Entry entry = table.select(spawnRandom.nextInt(table.totalWeight()));
         MobType type = entry.type();
@@ -373,7 +394,8 @@ public final class MobSpawner {
                 float feet = y + bounds.maxY();
                 int feetCell = MathUtils.floor(feet + EPSILON);
                 Block.Bounds above = feetCell == y ? null : world.getCollisionBounds(x, feetCell, z);
-                if ((above == null || above.minY() > EPSILON) && canSpawn(world, type, x + 0.5f, feet, z + 0.5f, time)) {
+                if ((above == null || above.minY() > EPSILON)
+                        && canSpawn(world, type, x + 0.5f, feet, z + 0.5f, time)) {
                     return feet;
                 }
             }
@@ -381,9 +403,12 @@ public final class MobSpawner {
         return -1;
     }
 
-    /** Ghi một cá thể hoặc ba thành viên kỵ sĩ sau khi kiểm tra khoảng trống và hạn mức. */
+    /**
+     * Ghi một cá thể hoặc ba thành viên kỵ sĩ sau khi kiểm tra khoảng trống và hạn
+     * mức.
+     */
     private int spawnMember(World world, WorldTime time, MobType type, float x, float y, float z, int room,
-                            boolean bearCub, MobAppearance coat) {
+            boolean bearCub, MobAppearance coat) {
         if (type == MobType.HUSK && room >= 3 && MobType.CAMEL_HUSK.implemented()
                 && MobType.PARCHED.implemented() && isDesertSurfaceAtNight(world, time, x, y, z)
                 && spawnRandom.nextInt(10) == 0
@@ -395,7 +420,8 @@ public final class MobSpawner {
                 && spawnSpiderJockey(world, x, y, z)) {
             return 2;
         }
-        // Chỉ con thứ hai trong bầy gấu là con non, với hộp va chạm bằng nửa con trưởng thành.
+        // Chỉ con thứ hai trong bầy gấu là con non, với hộp va chạm bằng nửa con trưởng
+        // thành.
         MobEntity mob = bearCub ? new PolarBear(x, y, z, true) : type.create(x, y, z);
         if (mob == null) {
             return 0;
@@ -416,7 +442,7 @@ public final class MobSpawner {
     }
 
     /** Chọn cung thủ bản địa trên bề mặt và Skeleton thường trong phòng kín. */
-    public boolean spawnSpiderJockey(World world, float x, float y, float z) {
+    boolean spawnSpiderJockey(World world, float x, float y, float z) {
         int bx = MathUtils.floor(x);
         int bz = MathUtils.floor(z);
         MobType riderType = MobType.SKELETON;
@@ -442,7 +468,10 @@ public final class MobSpawner {
         return true;
     }
 
-    /** Dựng bộ kỵ sĩ đồng thời, chỉ đăng ký vào World khi cả hai ghế đã gắn thành công. */
+    /**
+     * Dựng bộ kỵ sĩ đồng thời, chỉ đăng ký vào World khi cả hai ghế đã gắn thành
+     * công.
+     */
     private boolean spawnJockey(World world, float x, float y, float z) {
         MobEntity mount = MobType.CAMEL_HUSK.create(x, y, z);
         if (mount == null || mount.getSeatCount() < 2) {
@@ -463,7 +492,9 @@ public final class MobSpawner {
         return true;
     }
 
-    /** Một lượt Husk chỉ có thể đổi thành bộ kỵ sĩ ở mặt thoáng của Desert vào đêm. */
+    /**
+     * Một lượt Husk chỉ có thể đổi thành bộ kỵ sĩ ở mặt thoáng của Desert vào đêm.
+     */
     private static boolean isDesertSurfaceAtNight(World world, WorldTime time, float x, float y, float z) {
         int bx = MathUtils.floor(x);
         int bz = MathUtils.floor(z);
@@ -471,8 +502,11 @@ public final class MobSpawner {
                 && Math.abs(world.getPrecipitationSurface(bx, bz) - y) < EPSILON;
     }
 
-    /** Kiểm tra khoảng cách, ánh sáng, nền và hộp va chạm ở vị trí chân được đề xuất. */
-    public boolean canSpawn(World world, MobType type, float x, float y, float z, WorldTime time) {
+    /**
+     * Kiểm tra khoảng cách, ánh sáng, nền và hộp va chạm ở vị trí chân được đề
+     * xuất.
+     */
+    boolean canSpawn(World world, MobType type, float x, float y, float z, WorldTime time) {
         Player player = world.getPlayer();
         if (player == null) {
             return false;
@@ -515,9 +549,12 @@ public final class MobSpawner {
         return type == MobType.HUSK || type == MobType.PARCHED || type == MobType.STRAY || type == MobType.CAMEL_HUSK;
     }
 
-    /** Kiểm tra nền của thú theo loài và khí hậu, kể cả tuyết mỏng nằm trên nền cứng. */
+    /**
+     * Kiểm tra nền của thú theo loài và khí hậu, kể cả tuyết mỏng nằm trên nền
+     * cứng.
+     */
     private static boolean allowsCreatureGround(MobType type, Block ground, World world, int x, int y, int z,
-                                                WorldTime time) {
+            WorldTime time) {
         BiomeType biome = world.getBiome(x, z);
         if (type == MobType.CAMEL) {
             return biome == BiomeType.DESERT && ground == Block.SAND;
@@ -539,7 +576,10 @@ public final class MobSpawner {
         return snow || ground == Block.GRASS;
     }
 
-    /** Quét hộp va chạm nguyên chiều rộng và cao, chặn cả chất lỏng và thực thể sống. */
+    /**
+     * Quét hộp va chạm nguyên chiều rộng và cao, chặn cả chất lỏng và thực thể
+     * sống.
+     */
     private boolean hasClearance(World world, float x, float y, float z, float width, float height) {
         float half = width * 0.5f;
         float minX = x - half;
@@ -547,7 +587,8 @@ public final class MobSpawner {
         float minZ = z - half;
         float maxZ = z + half;
         float top = y + height;
-        if (minX < 0 || maxX > World.WORLD_SIZE_X || minZ < 0 || maxZ > World.WORLD_SIZE_Z || top > World.WORLD_SIZE_Y) {
+        if (minX < 0 || maxX > World.WORLD_SIZE_X || minZ < 0 || maxZ > World.WORLD_SIZE_Z
+                || top > World.WORLD_SIZE_Y) {
             return false;
         }
         int y1 = MathUtils.floor(top - EPSILON);
@@ -571,7 +612,10 @@ public final class MobSpawner {
         return !world.hasLivingOverlap(x, y, z, half, height, null);
     }
 
-    /** Đánh giá bóng đêm theo tick và cao độ mặt trời hiện có, không thêm lưới ánh sáng. */
+    /**
+     * Đánh giá bóng đêm theo tick và cao độ mặt trời hiện có, không thêm lưới ánh
+     * sáng.
+     */
     public static boolean isNightDark(WorldTime time) {
         int tick = time.tickOfDay();
         return (tick >= 13_000 && tick <= 23_000) || time.sunY() < -0.15f;

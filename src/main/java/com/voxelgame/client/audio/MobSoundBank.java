@@ -11,7 +11,9 @@ import java.util.concurrent.ThreadLocalRandom;
 
 /** Nạp và sở hữu các bộ đệm WAV và OGG của mob, tra mẫu theo ID và sự kiện. */
 public final class MobSoundBank implements Disposable {
-    /** Vị trí cố định, số biến thể bắt buộc và số biến thể tối đa cho từng nhóm mẫu. */
+    /**
+     * Vị trí cố định, số biến thể bắt buộc và số biến thể tối đa cho từng nhóm mẫu.
+     */
     private static final String ROOT = "audio/sfx/mob/";
     private static final String SHARED = "shared";
     private static final int REQUIRED_VARIANTS = 2;
@@ -62,9 +64,13 @@ public final class MobSoundBank implements Disposable {
         loadSpecial(SHARED, MobSoundEvent.SPEAR_CHARGE);
     }
 
-    /** Creeper im lặng lúc chờ. Bốn loài không có mẫu bước riêng dùng âm của khối dưới chân. */
+    /**
+     * Creeper im lặng lúc chờ. Bốn loài không có mẫu bước riêng dùng âm của khối
+     * dưới chân.
+     */
     public static boolean hasSpeciesSample(String id, MobSoundEvent event) {
-        if (event == MobSoundEvent.AMBIENT) return !id.equals("creeper");
+        if (event == MobSoundEvent.AMBIENT)
+            return !id.equals("creeper");
         return event != MobSoundEvent.STEP || !MobSoundEvent.usesBlockSteps(id);
     }
 
@@ -74,7 +80,10 @@ public final class MobSoundBank implements Disposable {
         events[event.ordinal()] = loadVariants(folder, event);
     }
 
-    /** Bỏ qua mẫu thiếu hoặc lỗi và giữ liền các phần tử đã nạp để chọn đồng đều (hỗ trợ 2–4 biến thể). */
+    /**
+     * Bỏ qua mẫu thiếu hoặc lỗi và giữ liền các phần tử đã nạp để chọn đồng đều (hỗ
+     * trợ 2–4 biến thể).
+     */
     private static Sound[] loadVariants(String folder, MobSoundEvent event) {
         boolean originalOgg = event == MobSoundEvent.BOW_SHOOT || event == MobSoundEvent.SPEAR_CHARGE;
         int limit = originalOgg ? 1 : MAX_VARIANTS;
@@ -102,7 +111,9 @@ public final class MobSoundBank implements Disposable {
         return loaded == variants.length ? variants : Arrays.copyOf(variants, loaded);
     }
 
-    /** Chọn biến thể thành công trong danh mục đã nạp, không tạo đối tượng khi phát. */
+    /**
+     * Chọn biến thể thành công trong danh mục đã nạp, không tạo đối tượng khi phát.
+     */
     Sound choose(String mobId, MobSoundEvent event, ThreadLocalRandom random) {
         Sound[][] events = samplesByMob.get(mobId);
         if (events == null) {
@@ -119,7 +130,9 @@ public final class MobSoundBank implements Disposable {
         return variants == null ? null : variants[random.nextInt(variants.length)];
     }
 
-    /** Giải phóng các mẫu đã mở thành công, gồm cả nhóm chỉ nạp được một biến thể. */
+    /**
+     * Giải phóng các mẫu đã mở thành công, gồm cả nhóm chỉ nạp được một biến thể.
+     */
     @Override
     public void dispose() {
         for (Sound[][] events : samplesByMob.values()) {

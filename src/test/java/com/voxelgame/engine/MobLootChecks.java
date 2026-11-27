@@ -143,18 +143,19 @@ final class MobLootChecks {
         }
     }
 
-    /** Kiểm tra Hotbar mới, trang bị khởi đầu ô 7–9 và ItemEntity cho vật phẩm độc lập. */
+    /** Kiểm tra Hotbar trống khi khởi tạo, giới hạn xếp chồng và nhặt ItemEntity cho vật phẩm độc lập. */
     private static void checkHotbarAndItemEntity() {
         Hotbar hotbar = new Hotbar();
-        require(hotbar.getSlotBlock(0) == Block.DIRT && hotbar.getSlotCount(0) == 16, "Giữ nguyên ô 1");
-        require(hotbar.getSlotItem(5).isNone() && hotbar.getSlotCount(5) == 0, "Ô 6 phải trống cho các test cũ");
-        require(hotbar.getSlotItem(6) == Item.SHEARS && hotbar.getSlotCount(6) == 1, "Ô 7 phải là Shears");
-        require(hotbar.getSlotItem(7) == Item.FLINT_AND_STEEL && hotbar.getSlotCount(7) == 1, "Ô 8 phải là Flint and Steel");
-        require(hotbar.getSlotItem(8) == Item.BUCKET && hotbar.getSlotCount(8) == 1, "Ô 9 phải là Bucket");
+        for (int i = 0; i < Hotbar.SLOT_COUNT; i++) {
+            require(hotbar.getSlotItem(i).isNone() && hotbar.getSlotCount(i) == 0,
+                    "Hotbar mới khởi tạo phải trống hoàn toàn tại ô " + i);
+        }
 
+        hotbar.setSlot(1, Item.SHEARS, 1);
         require(hotbar.addItem(Item.EGG, 18), "Phải thêm được trứng");
-        require(hotbar.getSlotItem(5) == Item.EGG && hotbar.getSlotCount(5) == 16, "Trứng chỉ xếp tối đa 16/ô");
-        require(hotbar.getSlotCount(6) == 1 && hotbar.getSlotItem(6) == Item.SHEARS, "Không ghi đè ô có sẵn");
+        require(hotbar.getSlotItem(0) == Item.EGG && hotbar.getSlotCount(0) == 16, "Trứng chỉ xếp tối đa 16/ô");
+        require(hotbar.getSlotItem(2) == Item.EGG && hotbar.getSlotCount(2) == 2, "Trứng dư tràn sang ô trống kế tiếp");
+        require(hotbar.getSlotCount(1) == 1 && hotbar.getSlotItem(1) == Item.SHEARS, "Không ghi đè ô có sẵn");
 
         World world = World.empty();
         try {
@@ -165,7 +166,7 @@ final class MobLootChecks {
             for (int i = 0; i < 30; i++) {
                 pearl.update(world, player, player.getHotbar(), 0.025f);
             }
-            require(pearl.isCollected() && player.getHotbar().getSlotItem(5) == Item.ENDER_PEARL,
+            require(pearl.isCollected() && player.getHotbar().getSlotItem(0) == Item.ENDER_PEARL,
                     "Người chơi phải nhặt được ItemEntity độc lập vào Hotbar");
         } finally {
             world.dispose();
@@ -179,8 +180,9 @@ final class MobLootChecks {
             Player player = new Player(100.5f, 20f, 100.5f);
             world.registerPlayer(player);
 
-            // Đốt lợn bằng Flint and Steel ở ô 8 rồi kết liễu -> phải rơi thịt chín
+            // Đốt lợn bằng Flint and Steel rồi kết liễu -> phải rơi thịt chín
             Pig pig = new Pig(102.5f, 20f, 100.5f);
+            player.getHotbar().setSlot(7, Item.FLINT_AND_STEEL, 1);
             player.getHotbar().selectSlot(7);
             require(pig.onPlayerInteract(world, player) && pig.getFireTimer() > 0f,
                     "Flint and Steel phải đốt cháy mob");
@@ -284,6 +286,7 @@ final class MobLootChecks {
             world.registerPlayer(player);
             Sheep pinkSheep = new Sheep(102.5f, 20f, 100.5f, Sheep.WoolColor.PINK);
 
+            player.getHotbar().setSlot(6, Item.SHEARS, 1);
             player.getHotbar().selectSlot(6); // Shears
             require(pinkSheep.onPlayerInteract(world, player), "Cừu phải cho phép cắt lông bằng Shears");
             require(pinkSheep.isSheared() && pinkSheep.mobVisualState().isSheepSheared(),
@@ -326,9 +329,10 @@ final class MobLootChecks {
             require(player.hasEffect(StatusEffectType.POISON), "Cần hiệu ứng để kiểm tra Milk Bucket");
 
             Cow cow = new Cow(102.5f, 20f, 100.5f);
+            player.getHotbar().setSlot(8, Item.BUCKET, 1);
             player.getHotbar().selectSlot(8); // Bucket ở ô 9
             require(cow.onPlayerInteract(world, player), "Vắt sữa bò bằng Bucket phải thành công");
-            require(player.getHotbar().getSlotItem(5) == Item.MILK_BUCKET, "Milk Bucket phải vào ô trống Hotbar");
+            require(player.getHotbar().getSlotItem(0) == Item.MILK_BUCKET, "Milk Bucket phải vào ô trống Hotbar");
 
             // Uống sữa xóa hiệu ứng và trả lại Bucket
             player.clearStatusEffects();

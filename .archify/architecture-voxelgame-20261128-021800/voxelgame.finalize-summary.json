@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "finalize",
+  "status": "pass",
+  "type": "architecture",
+  "quality": "showcase",
+  "specification": {
+    "path": "D:\\VoxelGame\\.archify\\architecture-voxelgame-20261128-021800\\candidate.json",
+    "sha256": "fc86459dfb21062aab81ac886c0f809d7cd50d1f7ab5ab0c404c5c0ec6d67239",
+    "bytes": 4373
+  },
+  "artifact": {
+    "path": "D:\\VoxelGame\\.archify\\architecture-voxelgame-20261128-021800\\voxelgame.html",
+    "sha256": "5e29eca265beda6fb6bc307a226470672cee8ab414cf7aa90aa8dd3f7b87108f",
+    "bytes": 957430
+  },
+  "gates": {
+    "validate": "pass",
+    "deliver": "pass",
+    "check": "pass",
+    "browser-check": "pass"
+  },
+  "diagnostics": [],
+  "diagnosticSummary": {
+    "total": 0,
+    "shown": 0,
+    "truncated": false
+  },
+  "evidence": {
+    "receipt": "D:\\VoxelGame\\.archify\\architecture-voxelgame-20261128-021800\\voxelgame.finalize.json",
+    "summaryReceipt": "D:\\VoxelGame\\.archify\\architecture-voxelgame-20261128-021800\\voxelgame.finalize-summary.json",
+    "browserCheckReceipt": "D:\\VoxelGame\\.archify\\architecture-voxelgame-20261128-021800\\voxelgame.browser-check.json"
+  },
+  "update": {
+    "status": "current",
+    "installedVersion": "3.3.2",
+    "availableVersion": "3.3.2",
+    "releaseNotes": null,
+    "checkedAt": "2026-11-27T13:17:07.047Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  },
+  "visualReview": "not-requested",
+  "durationMs": 18877,
+  "browserCheck": {
+    "requested": true,
+    "ran": true
+  },
+  "visualReviewRecommendation": {
+    "action": "inspect-route-readability",
+    "signals": {
+      "resolvedCrossovers": 1
+    },
+    "reason": "Automated gates passed, but crossings or detours still need perceptual review before claiming visual quality.",
+    "affectedRoutes": {
+      "crossings": [
+        {
+          "left": {
+            "id": "entities-gamemode",
+            "from": "entities",
+            "to": "gamemode",
+            "label": "Fly, damage, mob target",
+            "collectionIndex": 8,
+            "artifactIndex": 9
+          },
+          "right": {
+            "id": "world-items",
+            "from": "world",
+            "to": "items",
+            "label": "Block IDs &amp; drops",
+            "collectionIndex": 10,
+            "artifactIndex": 11
+          },
+          "point": [
+            599.6,
+            706
+          ]
+        }
+      ],
+      "detours": [],
+      "truncated": false
+    },
+    "hints": [
+      "entities → gamemode crosses world → items: move the node of whichever is a branch, return, or second entrance to the other side of the main path, so that relationship runs through an empty corridor."
+    ],
+    "repair": "Trace these relationships at the desktop viewport. For Architecture, use references/architecture-layout-repair.md: reflow a blocked main path or tangled connected scene, and repair an isolated defect locally only when the surrounding composition is accepted. Preserve all semantic content and user-fixed geometry. Rerun finalize once after the edit."
+  }
+}

@@ -4,21 +4,27 @@ import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationConfiguration;
 
 /**
- * Điểm khởi chạy chính (Entry Point) của dự án Voxel Game 3D (Minecraft Edition).
+ * Điểm khởi chạy chính (Entry Point) của dự án Voxel Game 3D (Minecraft
+ * Edition).
  *
  * Lớp này chịu trách nhiệm duy nhất: cấu hình cửa sổ Desktop thông qua
  * {@link Lwjgl3ApplicationConfiguration} và khởi tạo {@link Lwjgl3Application}
  * để chạy ứng dụng libGDX với backend LWJGL 3.
  *
  * CẤU TRÚC KIẾN TRÚC SAU TÁI CẤU TRÚC:
- * - {@code com.voxelgame.Main}: Lớp khởi chạy gốc duy nhất (giữ nguyên cấu hình {@code mainClass} trong {@code build.gradle}).
- * - {@code com.voxelgame.VoxelGameApp}: Lớp ứng dụng chính kế thừa {@code ApplicationAdapter},
- *   quản lý toàn bộ vòng lặp Game Loop, xử lý Input, trạng thái Pause Menu.
- * - {@code com.voxelgame.entity}: Package đóng gói cây kế thừa Thực thể ({@code Entity}, {@code Player},
- *   {@code ItemEntity}, {@code Hotbar}, {@code Block} và 9 lớp Block con).
- * - {@code com.voxelgame.engine}: Package đóng gói lõi Engine Đồ họa, Thế giới, Vật lý, Giao diện
- *   và Âm thanh ({@code World}, {@code Chunk}, {@code Camera}, {@code Raycast}, {@code ShaderProgram},
- *   {@code Texture}, {@code UIRenderer}, {@code AudioManager}).
+ * - {@code com.voxelgame.Main}: Lớp khởi chạy gốc duy nhất (giữ nguyên cấu hình
+ * {@code mainClass} trong {@code build.gradle}).
+ * - {@code com.voxelgame.VoxelGameApp}: Lớp ứng dụng chính kế thừa
+ * {@code ApplicationAdapter},
+ * quản lý toàn bộ vòng lặp Game Loop, xử lý Input, trạng thái Pause Menu.
+ * - {@code com.voxelgame.entity}: Package đóng gói cây kế thừa Thực thể
+ * ({@code Entity}, {@code Player},
+ * {@code ItemEntity}, {@code Hotbar}, {@code Block} và 9 lớp Block con).
+ * - {@code com.voxelgame.engine}: Package đóng gói lõi Engine Đồ họa, Thế giới,
+ * Vật lý, Giao diện
+ * và Âm thanh ({@code World}, {@code Chunk}, {@code Camera}, {@code Raycast},
+ * {@code ShaderProgram},
+ * {@code Texture}, {@code UIRenderer}, {@code AudioManager}).
  */
 public class Main {
 
@@ -33,11 +39,12 @@ public class Main {
         // Tạo cấu hình cửa sổ Desktop thông qua Lwjgl3ApplicationConfiguration
         // =====================================================================
         Lwjgl3ApplicationConfiguration config = new Lwjgl3ApplicationConfiguration();
-        // Dùng VAO của OpenGL 3.3 cho Mesh để không thiết lập lại thuộc tính đỉnh mỗi lần vẽ chunk.
+        // Dùng VAO của OpenGL 3.3 cho Mesh để không thiết lập lại thuộc tính đỉnh mỗi
+        // lần vẽ chunk.
         config.setOpenGLEmulation(Lwjgl3ApplicationConfiguration.GLEmulation.GL30, 3, 3);
 
         // Tiêu đề cửa sổ game hiển thị trên thanh tiêu đề hệ điều hành
-        config.setTitle("Ourcraft");
+        config.setTitle("OurCraft");
 
         // Kích thước mặc định 1280 x 720 pixel (tỷ lệ 16:9 chuẩn HD)
         config.setWindowedMode(1280, 720);
@@ -59,11 +66,11 @@ public class Main {
         // =====================================================================
         // Khởi chạy ứng dụng libGDX với lớp VoxelGameApp (ApplicationAdapter)
         // Constructor của Lwjgl3Application sẽ:
-        //   1. Tạo cửa sổ GLFW với cấu hình ở trên
-        //   2. Tạo OpenGL Context 3.3 Core Profile (tương thích GLSL 330)
-        //   3. Gọi VoxelGameApp.create() để khởi tạo tài nguyên
-        //   4. Chạy vòng lặp Game Loop (gọi render() mỗi khung hình)
-        //   5. Khi đóng cửa sổ, gọi VoxelGameApp.dispose() để giải phóng tài nguyên
+        // 1. Tạo cửa sổ GLFW với cấu hình ở trên
+        // 2. Tạo OpenGL Context 3.3 Core Profile (tương thích GLSL 330)
+        // 3. Gọi VoxelGameApp.create() để khởi tạo tài nguyên
+        // 4. Chạy vòng lặp Game Loop (gọi render() mỗi khung hình)
+        // 5. Khi đóng cửa sổ, gọi VoxelGameApp.dispose() để giải phóng tài nguyên
         // =====================================================================
         new Lwjgl3Application(new VoxelGameApp(), config);
     }

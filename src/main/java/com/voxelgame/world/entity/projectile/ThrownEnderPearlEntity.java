@@ -61,7 +61,7 @@ public final class ThrownEnderPearlEntity extends ProjectileEntity {
      * @param vz    vận tốc ban đầu theo trục Z
      */
     public ThrownEnderPearlEntity(Entity owner, float x, float y, float z, float vx, float vy, float vz) {
-        super(owner, x, y, z, vx, vy, vz, RADIUS, GRAVITY, LIFETIME, MobAppearance.POTION);
+        super(owner, x, y, z, vx, vy, vz, RADIUS, GRAVITY, LIFETIME, MobAppearance.ENDER_PEARL);
     }
 
     /**

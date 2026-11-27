@@ -1,0 +1,131 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "VoxelGame Architecture",
+    "output": ".archify/architecture-voxelgame-20261128-021800/voxelgame.html",
+    "quality_profile": "showcase",
+    "locale": "en"
+  },
+  "layout": {
+    "mode": "auto"
+  },
+  "components": [
+    {
+      "id": "player",
+      "type": "external",
+      "label": "Desktop User",
+      "sublabel": "Keyboard, Mouse, Audio"
+    },
+    {
+      "id": "app",
+      "type": "frontend",
+      "label": "VoxelGameApp",
+      "sublabel": "Main & 60 FPS Loop",
+      "tag": "libGDX LWJGL3"
+    },
+    {
+      "id": "input",
+      "type": "frontend",
+      "label": "GameInputController",
+      "sublabel": "Controls & F2 Mode Toggle"
+    },
+    {
+      "id": "gui",
+      "type": "frontend",
+      "label": "UIRenderer & Screens",
+      "sublabel": "HUD, Pause, Creative/Survival"
+    },
+    {
+      "id": "render",
+      "type": "frontend",
+      "label": "3D Renderers",
+      "sublabel": "Sky, Weather, Mob, FirstPerson"
+    },
+    {
+      "id": "audio",
+      "type": "frontend",
+      "label": "AudioManager",
+      "sublabel": "OpenAL Music & Mob SFX"
+    },
+    {
+      "id": "gamemode",
+      "type": "security",
+      "label": "GameMode",
+      "sublabel": "Creative & Survival Rules",
+      "tag": "Flyweight OOP"
+    },
+    {
+      "id": "world",
+      "type": "backend",
+      "label": "World & Level",
+      "sublabel": "Chunks, Lighting, Biomes, Gen"
+    },
+    {
+      "id": "entities",
+      "type": "backend",
+      "label": "Entities & Mob AI",
+      "sublabel": "Player, Mobs, Projectiles"
+    },
+    {
+      "id": "items",
+      "type": "database",
+      "label": "Block & Item Registry",
+      "sublabel": "33 Blocks, 56 Items, Catalog"
+    },
+    {
+      "id": "core",
+      "type": "cloud",
+      "label": "com.voxelgame.core",
+      "sublabel": "Tickable, Renderable, Interactable"
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Client Layer (com.voxelgame.client.*)",
+      "wraps": ["input", "gui", "render", "audio"]
+    },
+    {
+      "kind": "region",
+      "label": "World Layer (com.voxelgame.world.*)",
+      "wraps": ["gamemode", "world", "entities", "items"]
+    }
+  ],
+  "connections": [
+    { "id": "user-app", "from": "player", "to": "app", "label": "Input events", "variant": "emphasis" },
+    { "id": "app-input", "from": "app", "to": "input", "label": "InputProcessor" },
+    { "id": "app-gui", "from": "app", "to": "gui", "label": "2D HUD pass" },
+    { "id": "app-render", "from": "app", "to": "render", "label": "3D OpenGL pass" },
+    { "id": "app-audio", "from": "app", "to": "audio", "label": "Update streams" },
+    { "id": "app-world", "from": "app", "to": "world", "label": "tick(dt)", "variant": "emphasis" },
+    { "id": "input-gamemode", "from": "input", "to": "gamemode", "label": "F2 toggle / rules", "variant": "security" },
+    { "id": "gui-gamemode", "from": "gui", "to": "gamemode", "label": "Select screen & HUD" },
+    { "id": "entities-gamemode", "from": "entities", "to": "gamemode", "label": "Fly, damage, mob target" },
+    { "id": "world-entities", "from": "world", "to": "entities", "label": "Tick & spawn" },
+    { "id": "world-items", "from": "world", "to": "items", "label": "Block IDs & drops" },
+    { "id": "entities-items", "from": "entities", "to": "items", "label": "Inventory & ItemUse" },
+    { "id": "world-core", "from": "world", "to": "core", "label": "Implements", "variant": "dashed" },
+    { "id": "entities-core", "from": "entities", "to": "core", "label": "Implements", "variant": "dashed" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Client Layer",
+      "items": [
+        "VoxelGameApp orchestrates create/render/resize/dispose at 60 FPS V-Sync",
+        "GameInputController handles F2 mode switching, Creative instant-break, and F1/Ctrl+C",
+        "UIRenderer delegates to HudRenderer, PauseScreen, InventoryScreen, and CreativeInventoryScreen"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "World & GameMode",
+      "items": [
+        "GameMode Flyweight hierarchy (CreativeGameMode / SurvivalGameMode) drives polymorphic rules",
+        "World manages 4000x256x2048 chunks, 4-bit BFS lighting, biomes, and weather",
+        "Block & Item registries decouple static flyweights from runtime entities"
+      ]
+    }
+  ]
+}

@@ -8,7 +8,7 @@
 | --- | --- | --- | --- |
 | **Session 1** | Task 1 → Task 3 | Gói `core`, di chuyển package chuẩn Minecraft (`world.*`/`client.*`), tách `Block` khỏi `Entity`, `Biome` (5 lớp con), `Weather` (3 lớp con), khởi tạo `OopArchitectureChecks` | `[x]` Hoàn tất |
 | **Session 2** | Task 4 → Task 5 | Hệ phân cấp `Mob` (`abstract MobEntity`, `HostileMob`, `PassiveMob`, `NeutralMob`, `MountableMob`, `EquineMob`, `RangedMob`, `Interactable`) & hệ phân cấp `Item` đa hình (13 lớp con) + dọn `ItemUseHandler` | `[x]` Hoàn tất |
-| **Session 3** | Task 6 → Task 8 | Tầng Client/GUI (`Screen`, `BitmapFont`, `HudRenderer`, `PauseScreen`, `InventoryScreen`, `UIRenderer` Facade), tách `GameInputController` khỏi `VoxelGameApp`, đồng bộ `README.md`, viết `OOP.md` & `DIAGRAM.md`, chạy `.\gradlew.bat clean check` | `[x]` Hoàn tất |
+| **Session 3** | Task 6 → Task 8 | Tầng Client/GUI (`Screen`, `BitmapFont`, `HudRenderer`, `PauseScreen`, `InventoryScreen`, `UIRenderer` Facade), tách `GameInputController` khỏi `VoxelGameApp`, đồng bộ `README.md`, viết `OOP.md` & `DIAGRAM.md`, chạy `.\gradlew.bat clean check` | `[ ]` Chưa chạy |
 
 **Quy ước bàn giao giữa các Session:**
 1. Đầu mỗi session, đọc `AGENTS.md`, `README.md`, spec và file plan này, kiểm tra `git status` + `git log -n 5` cùng các checkbox `[x]` để nắm đúng điểm tiếp nối.
@@ -396,15 +396,15 @@
   - `public class GameInputController implements InputProcessor`: gom toàn bộ xử lý bàn phím (`E`, `ESC`, `Q`/`Ctrl+Q`, `F1`, `F3`, `F5..F8`, `Ctrl+C`, `1..9`), chuột (cuộn, bấm/kéo/nhả ở PauseScreen, InventoryScreen, và trong game) và điều phối tương tác đào/đặt/đánh.
   - `VoxelGameApp` vẫn `implements InputProcessor` (ủy quyền trực tiếp sang `inputController`), giữ đồng bộ trường `player` và `isPaused` để tương thích 100% với reflection trong `VoxelRegressionChecks.checkTerrainSpeedShortcut()`.
 
-- [x] **Step 1: Tạo `GameInputController` và tách logic đầu vào ra khỏi `VoxelGameApp`**
+- [ ] **Step 1: Tạo `GameInputController` và tách logic đầu vào ra khỏi `VoxelGameApp`**
   - Di chuyển toàn bộ trạng thái phím (`leftControlDown`, `rightControlDown`, `nextBiomeIndex`, `isDraggingVolumeSlider`, trạng thái giữ chuột đào block) và các hàm `keyDown`, `keyUp`, `touchDown`, `touchUp`, `touchDragged`, `mouseMoved`, `scrolled`, `teleportToNextBiome` sang `GameInputController`.
   - `VoxelGameApp` khởi tạo `GameInputController`, ủy quyền các phương thức `InputProcessor` (tự khởi tạo lười nếu test gọi `keyDown` trước `create()`, giống cách `checkTerrainSpeedShortcut` khởi tạo `new VoxelGameApp()` không gọi `create()`!).
 
-- [x] **Step 2: Chạy toàn bộ kiểm thử xác nhận xanh 100% (bao gồm `checkTerrainSpeedShortcut`)**
+- [ ] **Step 2: Chạy toàn bộ kiểm thử xác nhận xanh 100% (bao gồm `checkTerrainSpeedShortcut`)**
   - Run: `.\gradlew.bat check`
   - Expected: `BUILD SUCCESSFUL` và pass `checkTerrainSpeedShortcut` cùng toàn bộ 28 bộ kiểm thử.
 
-- [x] **Step 3: Commit**
+- [ ] **Step 3: Commit**
   - Run: `git add -A && git commit -m "refactor(client): extract GameInputController from VoxelGameApp"`
 
 ---
@@ -422,19 +422,19 @@
   - `OOP.md`: cấu trúc mạch lạc 4 chương tương ứng 4 tính chất OOP (**1. Đóng gói**, **2. Kế thừa**, **3. Trừu tượng**, **4. Đa hình**) kèm bảng tổng hợp và dẫn chứng chính xác tên lớp/phương thức trong `Block`, `Entity`, `Mob`, `Item`, `Biome`, `Weather` (kèm mục điểm nhấn sửa lỗi LSP tách `Block` khỏi `Entity` và `EquineMob`); tuyệt đối không đưa chi tiết Engine/Render/OpenGL.
   - `DIAGRAM.md`: chứa các sơ đồ Mermaid hợp lệ (`flowchart TD` cho kiến trúc package tổng quát; `classDiagram` cho `Block`, `Entity & Mob`, `Item`, `Biome & Weather`, và tổng quan `Client/GUI`).
 
-- [x] **Step 1: Rà soát số file thực tế và cập nhật Phần A của `README.md`**
+- [ ] **Step 1: Rà soát số file thực tế và cập nhật Phần A của `README.md`**
   - Đếm chính xác số file `.java` trong `src/main/java` và `src/test/java` bằng lệnh PowerShell trước khi ghi vào `README.md`.
   - Cập nhật Mục 1 (Kiểm thử: 28 file gồm `OopArchitectureChecks`) và Mục 2 (Kiến trúc mã nguồn mới theo chuẩn Minecraft).
 
-- [x] **Step 2: Viết `OOP.md` (tập trung 4 tính chất OOP trên Domain, không kèm Engine)**
+- [ ] **Step 2: Viết `OOP.md` (tập trung 4 tính chất OOP trên Domain, không kèm Engine)**
   - Viết rõ ràng, chuẩn thuật ngữ OOP bằng tiếng Việt, dễ chuyển thẳng thành slide thuyết trình.
 
-- [x] **Step 3: Viết `DIAGRAM.md` (sơ đồ tổng quát dự án bằng Mermaid)**
+- [ ] **Step 3: Viết `DIAGRAM.md` (sơ đồ tổng quát dự án bằng Mermaid)**
   - Đảm bảo cú pháp Mermaid chuẩn (không dùng ký tự gây lỗi parser trong nhãn).
 
-- [x] **Step 4: Chạy kiểm thử sạch toàn dự án lần cuối**
+- [ ] **Step 4: Chạy kiểm thử sạch toàn dự án lần cuối**
   - Run: `.\gradlew.bat clean check`
   - Expected: `BUILD SUCCESSFUL` và thông báo `Các kiểm tra hồi quy voxel đã qua.`
 
-- [x] **Step 5: Commit hoàn tất**
+- [ ] **Step 5: Commit hoàn tất**
   - Run: `git add -A && git commit -m "docs: sync README and add OOP.md and DIAGRAM.md for presentation"`

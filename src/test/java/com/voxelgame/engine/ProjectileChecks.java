@@ -1,6 +1,7 @@
 package com.voxelgame.engine;
 
 import com.voxelgame.client.render.ShaderProgram;
+import com.voxelgame.client.render.entity.MobAppearance;
 import com.voxelgame.world.effect.StatusEffectType;
 import com.voxelgame.world.entity.DamageSource;
 import com.voxelgame.world.entity.Entity;
@@ -9,10 +10,13 @@ import com.voxelgame.world.entity.mob.MobEntity;
 import com.voxelgame.world.entity.mob.MobType;
 import com.voxelgame.world.entity.mob.monster.Parched;
 import com.voxelgame.world.entity.mob.monster.Stray;
+import com.voxelgame.world.entity.player.Player;
 import com.voxelgame.world.entity.projectile.ArrowEntity;
 import com.voxelgame.world.entity.projectile.ArrowType;
 import com.voxelgame.world.entity.projectile.PotionType;
+import com.voxelgame.world.entity.projectile.ThrownEnderPearlEntity;
 import com.voxelgame.world.entity.projectile.ThrownPotionEntity;
+import com.voxelgame.world.item.Item;
 import com.voxelgame.world.level.block.Block;
 import com.voxelgame.world.level.World;
 
@@ -26,6 +30,7 @@ final class ProjectileChecks {
             checkOcclusionAndDisposal(world);
             checkGrazingBlock(world);
             checkTippedArrowsAndDodge(world);
+            checkArrowStickingAndPickup(world);
             checkPotionSplash(world);
             checkInstantPotions(world);
         } finally {
@@ -44,7 +49,7 @@ final class ProjectileChecks {
 
         ArrowEntity stone = new ArrowEntity(null, 71.5f, 11.6f, 69.97f, 35f, 0f, 0f, ArrowType.NORMAL, 4f);
         stone.update(world, 0.15f);
-        require(stone.isFinished(), "Tên sượt cạnh phải dừng trước khối chắn");
+        require(stone.isInGround() && !stone.isFinished(), "Tên sượt cạnh phải dừng và cắm vào khối chắn");
         near(stone.getPosition().x, 73f - 0.045f, "Tâm tên dừng cách mặt đá đúng bán kính tên");
         near(behindStone.getHealth(), 20f, "Đá chặn tên sượt mép trước mục tiêu");
 
@@ -61,7 +66,7 @@ final class ProjectileChecks {
         ArrowEntity tangent = new ArrowEntity(null, 75.5f, 11.6f, 66f + 0.045f, -35f, 0f, 0f,
                 ArrowType.NORMAL, 4f);
         tangent.update(world, 0.15f);
-        require(tangent.isFinished(), "Biên ô phía dưới vẫn được tính khi hộp tên vừa chạm mặt");
+        require(tangent.isInGround() && !tangent.isFinished(), "Biên ô phía dưới vẫn được tính và tên cắm vào khối");
         near(tangent.getPosition().x, 74f + 0.045f, "Tên bắn ngược dừng ở mặt đá gần");
     }
 
@@ -81,8 +86,8 @@ final class ProjectileChecks {
         ArrowEntity arrow = new ArrowEntity(shooter, 10.5f, 11.5f, 10.5f, 50f, 0f, 0f,
                 ArrowType.NORMAL, 3.5f);
         arrow.update(world, 0.19f);
-        require(arrow.isFinished() && victim.getHealth() < victim.getMaxHealth(),
-                "Tên tốc độ cao phải chạm quái vật khác phe gần nhất");
+        require(arrow.isStuckInMob() && arrow.getStuckMob() == victim && victim.getHealth() < victim.getMaxHealth(),
+                "Tên tốc độ cao phải chạm và cắm vào quái vật khác phe gần nhất");
         near(shooter.getHealth(), shooter.getMaxHealth(), "Tên không trúng người bắn");
         near(ally.getHealth(), ally.getMaxHealth(), "Tên không trúng đồng phe");
         near(mount.getHealth(), mount.getMaxHealth(), "Tên không trúng thú đang cưỡi");
@@ -98,7 +103,7 @@ final class ProjectileChecks {
         ArrowEntity arrow = new ArrowEntity(null, 20.5f, 11.5f, 20.5f, 80f, 0f, 0f,
                 ArrowType.NORMAL, 4f);
         arrow.update(world, 0.15f);
-        require(arrow.isFinished() && arrow.getPosition().x <= 24.01f, "Tên dừng ở mặt tường");
+        require(arrow.isInGround() && !arrow.isFinished() && arrow.getPosition().x <= 24.01f, "Tên cắm ở mặt tường");
         near(victim.getHealth(), 20f, "Tên không xuyên khối chắc");
 
         ArrowEntity expired = new ArrowEntity(null, 110.5f, 40f, 110.5f, 0f, 80f, 0f,
@@ -133,6 +138,60 @@ final class ProjectileChecks {
         near(weak.getEffectDuration(StatusEffectType.WEAKNESS), 30f, "Tên Parched làm yếu 30 giây");
         require(dodger.attempts == 1 && !dodger.hasEffect(StatusEffectType.SLOWNESS), "Né chặn cả hiệu ứng tên");
         near(dodger.getHealth(), 20f, "Né xảy ra trước sát thương");
+    }
+
+    /** Kiểm tra mũi tên cắm đất, rơi khi đào khối đỡ, người chơi nhặt lại, cắm theo mob và diện mạo Ender Pearl. */
+    private static void checkArrowStickingAndPickup(World world) {
+        ThrownEnderPearlEntity pearl = new ThrownEnderPearlEntity(null, 90.5f, 20f, 90.5f, 10f, 2f, 0f);
+        require(pearl.mobVisualState().appearance() == MobAppearance.ENDER_PEARL,
+                "Ender Pearl ném ra phải dùng diện mạo MobAppearance.ENDER_PEARL");
+
+        // 1. Mũi tên của người chơi cắm xuống khối đá, rơi khi đào khối đó rồi được nhặt lại
+        world.setBlockInternal(92, 12, 90, Block.STONE.getId(), 0);
+        world.setBlockInternal(92, 10, 90, Block.STONE.getId(), 0);
+        Player shooter = new Player(92.5f, 15f, 90.5f);
+        world.registerPlayer(shooter);
+        ArrowEntity playerArrow = new ArrowEntity(shooter, 92.5f, 14f, 90.5f, 0f, -20f, 0f,
+                ArrowType.SLOWNESS, 4f);
+        playerArrow.update(world, 0.2f);
+        require(playerArrow.isInGround() && !playerArrow.isFinished() && playerArrow.isPickupable(),
+                "Mũi tên của người chơi phải cắm trên khối đá và cho phép nhặt");
+
+        // Phá khối đá đỡ -> mũi tên rời trạng thái cắm, rơi xuống khối bên dưới (y=10)
+        world.setBlockInternal(92, 12, 90, Block.AIR.getId(), 0);
+        playerArrow.update(world, 0.05f);
+        require(!playerArrow.isInGround(), "Khi khối đỡ bị phá, mũi tên phải rơi tiếp");
+        playerArrow.update(world, 0.6f);
+        require(playerArrow.isInGround() && playerArrow.getPosition().y <= 11.2f,
+                "Mũi tên rơi xuống phải cắm vào khối đá bên dưới");
+
+        // Đưa người chơi lại gần sau khi qua độ trễ nhặt -> mũi tên vào túi đồ và kết thúc vòng đời
+        shooter.setPosition(92.5f, 11.0f, 90.5f);
+        for (int i = 0; i < 8 && !playerArrow.isFinished(); i++) {
+            playerArrow.update(world, 0.05f);
+        }
+        require(playerArrow.isFinished() && shooter.getInventory().getItem(0) == Item.TIPPED_ARROW_SLOWNESS
+                        && shooter.getInventory().getCount(0) == 1,
+                "Người chơi lại gần phải nhặt được đúng mũi tên cắm trên đất vào túi đồ");
+
+        // 2. Mũi tên cắm vào mob di chuyển theo mob và biến mất khi mob chết
+        MobEntity targetMob = new MobEntity(MobType.ZOMBIE, 96.5f, 11f, 90.5f) { };
+        world.addEntity(targetMob);
+        ArrowEntity mobArrow = new ArrowEntity(shooter, 94.5f, 12.0f, 90.5f, 40f, 0f, 0f,
+                ArrowType.NORMAL, 3f);
+        mobArrow.update(world, 0.1f);
+        require(mobArrow.isStuckInMob() && mobArrow.getStuckMob() == targetMob && !mobArrow.isFinished(),
+                "Mũi tên bắn trúng mob sống phải cắm vào thân mob");
+        float beforeArrowX = mobArrow.getPosition().x;
+        targetMob.setPosition(99.5f, 11f, 90.5f);
+        mobArrow.update(world, 0.05f);
+        require(mobArrow.getPosition().x > beforeArrowX + 2.5f,
+                "Mũi tên cắm trên mob phải di chuyển theo mob");
+        targetMob.update(world, 0.6f);
+        targetMob.damage(world, 50f, DamageSource.MELEE, shooter, 0f, 0f);
+        mobArrow.update(world, 0.05f);
+        require(mobArrow.isFinished() && !mobArrow.isStuckInMob(),
+                "Khi mob chết, mũi tên cắm trên thân mob phải tự dọn sạch");
     }
 
     /** Vỡ trên block tạo vòng ảnh hưởng quanh điểm va chạm thật. */

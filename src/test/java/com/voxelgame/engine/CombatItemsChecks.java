@@ -198,7 +198,7 @@ final class CombatItemsChecks {
                 Player swiftPlayer = new Player(20.5f, 15f, 10.5f);
                 swiftPlayer.attachControls(camera);
                 require(swiftPlayer.consumePotion(Item.POTION_SWIFTNESS), "Phải uống được POTION_SWIFTNESS trực tiếp");
-                require(swiftPlayer.getHotbar().getSlotItem(5) == Item.GLASS_BOTTLE,
+                require(swiftPlayer.getHotbar().getSlotItem(0) == Item.GLASS_BOTTLE,
                         "Uống thuốc trực tiếp vẫn phải trả GLASS_BOTTLE vào ô trống Hotbar");
                 swiftPlayer.update(world, 0.05f);
                 near(swiftPlayer.getVelocity().x, 5.5f * 1.20f,
@@ -955,7 +955,8 @@ final class CombatItemsChecks {
                 require(player.getBobStrength() > 0.1f,
                         "Cường độ View Bobbing phải tăng > 0 khi đang đi bộ trên mặt đất");
 
-                // Bật bay (double-tap Space) -> bobPhase không được tăng thêm khi đang bay
+                // Bật bay (double-tap Space trong Creative) -> bobPhase không được tăng thêm khi đang bay
+                player.setGameMode(com.voxelgame.world.gamemode.CreativeGameMode.INSTANCE);
                 keys[Input.Keys.SPACE] = true;
                 player.update(world, 0.05f);
                 keys[Input.Keys.SPACE] = false;
@@ -1094,10 +1095,10 @@ final class CombatItemsChecks {
             ArrowEntity arrow = new ArrowEntity(shooter, 26.0f, 11.5f, 10.5f, 35.0f, 0.0f, 0.0f,
                     ArrowType.NORMAL, 4.0f);
             world.addEntity(arrow);
-            for (int tick = 0; tick < 10 && !arrow.isFinished(); tick++) {
+            for (int tick = 0; tick < 10 && !arrow.isFinished() && !arrow.isStuckInMob(); tick++) {
                 arrow.update(world, 0.05f);
             }
-            require(arrow.isFinished() && arrowVictim.getHealth() < arrowVictim.getMaxHealth(),
+            require((arrow.isStuckInMob() || arrow.isFinished()) && arrowVictim.getHealth() < arrowVictim.getMaxHealth(),
                     "Mũi tên từ Skeleton phải bắn trúng Mob mục tiêu");
             require(arrowVictim.getVelocity().y >= 4.0f,
                     "Mob bị đạn đạo đánh trúng trên mặt đất phải bật nảy vy >= 4.0f (thực tế: "
