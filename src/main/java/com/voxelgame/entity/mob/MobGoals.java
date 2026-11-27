@@ -5,6 +5,7 @@ import com.voxelgame.engine.Raycast;
 import com.voxelgame.engine.World;
 import com.voxelgame.entity.Block;
 import com.voxelgame.entity.Entity;
+import com.voxelgame.entity.Item;
 import com.voxelgame.entity.LivingEntity;
 import com.voxelgame.entity.Player;
 
@@ -42,10 +43,10 @@ public final class MobGoals {
                     entity -> entity instanceof MobEntity animal && animal.type() == MobType.WOLF));
             case RABBIT, SNOW_RABBIT -> {
                 selector.add(new FleeEntityGoal(3, 8f, 1.25f, entity ->
-                        (entity instanceof Player player && !holdsBlock(player, Block.DANDELION))
+                        (entity instanceof Player player && !holdsItem(player, MobGoals::isRabbitLure))
                         || (entity instanceof MobEntity animal
                         && (animal.type() == MobType.WOLF || animal.type().category() == MobCategory.MONSTER))));
-                selector.add(new TemptFollowGoal(5, Block.DANDELION, 10f, 0.8f));
+                selector.add(new TemptFollowGoal(5, MobGoals::isRabbitLure, 10f, 0.8f));
             }
             case SNOW_FOX -> selector.add(new FleeEntityGoal(3, 8f, 1.25f,
                     entity -> entity instanceof Player player && !player.isSneaking()));
@@ -67,9 +68,14 @@ public final class MobGoals {
         return dx * dx + dy * dy + dz * dz;
     }
 
-    /** Xem đúng ô Hotbar đang chọn và chỉ nhận vật phẩm còn số lượng. */
-    private static boolean holdsBlock(Player player, Block block) {
-        return player.getHotbar().getSelectedCount() > 0 && player.getHotbar().getSelectedBlock() == block;
+    /** Vật phẩm dụ thỏ mặc định: bồ công anh hoặc cà rốt. */
+    private static boolean isRabbitLure(Item item) {
+        return item == Item.CARROT || item == Item.of(Block.DANDELION);
+    }
+
+    /** Xem đúng ô Hotbar đang chọn của người chơi và chỉ nhận vật phẩm thỏa điều kiện còn số lượng. */
+    private static boolean holdsItem(Player player, Predicate<Item> matches) {
+        return player.getHotbar().getSelectedCount() > 0 && matches.test(player.getHotbar().getSelectedItem());
     }
 
     /** Đổi tọa độ sang ô voxel, kể cả phía ngoài mép đang kiểm tra. */
@@ -570,19 +576,29 @@ public final class MobGoals {
         }
     }
 
-    /** Đi theo người chơi đang chọn một loại vật phẩm đã cấu hình. */
+    /** Đi theo người chơi đang chọn một hoặc nhiều loại vật phẩm đã cấu hình. */
     public static final class TemptFollowGoal extends MovementGoal {
         /** Khoảng cách ngang mà mob dừng lại để giữ một khoảng trống trước người chơi. */
         private static final float STOP_DISTANCE_SQUARED = 2.25f;
-        private final Block lure;
+        private final Predicate<Item> lureMatches;
         private final float rangeSquared;
         private final float speed;
         private final Vector3 center = new Vector3();
 
-        /** Gắn vật phẩm dụ theo loài, bán kính phản ứng và tốc độ đi theo. */
+        /** Gắn vật phẩm khối dụ theo loài, bán kính phản ứng và tốc độ đi theo. */
         public TemptFollowGoal(int priority, Block lure, float range, float speedMultiplier) {
+            this(priority, item -> item == Item.of(Objects.requireNonNull(lure)), range, speedMultiplier);
+        }
+
+        /** Gắn một vật phẩm {@link Item} cụ thể làm mồi dụ, bán kính phản ứng và tốc độ đi theo. */
+        public TemptFollowGoal(int priority, Item lure, float range, float speedMultiplier) {
+            this(priority, item -> item == Objects.requireNonNull(lure), range, speedMultiplier);
+        }
+
+        /** Gắn bộ lọc {@link Predicate} trên vật phẩm cầm tay để hỗ trợ nhiều loại mồi dụ cùng lúc. */
+        public TemptFollowGoal(int priority, Predicate<Item> lureMatches, float range, float speedMultiplier) {
             super(priority, LOOK);
-            this.lure = Objects.requireNonNull(lure);
+            this.lureMatches = Objects.requireNonNull(lureMatches);
             rangeSquared = range * range;
             speed = speedMultiplier;
         }
@@ -591,7 +607,7 @@ public final class MobGoals {
         @Override
         public boolean canStart(World world, MobEntity mob) {
             Player player = world.getPlayer();
-            if (player == null || !player.isAlive() || !holdsBlock(player, lure)) {
+            if (player == null || !player.isAlive() || !holdsItem(player, lureMatches)) {
                 return false;
             }
             player.copyCenterPosition(center);

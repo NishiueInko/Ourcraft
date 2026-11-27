@@ -19,6 +19,8 @@ public class AudioManager implements Disposable {
     private static final long TRACK_GAP_NANOS = 3_000_000_000L;
     /** Khoảng chờ trước khi thử lại nếu mọi nguồn phát OpenAL đang bận. */
     private static final long RAIN_RETRY_NANOS = 200_000_000L;
+    /** Bán kính nghe tối đa (block) cho âm thanh trúng đòn giữa các thực thể. */
+    private static final float ENTITY_HIT_RANGE = 16.0f;
     /** Gốc tài nguyên âm thanh bên trong classpath. */
     private static final String MUSIC_ROOT = "audio/music/";
     private static final String SFX_ROOT = "audio/sfx/";
@@ -33,7 +35,16 @@ public class AudioManager implements Disposable {
         CACTUS_HURT("damage/hit", 3), SWIM("liquid/swim", 18),
         WATER_ENTER("liquid/splash", "liquid/splash2"), DIVE("ambient/underwater/enter", 3),
         SURFACE("ambient/underwater/exit", 3), WATER_NEARBY("liquid/water"),
-        LAVA_NEARBY("liquid/lava"), LAVA_POP("liquid/lavapop");
+        LAVA_NEARBY("liquid/lava"), LAVA_POP("liquid/lavapop"),
+        /** Tiếng xì hơi nước khi Water và Lava tiếp xúc tạo thành Stone. */
+        FIZZ("random/fizz"),
+        /** Âm thanh bắn cung, ném đạn, tụ giáo, ăn uống và thổi sừng dê (Track A). */
+        BOW_SHOOT("mob/shared/bow_shoot"), THROW("random/bow"),
+        SPEAR_CHARGE("mob/shared/spear_charge"),
+        EAT("random/eat", 3), BURP("random/burp"), DRINK("random/drink"),
+        GOAT_HORN("item/goat_horn/call0"),
+        /** Âm thanh trúng đòn cận chiến hoặc đạn đạo giữa các thực thể (damage/hit1..3.ogg). */
+        ENTITY_HIT("damage/hit", 3);
 
         /** Đường dẫn tương đối của các biến thể trong nhóm, chưa gồm đuôi OGG. */
         private final String[] paths;
@@ -410,6 +421,27 @@ public class AudioManager implements Disposable {
         Sound sound = mobSounds.choose(mobId, event, random);
         if (sound != null) {
             sound.play(gain, mobPitch(pitchMultiplier, random.nextFloat()), 0f);
+        }
+    }
+
+    /**
+     * Phát ngẫu nhiên biến thể tiếng trúng đòn ({@code damage/hit1..3.ogg}) tại tọa độ thế giới,
+     * suy giảm âm lượng tuyến tính trong phạm vi 16 block tới người nghe.
+     *
+     * @param x tọa độ X tại điểm thực thể nhận sát thương
+     * @param y tọa độ Y tại điểm thực thể nhận sát thương
+     * @param z tọa độ Z tại điểm thực thể nhận sát thương
+     */
+    public void playEntityHit(float x, float y, float z) {
+        if (disposed || !mobListenerReady) {
+            return;
+        }
+        float dx = x - listenerX;
+        float dy = y - listenerY;
+        float dz = z - listenerZ;
+        float gain = mobGain(dx * dx + dy * dy + dz * dz, ENTITY_HIT_RANGE);
+        if (gain > 0f) {
+            playSample(Effect.ENTITY_HIT, 0.55f * gain, 1.0f);
         }
     }
 

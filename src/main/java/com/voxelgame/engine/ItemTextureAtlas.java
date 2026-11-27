@@ -65,7 +65,7 @@ public final class ItemTextureAtlas implements Disposable {
                     for (int tx = 0; tx < TILE_SIZE; tx++) {
                         int sx = Math.min(srcW - 1, (int) (((tx + 0.5f) / TILE_SIZE) * srcW));
                         int sy = Math.min(srcH - 1, (int) (((ty + 0.5f) / TILE_SIZE) * srcH));
-                        putAtlasPixel(atlasPixmap, tileIndex, tx, ty, source.getPixel(sx, sy));
+                        putAtlasPixel(atlasPixmap, tileIndex, tx, ty, Texture.readNormalizedPixel(source, sx, sy));
                     }
                 }
                 return;

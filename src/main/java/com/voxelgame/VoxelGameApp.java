@@ -5,14 +5,25 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.InputProcessor;
 import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.Mesh;
+import com.badlogic.gdx.graphics.VertexAttribute;
+import com.badlogic.gdx.graphics.VertexAttributes;
 import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Vector3;
 import com.voxelgame.engine.AudioManager;
 import com.voxelgame.engine.BiomeType;
+import com.voxelgame.engine.BlockOutlineRenderer;
 import com.voxelgame.engine.Camera;
+import com.voxelgame.engine.DebugOverlayRenderer;
+import com.voxelgame.engine.FirstPersonRenderer;
+import com.voxelgame.engine.InventoryScreenRenderer;
 import com.voxelgame.engine.ItemTextureAtlas;
+import com.voxelgame.engine.ItemUseHandler;
+import com.voxelgame.engine.LeafDecaySystem;
+import com.voxelgame.engine.LiquidAnimator;
 import com.voxelgame.engine.MobRenderer;
 import com.voxelgame.engine.MobTextureManager;
+import com.voxelgame.engine.ParticleManager;
 import com.voxelgame.engine.Raycast;
 import com.voxelgame.engine.ShaderProgram;
 import com.voxelgame.engine.SkyRenderer;
@@ -23,9 +34,11 @@ import com.voxelgame.engine.WeatherRenderer;
 import com.voxelgame.engine.World;
 import com.voxelgame.engine.WorldTime;
 import com.voxelgame.entity.Block;
+import com.voxelgame.entity.Entity;
 import com.voxelgame.entity.Hotbar;
 import com.voxelgame.entity.Item;
 import com.voxelgame.entity.ItemEntity;
+import com.voxelgame.entity.LivingEntity;
 import com.voxelgame.entity.Player;
 
 /**
@@ -92,6 +105,27 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
     private SkyRenderer skyRenderer;
     private WeatherRenderer weatherRenderer;
     private final Runnable renderCloudLayer = this::renderCloudLayer;
+    // === HOOK: TRACK B - FIELDS ===
+    /** Bộ phát hoạt ảnh 32 frame nước và 20 frame dung nham trên GPU. */
+    private LiquidAnimator liquidAnimator;
+    /** Bộ vẽ khung dây chọn block và lớp phủ vết nứt 10 giai đoạn. */
+    private BlockOutlineRenderer blockOutlineRenderer;
+    /** Hệ thống pool tĩnh 512 hạt 3D zero-GC. */
+    private ParticleManager particleManager;
+    /** Bộ đếm nhịp sinh hạt khi giữ chuột đào và khi thực thể đang cháy. */
+    private float miningParticleTimer;
+    private float fireParticleTimer;
+    /** Theo dõi trạng thái người chơi chạm nước để sinh hạt bắn nước tức thời. */
+    private boolean wasPlayerInWater;
+    /** Bộ đệm tọa độ tái sử dụng khi sinh hạt quanh thực thể (zero-GC). */
+    private final Vector3 entityParticlePos = new Vector3();
+    /** Độ mờ của lớp phủ lửa hoạt ảnh ở cạnh dưới màn hình góc nhìn 1. */
+    private static final float FIRE_OVERLAY_ALPHA = 0.80f;
+    /** Mesh quad 2D (6 đỉnh × 6 floats) và bộ đệm tái sử dụng cho lớp phủ lửa góc nhìn 1 (zero-GC). */
+    private Mesh fireOverlayMesh;
+    private final float[] fireOverlayVertices = new float[6 * 6];
+    private final float[] fireOverlayUv = new float[4];
+    // === END HOOK: TRACK B - FIELDS ===
 
     // =====================================================================
     // Trạng thái chuột để xoay Camera 3D hoặc tương tác trên Pause Menu 2D
@@ -162,6 +196,58 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
     /** Hai kết quả dùng lại để chọn thực thể và kiểm tra tia bị vật cản che. */
     private final Raycast.HitResult occluderHit = Raycast.HitResult.miss();
     private final Raycast.EntityHitResult entityHit = new Raycast.EntityHitResult();
+    // === HOOK: TRACK A - FIELDS ===
+    /** Bộ quản lý sử dụng vật phẩm chủ động (Cung, Giáo sắt, Thức ăn, Thuốc, Đạn ném, Sừng dê). */
+    private ItemUseHandler itemUseHandler;
+    /** Bộ kết xuất tay/vật phẩm góc nhìn thứ nhất và nhân vật Steve góc nhìn thứ ba (F5). */
+    private FirstPersonRenderer firstPersonRenderer;
+    /** Bộ đệm lưu và khôi phục tọa độ/ma trận camera khi áp dụng View Bobbing hoặc góc nhìn F5. */
+    private final Vector3 savedCameraEye = new Vector3();
+    private final Vector3 renderCameraPos = new Vector3();
+    private final Matrix4 renderViewMatrix = new Matrix4();
+    // === END HOOK: TRACK A - FIELDS ===
+
+    // === HOOK: TRACK C - FIELDS ===
+    // Khai báo màn hình túi đồ, F3 debug và mô phỏng sinh tồn của Track C tại đây.
+    private InventoryScreenRenderer inventoryScreen;
+    private DebugOverlayRenderer debugOverlay;
+
+    /** Kiểm tra giao diện túi đồ 36 ô hiện có đang mở hay không. */
+    private boolean isInventoryOpen() {
+        return inventoryScreen != null && inventoryScreen.isOpen();
+    }
+
+    /** Bật/tắt giao diện túi đồ 36 ô khi nhấn phím E, giữ nguyên vòng đời thế giới. */
+    private void toggleInventory() {
+        if (inventoryScreen == null || player == null) {
+            return;
+        }
+        if (inventoryScreen.isOpen()) {
+            closeInventory();
+        } else {
+            inventoryScreen.open();
+            isLeftMouseDown = false;
+            resetMiningProgress();
+            if (itemUseHandler != null) {
+                itemUseHandler.onHotbarSlotChanged();
+            }
+            Gdx.input.setCursorCatched(false);
+            skipNextMouseDelta = true;
+        }
+    }
+
+    /** Đóng giao diện túi đồ, trả item đang cầm trên con trỏ về kho/đất và khóa lại chuột. */
+    private void closeInventory() {
+        if (inventoryScreen == null || !inventoryScreen.isOpen()) {
+            return;
+        }
+        inventoryScreen.close(player, world);
+        isLeftMouseDown = false;
+        resetMiningProgress();
+        Gdx.input.setCursorCatched(true);
+        skipNextMouseDelta = true;
+    }
+    // === END HOOK: TRACK C - FIELDS ===
 
     // =====================================================================
     // VÒNG ĐỜI ỨNG DỤNG LIBGDX
@@ -224,6 +310,20 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         uiRenderer.setEnvironment(worldTime, weather);
         skyRenderer = new SkyRenderer();
         weatherRenderer = new WeatherRenderer();
+        // === HOOK: TRACK B - CREATE ===
+        liquidAnimator = new LiquidAnimator();
+        blockOutlineRenderer = new BlockOutlineRenderer();
+        particleManager = new ParticleManager();
+        fireOverlayMesh = new Mesh(
+                Mesh.VertexDataType.VertexBufferObjectWithVAO,
+                false,
+                6,
+                0,
+                new VertexAttribute(VertexAttributes.Usage.Position, 3, "aPos"),
+                new VertexAttribute(VertexAttributes.Usage.TextureCoordinates, 2, "aTexCoord"),
+                new VertexAttribute(VertexAttributes.Usage.Generic, 1, "aShade")
+        );
+        // === END HOOK: TRACK B - CREATE ===
 
         // -----------------------------------------------------------------
         // 3. Khởi tạo Player, gắn điều khiển và đăng ký vào World
@@ -247,6 +347,25 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         audioManager = new AudioManager();
         world.setAudio(audioManager);
         audioManager.startBackgroundMusic();
+        // === HOOK: TRACK A - CREATE ===
+        itemUseHandler = new ItemUseHandler();
+        try {
+            firstPersonRenderer = new FirstPersonRenderer();
+        } catch (RuntimeException | Error error) {
+            dispose();
+            throw error;
+        }
+        // === END HOOK: TRACK A - CREATE ===
+
+        // === HOOK: TRACK C - CREATE ===
+        // Khởi tạo LeafDecaySystem, LiquidFlowSimulator, DebugOverlayRenderer của Track C tại đây.
+        inventoryScreen = new InventoryScreenRenderer();
+        debugOverlay = new DebugOverlayRenderer();
+        if (uiRenderer != null) {
+            uiRenderer.setInventoryScreen(inventoryScreen);
+            uiRenderer.setDebugOverlay(debugOverlay, world);
+        }
+        // === END HOOK: TRACK C - CREATE ===
 
         // -----------------------------------------------------------------
         // 5. Thiết lập xử lý Input và bắt chuột
@@ -281,9 +400,9 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         }
 
         // =================================================================
-        // BƯỚC 2: Xử lý xoay Camera bằng di chuyển chuột (khi không Pause)
+        // BƯỚC 2: Xử lý xoay Camera bằng di chuyển chuột (khi không Pause và không mở túi đồ)
         // =================================================================
-        if (!isPaused) {
+        if (!isPaused && !isInventoryOpen()) {
             processMouseLook();
         }
 
@@ -301,84 +420,193 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
             currentHit = Raycast.cast(world, camera.copyPosition(eyePosition), camera.copyFront(aimDirection),
                     RAYCAST_REACH, renderHit);
 
-            // Cập nhật tiến trình đào block nếu đang giữ chuột trái
-            miningProgressRatio = updateMiningProgress(currentHit, deltaTime);
+            // Cập nhật tiến trình đào block nếu đang giữ chuột trái (tắt khi túi đồ đang mở)
+            miningProgressRatio = isInventoryOpen() ? 0.0f : updateMiningProgress(currentHit, deltaTime);
 
             // Thời gian môi trường dùng giây thực; vật lý vẫn giữ delta đã giới hạn.
             worldTime.update(realDelta);
             weather.update(realDelta, world, eyePosition, player);
             audioManager.setRainGain(weather.rainVolume());
+            // === HOOK: TRACK A - UPDATE ===
+            if (itemUseHandler != null && !isInventoryOpen()) {
+                itemUseHandler.update(deltaTime, world, player, camera);
+            }
+            if (!isInventoryOpen() && isLeftMouseDown && miningTargetX != Integer.MIN_VALUE && player != null) {
+                player.continueSwing();
+            }
+            // === END HOOK: TRACK A - UPDATE ===
+
+            // === HOOK: TRACK B - UPDATE ===
+            if (mobRenderer != null) {
+                mobRenderer.setFireAnimationSeconds(weather.animationSeconds());
+            }
+            if (liquidAnimator != null) {
+                liquidAnimator.update(realDelta, textureAtlas);
+            }
+            if (particleManager != null) {
+                // Sinh mảnh vỡ nhỏ theo nhịp khi đang đào block.
+                if (miningProgressRatio > 0.0f && currentHit != null && currentHit.isHit()) {
+                    miningParticleTimer += deltaTime;
+                    if (miningParticleTimer >= 0.12f) {
+                        miningParticleTimer = 0.0f;
+                        particleManager.spawnBlockBreak(
+                                currentHit.getBlockX(),
+                                currentHit.getBlockY(),
+                                currentHit.getBlockZ(),
+                                currentHit.getBlock(),
+                                3
+                        );
+                    }
+                } else {
+                    miningParticleTimer = 0.0f;
+                }
+
+                // Sinh hạt bắn nước khi người chơi vừa bước vào khối nước.
+                if (player != null) {
+                    player.copyPosition(entityParticlePos);
+                    boolean playerInWater = world.liquidAt(
+                            entityParticlePos.x, entityParticlePos.y + 0.1f, entityParticlePos.z) == Block.WATER;
+                    if (playerInWater && !wasPlayerInWater) {
+                        particleManager.spawnSplash(
+                                entityParticlePos.x, entityParticlePos.y + 0.25f, entityParticlePos.z, 12);
+                    }
+                    wasPlayerInWater = playerInWater;
+                }
+
+                // Sinh hạt lửa quanh người chơi hoặc mob đang cháy (getFireTimer() > 0).
+                fireParticleTimer += deltaTime;
+                if (fireParticleTimer >= 0.15f) {
+                    fireParticleTimer = 0.0f;
+                    int entityCount = world.entityCount();
+                    for (int i = 0; i < entityCount; i++) {
+                        Entity entity = world.entityAt(i);
+                        if (entity instanceof LivingEntity living && living.isAlive() && living.getFireTimer() > 0.0f) {
+                            living.copyPosition(entityParticlePos);
+                            particleManager.spawnFlame(
+                                    entityParticlePos.x,
+                                    entityParticlePos.y + living.getHeight() * 0.5f,
+                                    entityParticlePos.z
+                            );
+                        }
+                    }
+                }
+
+                particleManager.update(deltaTime);
+            }
+            // === END HOOK: TRACK B - UPDATE ===
+
+            // === HOOK: TRACK C - UPDATE ===
+            // Cập nhật LeafDecaySystem, LiquidFlowSimulator và màn hình túi đồ Track C tại đây.
+            // === END HOOK: TRACK C - UPDATE ===
         }
 
         // =================================================================
         // BƯỚC 4: Xóa bộ đệm màu và bộ đệm chiều sâu
         // =================================================================
-        camera.copyPosition(eyePosition);
-        Camera.LiquidView liquid = camera.liquidView(world);
-        boolean submerged = liquid != Camera.LiquidView.AIR;
-        if (submerged) {
-            Gdx.gl.glClearColor(liquid.red, liquid.green, liquid.blue, 1f);
-        } else {
-            Gdx.gl.glClearColor(SKY_COLOR.x, SKY_COLOR.y, SKY_COLOR.z, 1f);
-        }
-        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT | GL20.GL_DEPTH_BUFFER_BIT);
-
-        // =================================================================
-        // BƯỚC 5: Kết xuất Thế giới 3D (Các Chunk địa hình + Các Entity đa hình)
-        // =================================================================
-        shaderProgram.bind();
-        shaderProgram.enable3DWorldMode();
-
-        // Lấy kích thước cửa sổ hiện tại (hỗ trợ resize)
+        camera.copyPosition(savedCameraEye);
+        Camera.LiquidView liquid = Camera.LiquidView.AIR;
         int screenWidth = Gdx.graphics.getWidth();
         int screenHeight = Gdx.graphics.getHeight();
-
-        // Dùng cùng ma trận cho Shader và kiểm tra khung nhìn, kể cả khi FOV thay đổi.
-        Matrix4 projection = camera.getProjectionMatrix(screenWidth, screenHeight);
-        Matrix4 view = camera.getViewMatrix();
-        shaderProgram.setUniformMatrix4f("uProjection", projection);
-        shaderProgram.setUniformMatrix4f("uView", view);
-        if (submerged) {
-            shaderProgram.enableLiquidFog(eyePosition, liquid);
-        }
-
-        // Vòm trời và thiên thể nằm sau mọi hình học; mây và giáng thủy xét độ sâu.
-        float stormStrength = weather.skyStrength();
-        skyRenderer.renderSky(shaderProgram, view, worldTime, stormStrength);
-
-        // Kết xuất các chunk giao khung nhìn và toàn bộ thực thể trong thế giới.
-        textureAtlas.bind();
-        float terrainDistance = submerged ? liquid.fogEnd
-                : skyRenderer.enableWorldFog(shaderProgram, eyePosition, stormStrength);
-        world.render(shaderProgram, projection, view, eyePosition, renderCloudLayer, terrainDistance);
-        if (!submerged) {
-            shaderProgram.disableDistanceFog();
-        }
-        weatherRenderer.render(shaderProgram, world, eyePosition, weather);
-        if (submerged) {
-            shaderProgram.disableDistanceFog();
-        }
-        textureAtlas.unbind();
-        shaderProgram.setUniformVec3("uWorldLight", 1f, 1f, 1f);
-
-        // =================================================================
-        // BƯỚC 6: Vẽ hiệu ứng Overlay 3D quanh block đang ngắm/đào
-        // =================================================================
-        if (!isPaused && currentHit != null && currentHit.isHit()) {
-            int x = currentHit.getBlockX();
-            int y = currentHit.getBlockY();
-            int z = currentHit.getBlockZ();
-            Block current = Block.fromId(world.getBlock(x, y, z));
-            if (current == currentHit.getBlock()) {
-                uiRenderer.renderTargetBlockOverlay3D(shaderProgram, currentHit, miningProgressRatio,
-                        current.getSelectionBounds(world.getBlockState(x, y, z)));
+        try {
+            if (player != null) {
+                player.applyRenderCameraPosition(world, camera, renderCameraPos);
             }
+            camera.copyPosition(eyePosition);
+            liquid = camera.liquidView(world);
+            boolean submerged = liquid != Camera.LiquidView.AIR;
+            if (submerged) {
+                Gdx.gl.glClearColor(liquid.red, liquid.green, liquid.blue, 1f);
+            } else {
+                Gdx.gl.glClearColor(SKY_COLOR.x, SKY_COLOR.y, SKY_COLOR.z, 1f);
+            }
+            Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT | GL20.GL_DEPTH_BUFFER_BIT);
+
+            // =================================================================
+            // BƯỚC 5: Kết xuất Thế giới 3D (Các Chunk địa hình + Các Entity đa hình)
+            // =================================================================
+            shaderProgram.bind();
+            shaderProgram.enable3DWorldMode();
+
+            // Dùng cùng ma trận cho Shader và kiểm tra khung nhìn, kể cả khi FOV thay đổi.
+            Matrix4 projection = camera.getProjectionMatrix(screenWidth, screenHeight);
+            Matrix4 view = player != null
+                    ? player.computeRenderViewMatrix(camera, savedCameraEye, renderViewMatrix)
+                    : camera.getViewMatrix();
+            shaderProgram.setUniformMatrix4f("uProjection", projection);
+            shaderProgram.setUniformMatrix4f("uView", view);
+            if (submerged) {
+                shaderProgram.enableLiquidFog(eyePosition, liquid);
+            }
+
+            // Vòm trời và thiên thể nằm sau mọi hình học; mây và giáng thủy xét độ sâu.
+            float stormStrength = weather.skyStrength();
+            skyRenderer.renderSky(shaderProgram, view, worldTime, stormStrength);
+
+            // Kết xuất các chunk giao khung nhìn và toàn bộ thực thể trong thế giới.
+            textureAtlas.bind();
+            float terrainDistance = submerged ? liquid.fogEnd
+                    : skyRenderer.enableWorldFog(shaderProgram, eyePosition, stormStrength);
+            world.render(shaderProgram, projection, view, eyePosition, renderCloudLayer, terrainDistance);
+            if (!submerged) {
+                shaderProgram.disableDistanceFog();
+            }
+            weatherRenderer.render(shaderProgram, world, eyePosition, weather);
+            if (submerged) {
+                shaderProgram.disableDistanceFog();
+            }
+            textureAtlas.unbind();
+            shaderProgram.setUniformVec3("uWorldLight", 1f, 1f, 1f);
+            // === HOOK: TRACK B - RENDER 3D ===
+            if (particleManager != null) {
+                particleManager.render(shaderProgram, camera, textureAtlas);
+            }
+            // === END HOOK: TRACK B - RENDER 3D ===
+
+            // === HOOK: TRACK A - RENDER VIEWMODEL ===
+            if (firstPersonRenderer != null && player != null
+                    && player.getCameraMode() != Player.CameraMode.FIRST_PERSON) {
+                firstPersonRenderer.renderThirdPersonPlayer(shaderProgram, player, itemUseHandler,
+                        textureAtlas, itemAtlas);
+            }
+            // === END HOOK: TRACK A - RENDER VIEWMODEL ===
+
+            // =================================================================
+            // BƯỚC 6: Vẽ hiệu ứng Overlay 3D quanh block đang ngắm/đào
+            // =================================================================
+            if (!isPaused && !isInventoryOpen() && currentHit != null && currentHit.isHit()) {
+                int x = currentHit.getBlockX();
+                int y = currentHit.getBlockY();
+                int z = currentHit.getBlockZ();
+                Block current = Block.fromId(world.getBlock(x, y, z));
+                if (current == currentHit.getBlock()) {
+                    if (blockOutlineRenderer != null) {
+                        blockOutlineRenderer.render(shaderProgram, x, y, z, current,
+                                world.getBlockState(x, y, z), miningProgressRatio);
+                    } else {
+                        uiRenderer.renderTargetBlockOverlay3D(shaderProgram, currentHit, miningProgressRatio,
+                                current.getSelectionBounds(world.getBlockState(x, y, z)));
+                    }
+                }
+            }
+
+            // Kết xuất tay/vật phẩm góc nhìn thứ nhất sau khối ngắm 3D (xóa Depth Buffer bên trong)
+            if (firstPersonRenderer != null && player != null
+                    && player.getCameraMode() == Player.CameraMode.FIRST_PERSON) {
+                float viewportAspect = (float) Math.max(1, screenWidth) / Math.max(1, screenHeight);
+                firstPersonRenderer.renderFirstPerson(shaderProgram, player, itemUseHandler,
+                        textureAtlas, itemAtlas, projection, view, viewportAspect);
+            }
+        } finally {
+            camera.setPosition(savedCameraEye.x, savedCameraEye.y, savedCameraEye.z);
         }
 
         // =================================================================
         // BƯỚC 7: Kết xuất Giao diện 2D (Crosshair, Hotbar, Thanh đào, Pause Menu)
         // =================================================================
         uiRenderer.renderScreenEffects(shaderProgram, camera, screenWidth, screenHeight, liquid, player.getCactusFlash());
+        // === HOOK: TRACK B - RENDER 2D ===
+        renderFirstPersonFireOverlay(screenWidth, screenHeight);
+        // === END HOOK: TRACK B - RENDER 2D ===
         uiRenderer.render2DHUD(
                 shaderProgram,
                 textureAtlas,
@@ -402,6 +630,90 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         skyRenderer.renderClouds(shaderProgram, eyePosition, weather.animationSeconds(), weather.skyStrength());
         textureAtlas.bind();
     }
+
+    // === HOOK: TRACK B - HELPERS ===
+    /**
+     * Vẽ 2 dải lửa hoạt ảnh bán trong suốt ({@code alpha = 0.80f}) ở cạnh dưới màn hình 2D
+     * ngay trước lớp HUD khi người chơi đang cháy ({@code player.getFireTimer() > 0f}),
+     * sau đó khôi phục hoàn toàn chế độ 3D và trạng thái OpenGL.
+     */
+    private void renderFirstPersonFireOverlay(int screenWidth, int screenHeight) {
+        if (player == null || !player.isAlive() || player.getFireTimer() <= 0f
+                || player.getCameraMode() != Player.CameraMode.FIRST_PERSON
+                || mobRenderer == null || fireOverlayMesh == null
+                || screenWidth <= 0 || screenHeight <= 0) {
+            return;
+        }
+        com.badlogic.gdx.graphics.Texture fireTex0 = mobRenderer.getFireTexture0();
+        com.badlogic.gdx.graphics.Texture fireTex1 = mobRenderer.getFireTexture1();
+        if (fireTex0 == null || fireTex1 == null) {
+            return;
+        }
+
+        Gdx.gl.glDisable(GL20.GL_DEPTH_TEST);
+        Gdx.gl.glDisable(GL20.GL_CULL_FACE);
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        shaderProgram.enable2DUIMode(camera.getOrthoMatrix(screenWidth, screenHeight));
+        shaderProgram.setUniform1i("uUseTexture", 1);
+        shaderProgram.setUniformVec4("uTintColor", 1.0f, 1.0f, 1.0f, FIRE_OVERLAY_ALPHA);
+
+        try {
+            double animSeconds = weather.animationSeconds();
+            float stripWidth = screenWidth * 0.56f;
+            float leftHeight = screenHeight * 0.42f;
+            float rightHeight = screenHeight * 0.40f;
+
+            // Dải lửa trái dùng fire_0.png.
+            MobRenderer.fireFrameUV(animSeconds, mobRenderer.getFireFrameCount0(), fireOverlayUv);
+            writeFireOverlayQuad(0.0f, screenHeight - leftHeight, stripWidth, leftHeight, fireOverlayUv);
+            fireTex0.bind(0);
+            fireOverlayMesh.setVertices(fireOverlayVertices, 0, fireOverlayVertices.length);
+            fireOverlayMesh.render(shaderProgram.getGdxShader(), GL20.GL_TRIANGLES, 0, 6);
+
+            // Dải lửa phải dùng fire_1.png lệch pha 0.25s để hai ngọn lửa nhấp nhô tự nhiên.
+            MobRenderer.fireFrameUV(animSeconds + 0.25, mobRenderer.getFireFrameCount1(), fireOverlayUv);
+            writeFireOverlayQuad(screenWidth - stripWidth, screenHeight - rightHeight, stripWidth, rightHeight,
+                    fireOverlayUv);
+            fireTex1.bind(0);
+            fireOverlayMesh.setVertices(fireOverlayVertices, 0, fireOverlayVertices.length);
+            fireOverlayMesh.render(shaderProgram.getGdxShader(), GL20.GL_TRIANGLES, 0, 6);
+        } finally {
+            if (textureAtlas != null) {
+                textureAtlas.bind();
+            }
+            shaderProgram.enable3DWorldMode();
+            Gdx.gl.glDisable(GL20.GL_BLEND);
+            Gdx.gl.glEnable(GL20.GL_CULL_FACE);
+            Gdx.gl.glEnable(GL20.GL_DEPTH_TEST);
+        }
+    }
+
+    /** Điền 6 đỉnh của một dải lửa 2D trực giao vào {@link #fireOverlayVertices} (zero-GC). */
+    private void writeFireOverlayQuad(float x, float y, float w, float h, float[] uv) {
+        float u0 = uv[0];
+        float v0 = uv[1];
+        float u1 = uv[2];
+        float v1 = uv[3];
+        // Phép chiếu trực giao 2D có y=0 ở đỉnh màn hình, y=height ở đáy màn hình.
+        writeFireOverlayVertex(0, x, y + h, u0, v1);
+        writeFireOverlayVertex(6, x + w, y + h, u1, v1);
+        writeFireOverlayVertex(12, x + w, y, u1, v0);
+        writeFireOverlayVertex(18, x, y + h, u0, v1);
+        writeFireOverlayVertex(24, x + w, y, u1, v0);
+        writeFireOverlayVertex(30, x, y, u0, v0);
+    }
+
+    /** Ghi 1 đỉnh 6 float (x, y, 0, u, v, -1) vào bộ đệm lớp phủ lửa 2D. */
+    private void writeFireOverlayVertex(int offset, float x, float y, float u, float v) {
+        fireOverlayVertices[offset] = x;
+        fireOverlayVertices[offset + 1] = y;
+        fireOverlayVertices[offset + 2] = 0.0f;
+        fireOverlayVertices[offset + 3] = u;
+        fireOverlayVertices[offset + 4] = v;
+        fireOverlayVertices[offset + 5] = -1.0f;
+    }
+    // === END HOOK: TRACK B - HELPERS ===
 
     /**
      * Xử lý xoay Camera bằng delta chuột mỗi khung hình.
@@ -444,10 +756,16 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
      * - Reset tiến trình đào block đang dở
      */
     private void pauseGame() {
+        if (isInventoryOpen()) {
+            inventoryScreen.close(player, world);
+        }
         isPaused = true;
         isLeftMouseDown = false;
         isDraggingVolumeSlider = false;
         resetMiningProgress();
+        if (itemUseHandler != null) {
+            itemUseHandler.onHotbarSlotChanged();
+        }
         if (audioManager != null) {
             audioManager.setUnderwater(false);
             audioManager.setRainPaused(true);
@@ -586,11 +904,19 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         }
 
         // Tích lũy thời gian đào
-        miningElapsedTime += deltaTime;
+        // === HOOK: TRACK C - MINING SPEED ===
+        // Áp dụng hệ số tốc độ đào Shears trên len/lá tại đây.
+        Item heldItem = player != null ? player.getHotbar().getSelectedItem() : Item.NONE;
+        float speedMultiplier = LeafDecaySystem.miningSpeedMultiplier(heldItem, targetBlock);
+        miningElapsedTime += deltaTime * speedMultiplier;
+        // === END HOOK: TRACK C - MINING SPEED ===
         float requiredTime = targetBlock.getHardness();
 
         // Nếu đã đào đủ thời gian -> phá hủy block, sinh item rơi và reset tiến trình
         if (miningElapsedTime >= requiredTime) {
+            if (particleManager != null) {
+                particleManager.spawnBlockBreak(miningTargetX, miningTargetY, miningTargetZ, targetBlock, 20);
+            }
             world.breakBlockAndSpawnDrop(miningTargetX, miningTargetY, miningTargetZ);
             resetMiningProgress();
             return 0.0f;
@@ -628,11 +954,21 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
                 player, entityHit);
     }
 
-    /** Mỗi lần nhấn chọn đòn đánh hoặc bắt đầu giữ để đào. */
+    /** Mỗi lần nhấn chọn đòn đánh (hỗ trợ Jab tầm 4.2f của IRON_SPEAR) hoặc bắt đầu giữ để đào. */
     private void handleLeftClick() {
         if (world == null || camera == null || player == null) {
             return;
         }
+        // === HOOK: TRACK A - LEFT CLICK MELEE ===
+        if (itemUseHandler != null) {
+            boolean hitMob = itemUseHandler.onPrimaryMelee(world, player, camera);
+            isLeftMouseDown = !hitMob;
+            if (hitMob) {
+                resetMiningProgress();
+            }
+            return;
+        }
+        // === END HOOK: TRACK A - LEFT CLICK MELEE ===
         Raycast.EntityHitResult hit = aimAtEntity(MELEE_REACH);
         isLeftMouseDown = !hit.isHit();
         if (hit.isHit()) {
@@ -658,6 +994,9 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         if (target.isHit() && target.getEntity().onPlayerInteract(world, player)) {
             return;
         }
+        // === HOOK: TRACK A - RIGHT CLICK ITEM ===
+        // Xử lý tiêu thụ thức ăn, thuốc, ném ngọc Ender, trứng, tù và, cung, giáo sắt tại đây.
+        // === END HOOK: TRACK A - RIGHT CLICK ITEM ===
 
         // Lấy Hotbar của Player thông qua Composition
         Hotbar hotbar = player.getHotbar();
@@ -668,8 +1007,9 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
             player.clearStatusEffects();
             hotbar.consumeSelectedItemStack();
             if (!hotbar.addItem(Item.BUCKET, 1)) {
-                world.spawnDroppedItem(new ItemEntity(player.getPosition().x,
-                        player.getPosition().y + 1.0f, player.getPosition().z, Item.BUCKET));
+                player.copyPosition(entityParticlePos);
+                world.spawnDroppedItem(new ItemEntity(entityParticlePos.x,
+                        entityParticlePos.y + 1.0f, entityParticlePos.z, Item.BUCKET));
             }
             if (audioManager != null) {
                 audioManager.playEffect(AudioManager.Effect.PICKUP, 0.35f);
@@ -701,11 +1041,16 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
             return;
         }
 
+        // === HOOK: TRACK C - PLACE LEAF STATE ===
+        // Lá do người chơi tự đặt mang metadata PERSISTENT_LEAF_STATE = 1 để không tự phân hủy.
+        int placeState = LeafDecaySystem.isLeaf(selectedBlock) ? LeafDecaySystem.PERSISTENT_LEAF_STATE : 0;
         // Ưu tiên thay thế ô đang ngắm, sau đó thử ô sát mặt mà tia chạm.
-        if (world.tryPlaceBlock(x, y, z, selectedBlock, player)
-                || world.tryPlaceBlock(hit.getPrevBlockX(), hit.getPrevBlockY(), hit.getPrevBlockZ(), selectedBlock, player)) {
+        if (world.tryPlaceBlock(x, y, z, selectedBlock, placeState, player)
+                || world.tryPlaceBlock(hit.getPrevBlockX(), hit.getPrevBlockY(), hit.getPrevBlockZ(),
+                selectedBlock, placeState, player)) {
             finishBlockPlacement(hotbar, selectedBlock);
         }
+        // === END HOOK: TRACK C - PLACE LEAF STATE ===
     }
 
     /** Trừ vật phẩm và phát mẫu của vật liệu sau khi World chấp nhận thao tác đặt. */
@@ -781,6 +1126,39 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         if (shaderProgram != null) {
             shaderProgram.dispose();
         }
+        // === HOOK: TRACK A - DISPOSE ===
+        if (firstPersonRenderer != null) {
+            firstPersonRenderer.dispose();
+        }
+        // === END HOOK: TRACK A - DISPOSE ===
+
+        // === HOOK: TRACK B - DISPOSE ===
+        if (fireOverlayMesh != null) {
+            fireOverlayMesh.dispose();
+            fireOverlayMesh = null;
+        }
+        if (particleManager != null) {
+            particleManager.dispose();
+        }
+        if (blockOutlineRenderer != null) {
+            blockOutlineRenderer.dispose();
+        }
+        if (liquidAnimator != null) {
+            liquidAnimator.dispose();
+        }
+        // === END HOOK: TRACK B - DISPOSE ===
+
+        // === HOOK: TRACK C - DISPOSE ===
+        // Giải phóng InventoryScreenRenderer, DebugOverlayRenderer của Track C tại đây.
+        if (inventoryScreen != null) {
+            inventoryScreen.dispose();
+            inventoryScreen = null;
+        }
+        if (debugOverlay != null) {
+            debugOverlay.dispose();
+            debugOverlay = null;
+        }
+        // === END HOOK: TRACK C - DISPOSE ===
     }
 
     // =====================================================================
@@ -816,8 +1194,12 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
             return false;
         }
 
-        // Phím ESC: Tạm dừng (lần 1) hoặc thoát game (lần 2 khi đang Pause)
+        // Phím ESC: Nếu túi đồ đang mở thì đóng túi đồ trước, ngược lại tạm dừng / thoát game
         if (keycode == Input.Keys.ESCAPE) {
+            if (isInventoryOpen()) {
+                closeInventory();
+                return true;
+            }
             if (!isPaused) {
                 pauseGame();
             } else {
@@ -856,9 +1238,35 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
                     // Các phím còn lại tiếp tục được xử lý bởi Hotbar và Player.
                 }
             }
+            // === HOOK: TRACK A - KEYDOWN ===
+            if (keycode == Input.Keys.F5 && !isInventoryOpen()) {
+                player.cycleCameraMode();
+                return true;
+            }
+            // === END HOOK: TRACK A - KEYDOWN ===
+
+            // === HOOK: TRACK C - KEYDOWN ===
+            // Xử lý phím E (Inventory), Q / Ctrl+Q (vứt đồ), F3 (Debug overlay) tại đây.
+            if (keycode == Input.Keys.E) {
+                toggleInventory();
+                return true;
+            }
+            if (keycode == Input.Keys.Q && world != null && !isInventoryOpen()) {
+                player.dropSelectedItem(world, leftControlDown || rightControlDown);
+                return true;
+            }
+            if (keycode == Input.Keys.F3 && debugOverlay != null) {
+                debugOverlay.toggle();
+                return true;
+            }
+            // === END HOOK: TRACK C - KEYDOWN ===
             int slotIndex = getHotbarSlotFromKeycode(keycode);
-            if (slotIndex >= 0) {
+            if (slotIndex >= 0 && !isInventoryOpen()) {
+                int previousSlot = player.getHotbar().getSelectedSlot();
                 player.getHotbar().selectSlot(slotIndex);
+                if (itemUseHandler != null && player.getHotbar().getSelectedSlot() != previousSlot) {
+                    itemUseHandler.onHotbarSlotChanged();
+                }
                 return true;
             }
         }
@@ -935,9 +1343,29 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
         }
 
         // Trạng thái chơi: xử lý đào và đặt block
+        // === HOOK: TRACK C - TOUCH DOWN ===
+        // Chuyển sự kiện click vào InventoryScreenRenderer khi túi đồ đang mở.
+        if (isInventoryOpen() && player != null) {
+            boolean shiftDown = Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT)
+                    || Gdx.input.isKeyPressed(Input.Keys.SHIFT_RIGHT);
+            inventoryScreen.handleClick(player.getInventory(), screenX, screenY,
+                    Gdx.graphics.getWidth(), Gdx.graphics.getHeight(), button, shiftDown);
+            return true;
+        }
+        // === END HOOK: TRACK C - TOUCH DOWN ===
         if (button == Input.Buttons.LEFT) {
+            // === HOOK: TRACK A - SWING ATTACK ===
+            if (player != null) {
+                player.triggerSwing();
+            }
+            // === END HOOK: TRACK A - SWING ATTACK ===
             handleLeftClick();
         } else if (button == Input.Buttons.RIGHT) {
+            // === HOOK: TRACK A - RIGHT CLICK ITEM ===
+            if (itemUseHandler != null && itemUseHandler.onSecondaryPress(world, player, camera)) {
+                return true;
+            }
+            // === END HOOK: TRACK A - RIGHT CLICK ITEM ===
             handleRightClickPlaceBlock();
         }
 
@@ -967,11 +1395,22 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
             return true;
         }
 
+        if (isInventoryOpen()) {
+            isLeftMouseDown = false;
+            resetMiningProgress();
+            return true;
+        }
+
         // Nhả chuột trái: dừng đào block và reset tiến trình
         if (button == Input.Buttons.LEFT) {
             isLeftMouseDown = false;
             resetMiningProgress();
         }
+        // === HOOK: TRACK A - TOUCH UP ===
+        if (button == Input.Buttons.RIGHT && itemUseHandler != null) {
+            itemUseHandler.onSecondaryRelease(world, player, camera);
+        }
+        // === END HOOK: TRACK A - TOUCH UP ===
 
         return true;
     }
@@ -1029,12 +1468,16 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor {
      */
     @Override
     public boolean scrolled(float amountX, float amountY) {
-        if (!isPaused && player != null) {
+        if (!isPaused && !isInventoryOpen() && player != null) {
             // amountY > 0 (cuộn xuống) = tăng chỉ số ô -> truyền dương
             // amountY < 0 (cuộn lên)   = giảm chỉ số ô -> truyền âm
             // Hàm hotbar.scroll() kỳ vọng: giá trị dương = cuộn lên (giảm slot),
             // giá trị âm = cuộn xuống (tăng slot) -> đảo dấu amountY
+            int previousSlot = player.getHotbar().getSelectedSlot();
             player.getHotbar().scroll(-amountY);
+            if (itemUseHandler != null && player.getHotbar().getSelectedSlot() != previousSlot) {
+                itemUseHandler.onHotbarSlotChanged();
+            }
         }
         return true;
     }

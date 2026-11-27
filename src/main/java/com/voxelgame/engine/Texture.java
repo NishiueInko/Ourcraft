@@ -10,6 +10,7 @@ import com.badlogic.gdx.utils.Disposable;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Random;
@@ -17,7 +18,7 @@ import java.util.stream.Stream;
 
 /**
  * Quản lý việc đọc các file ảnh (.png, .jpg), tự động chuẩn hóa về kích thước 16x16 pixel
- * và đóng gói thành một tấm ảnh "Texture Atlas" 128x80 duy nhất trên VRAM GPU thông qua
+ * và đóng gói thành một tấm ảnh "Texture Atlas" 128x96 duy nhất trên VRAM GPU thông qua
  * thư viện đồ họa libGDX, triển khai {@link Disposable}.
  *
  * THỂ HIỆN CÁC TÍNH CHẤT OOP:
@@ -33,10 +34,10 @@ public class Texture implements Disposable {
 
     // Kích thước của 1 ô chất liệu tiêu chuẩn (16x16 pixel)
     public static final int TILE_SIZE = 16;
-    // Số cột và số hàng của lưới Texture Atlas (8x5 = 40 ô)
+    // Số cột và số hàng của lưới Texture Atlas (8x6 = 48 ô)
     public static final int ATLAS_COLS = 8;
-    public static final int ATLAS_ROWS = 5;
-    // Kích thước tổng thể của tấm ảnh Texture Atlas (128x80 pixel)
+    public static final int ATLAS_ROWS = 6;
+    // Kích thước tổng thể của tấm ảnh Texture Atlas (128x96 pixel)
     public static final int ATLAS_WIDTH = TILE_SIZE * ATLAS_COLS;
     public static final int ATLAS_HEIGHT = TILE_SIZE * ATLAS_ROWS;
 
@@ -86,14 +87,22 @@ public class Texture implements Disposable {
     /** Nắp rương với họa tiết khảm hình thoi. */
     public static final int TILE_CHEST_TOP = 35;
 
+    /** Sáu ô chất liệu cho 6 màu len cừu trên hàng thứ 6 của Texture Atlas 8x6. */
+    public static final int TILE_WHITE_WOOL = 36;
+    public static final int TILE_LIGHT_GRAY_WOOL = 37;
+    public static final int TILE_GRAY_WOOL = 38;
+    public static final int TILE_BLACK_WOOL = 39;
+    public static final int TILE_BROWN_WOOL = 40;
+    public static final int TILE_PINK_WOOL = 41;
+
     // Hệ số nhân RGB cho thảm thực vật đồng bằng và lá vân sam, lần lượt theo mã màu RGB.
     private static final int PLAINS_TINT = 0x91BD59;
     private static final int SPRUCE_TINT = 0x619961;
     // Giá trị bán trong suốt cho ảnh nước thay thế vốn có alpha tối đa.
-    private static final int OPAQUE_WATER_ALPHA = 225;
+    static final int OPAQUE_WATER_ALPHA = 225;
 
     /** Quy tắc lấy mẫu và xử lý màu theo từng loại ảnh nguồn. */
-    private enum TileStyle {
+    enum TileStyle {
         OPAQUE, // Giữ RGB và đặt alpha tối đa cho các mặt được vẽ đục.
         PLAINS, // Nhuộm cỏ, lá sồi và mía theo màu đồng bằng, giữ alpha gốc.
         SPRUCE, // Nhuộm lá vân sam theo màu xanh thông, giữ alpha gốc.
@@ -199,6 +208,12 @@ public class Texture implements Disposable {
         loadTileOrFallback(atlasPixmap, TILE_SUGAR_CANE, TileStyle.PLAINS, 0x8BB05B, "sugar_cane");
         loadTileOrFallback(atlasPixmap, TILE_GRAVEL, TileStyle.OPAQUE, 0x807B78, "gravel");
         drawDecorativeChest(atlasPixmap);
+        loadTileOrFallback(atlasPixmap, TILE_WHITE_WOOL, TileStyle.OPAQUE, 0xECECEC, "item/white_wool");
+        loadTileOrFallback(atlasPixmap, TILE_LIGHT_GRAY_WOOL, TileStyle.OPAQUE, 0x9E9E97, "item/light_gray_wool");
+        loadTileOrFallback(atlasPixmap, TILE_GRAY_WOOL, TileStyle.OPAQUE, 0x4A4E52, "item/gray_wool");
+        loadTileOrFallback(atlasPixmap, TILE_BLACK_WOOL, TileStyle.OPAQUE, 0x1D1E23, "item/black_wool");
+        loadTileOrFallback(atlasPixmap, TILE_BROWN_WOOL, TileStyle.OPAQUE, 0x7A4B2E, "item/brown_wool");
+        loadTileOrFallback(atlasPixmap, TILE_PINK_WOOL, TileStyle.OPAQUE, 0xEC8EAC, "item/pink_wool");
     }
 
     /** Vẽ rương theo bảng màu gỗ sơn xanh và đồng, ghi đè trực tiếp ba ô atlas. */
@@ -317,6 +332,75 @@ public class Texture implements Disposable {
         }
     }
 
+    /**
+     * Đọc một pixel từ {@link Pixmap} nguồn và chuẩn hóa về định dạng 32-bit RGBA8888.
+     * Sửa lỗi libGDX giải mã ảnh PNG thang xám 8-bit ({@code colorType = 0}) thành định dạng
+     * {@code Alpha} hoặc {@code Intensity} khiến R=G=B=255 (hiển thị trắng tinh như Stone/Bedrock).
+     *
+     * @param src ảnh Pixmap nguồn
+     * @param sx  tọa độ X trên ảnh nguồn
+     * @param sy  tọa độ Y trên ảnh nguồn
+     * @return màu 32-bit dạng RGBA8888 (R ở byte cao nhất, A ở byte thấp nhất)
+     */
+    public static int readNormalizedPixel(Pixmap src, int sx, int sy) {
+        int pixel = src.getPixel(sx, sy);
+        Pixmap.Format format = src.getFormat();
+        if (format == Pixmap.Format.Alpha || format == Pixmap.Format.Intensity) {
+            int lum = pixel & 0xFF;
+            return (lum << 24) | (lum << 16) | (lum << 8) | 0xFF;
+        }
+        if (format == Pixmap.Format.LuminanceAlpha) {
+            int lum = (pixel >>> 24) & 0xFF;
+            int alpha = pixel & 0xFF;
+            return (lum << 24) | (lum << 16) | (lum << 8) | alpha;
+        }
+        return pixel;
+    }
+
+    /**
+     * Đọc một pixel tại {@code (sx, sy)} trên {@link Pixmap} nguồn, áp dụng quy tắc nhuộm màu
+     * và kênh alpha theo {@link TileStyle}, rồi trả về màu 32-bit dạng {@code RGBA8888}.
+     *
+     * @param src   ảnh Pixmap nguồn
+     * @param sx    tọa độ X trên ảnh nguồn
+     * @param sy    tọa độ Y trên ảnh nguồn
+     * @param style quy tắc xử lý màu và alpha của loại bề mặt
+     * @return màu 32-bit đã chuẩn hóa và giới hạn kênh vào [0, 255]
+     */
+    static int sampleStyledRgba(Pixmap src, int sx, int sy, TileStyle style) {
+        int pixel = readNormalizedPixel(src, sx, sy);
+        int r = (pixel >>> 24) & 0xFF;
+        int g = (pixel >>> 16) & 0xFF;
+        int b = (pixel >>> 8) & 0xFF;
+        int a = pixel & 0xFF;
+
+        if (style == TileStyle.PLAINS || style == TileStyle.SPRUCE) {
+            // Nhuộm riêng các kênh RGB, giữ nguyên khe alpha trên lá và cây.
+            int tint = style == TileStyle.PLAINS ? PLAINS_TINT : SPRUCE_TINT;
+            r = r * ((tint >>> 16) & 255) / 255;
+            g = g * ((tint >>> 8) & 255) / 255;
+            b = b * (tint & 255) / 255;
+        } else if (style == TileStyle.WATER) {
+            if (Math.abs(r - g) < 10 && Math.abs(g - b) < 10) {
+                r = (int) (r * 0.22f + 18);
+                g = (int) (g * 0.58f + 45);
+                b = (int) (b * 0.98f + 70);
+            }
+            if (a == 255) {
+                a = OPAQUE_WATER_ALPHA;
+            }
+        } else if (style == TileStyle.OPAQUE || style == TileStyle.LAVA) {
+            a = 255;
+        }
+
+        return packRgba(r, g, b, a);
+    }
+
+    /** Đóng gói 4 kênh R, G, B, A (đã kẹp vào [0, 255]) thành số nguyên 32-bit RGBA8888. */
+    static int packRgba(int r, int g, int b, int a) {
+        return (clamp(r) << 24) | (clamp(g) << 16) | (clamp(b) << 8) | clamp(a);
+    }
+
     /** Lấy mẫu pixel gần nhất và xử lý màu, alpha trước khi ghi vào ô atlas. */
     private void blitResizedToTile(
             Pixmap atlasPixmap,
@@ -333,50 +417,30 @@ public class Texture implements Disposable {
                 int sx = srcX + Math.min(srcW - 1, (int) (((tx + 0.5f) / TILE_SIZE) * srcW));
                 int sy = srcY + Math.min(srcH - 1, (int) (((ty + 0.5f) / TILE_SIZE) * srcH));
 
-                int pixel = src.getPixel(sx, sy);
-                int r = (pixel >>> 24) & 0xFF;
-                int g = (pixel >>> 16) & 0xFF;
-                int b = (pixel >>> 8) & 0xFF;
-                int a = pixel & 0xFF;
-
-                if (style == TileStyle.PLAINS || style == TileStyle.SPRUCE) {
-                    // Nhuộm riêng các kênh RGB, giữ nguyên khe alpha trên lá và cây.
-                    int tint = style == TileStyle.PLAINS ? PLAINS_TINT : SPRUCE_TINT;
-                    r = r * ((tint >>> 16) & 255) / 255;
-                    g = g * ((tint >>> 8) & 255) / 255;
-                    b = b * (tint & 255) / 255;
-                } else if (style == TileStyle.WATER) {
-                    if (Math.abs(r - g) < 10 && Math.abs(g - b) < 10) {
-                        r = (int) (r * 0.22f + 18);
-                        g = (int) (g * 0.58f + 45);
-                        b = (int) (b * 0.98f + 70);
-                    }
-                    if (a == 255) {
-                        a = OPAQUE_WATER_ALPHA;
-                    }
-                } else if (style == TileStyle.OPAQUE || style == TileStyle.LAVA) {
-                    a = 255;
-                }
-
-                putAtlasPixel(atlasPixmap, tileIndex, tx, ty, r, g, b, a);
+                int rgba = sampleStyledRgba(src, sx, sy, style);
+                putAtlasPixelRgba(atlasPixmap, tileIndex, tx, ty, rgba);
             }
         }
     }
 
     /** Chuyển tọa độ trong ô sang tọa độ pixel toàn atlas. */
     private void putAtlasPixel(Pixmap atlasPixmap, int tileIndex, int tx, int ty, int r, int g, int b, int a) {
+        putAtlasPixelRgba(atlasPixmap, tileIndex, tx, ty, packRgba(r, g, b, a));
+    }
+
+    /** Ghi trực tiếp một pixel RGBA8888 đã đóng gói vào đúng tọa độ của ô trên atlas. */
+    private void putAtlasPixelRgba(Pixmap atlasPixmap, int tileIndex, int tx, int ty, int rgba) {
         int tileCol = tileIndex % ATLAS_COLS;
         int tileRow = tileIndex / ATLAS_COLS;
 
         int atlasX = tileCol * TILE_SIZE + tx;
         int atlasY = tileRow * TILE_SIZE + ty;
 
-        int rgba = (clamp(r) << 24) | (clamp(g) << 16) | (clamp(b) << 8) | clamp(a);
         atlasPixmap.drawPixel(atlasX, atlasY, rgba);
     }
 
     /** Tìm và giải mã ảnh từ classpath, thư mục cục bộ hoặc kết quả quét sâu. */
-    private Pixmap loadPixmapFlexible(String... candidateNames) {
+    static Pixmap loadPixmapFlexible(String... candidateNames) {
         byte[] rawBytes = null;
         String matchedPath = null;
 
@@ -443,7 +507,7 @@ public class Texture implements Disposable {
     }
 
     /** Quét có giới hạn theo tên ảnh và bỏ qua các thư mục quản lý Git, Gradle. */
-    private Path findFileByName(Path rootDir, String fileNameLower, int maxDepth) {
+    private static Path findFileByName(Path rootDir, String fileNameLower, int maxDepth) {
         if (!Files.exists(rootDir)) {
             return null;
         }
@@ -546,8 +610,45 @@ public class Texture implements Disposable {
     }
 
     /** Giới hạn giá trị kênh màu vào phạm vi một byte. */
-    private int clamp(int val) {
+    private static int clamp(int val) {
         return Math.max(0, Math.min(255, val));
+    }
+
+    /**
+     * Cập nhật trực tiếp một ô {@code 16x16} trên Texture Atlas ở VRAM GPU bằng dữ liệu pixel
+     * {@code RGBA8888} từ {@link Pixmap} mà không cần cấp phát hay dựng lại toàn bộ atlas.
+     * Bỏ qua an toàn khi chưa có ngữ cảnh OpenGL ({@code Gdx.gl == null}).
+     *
+     * @param tileIndex  chỉ số ô trong lưới atlas {@code 8x6} ({@code 0..47})
+     * @param tilePixmap ảnh nguồn {@code 16x16} định dạng {@code RGBA8888}
+     */
+    public void updateTile(int tileIndex, Pixmap tilePixmap) {
+        if (Gdx.gl == null || gdxTexture == null || tilePixmap == null) {
+            return;
+        }
+        if (tileIndex < 0 || tileIndex >= ATLAS_COLS * ATLAS_ROWS) {
+            throw new IllegalArgumentException("Chỉ số ô atlas không hợp lệ: " + tileIndex);
+        }
+        if (tilePixmap.getWidth() != TILE_SIZE || tilePixmap.getHeight() != TILE_SIZE) {
+            throw new IllegalArgumentException("Kích thước tilePixmap phải là " + TILE_SIZE + "x" + TILE_SIZE
+                    + ", nhận được: " + tilePixmap.getWidth() + "x" + tilePixmap.getHeight());
+        }
+        int col = tileIndex % ATLAS_COLS;
+        int row = tileIndex / ATLAS_COLS;
+        bind();
+        ByteBuffer pixels = tilePixmap.getPixels();
+        pixels.rewind();
+        Gdx.gl.glTexSubImage2D(
+                GL20.GL_TEXTURE_2D,
+                0,
+                col * TILE_SIZE,
+                row * TILE_SIZE,
+                TILE_SIZE,
+                TILE_SIZE,
+                GL20.GL_RGBA,
+                GL20.GL_UNSIGNED_BYTE,
+                pixels
+        );
     }
 
     /**

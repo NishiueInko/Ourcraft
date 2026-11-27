@@ -222,7 +222,7 @@ public class MobEntity extends LivingEntity implements MobVisual {
         }
         moveHorizontal(world, 0, velocity.x * dt, pushX * dt);
         moveHorizontal(world, 2, velocity.z * dt, pushZ * dt);
-        float pushDecay = Math.max(0f, 1f - dt * 12f);
+        float pushDecay = Math.max(0f, 1f - dt * 6.5f);
         pushX *= pushDecay;
         pushZ *= pushDecay;
 
@@ -585,11 +585,15 @@ public class MobEntity extends LivingEntity implements MobVisual {
         }
     }
 
-    /** Giữ đẩy lùi riêng để lệnh AI kế tiếp không xóa xung lực. */
+    /** Giữ đẩy lùi riêng để lệnh AI kế tiếp không xóa xung lực, đồng thời bật nảy khi đứng trên mặt đất. */
     @Override
     protected void applyKnockback(float x, float z) {
         pushX += x;
         pushZ += z;
+        if (onGround && !inWater && (x * x + z * z) > 0.0001f) {
+            velocity.y = Math.max(velocity.y, 4.8f);
+            onGround = false;
+        }
     }
 
     /** Loài có giới hạn rơi lớn hơn cũng giảm sát thương theo phần ngưỡng được tăng. */
@@ -639,6 +643,10 @@ public class MobEntity extends LivingEntity implements MobVisual {
     public final float z() { return position.z; }
     /** Trả trạng thái chạm nước tại phần thân của cá thể. */
     public final boolean inWater() { return inWater; }
+    /** Trả vận tốc đẩy lùi ngang hiện tại theo trục X (block/giây). */
+    public final float pushX() { return pushX; }
+    /** Trả vận tốc đẩy lùi ngang hiện tại theo trục Z (block/giây). */
+    public final float pushZ() { return pushZ; }
     /** Trả tốc độ cơ bản theo block/giây. */
     public final float moveSpeed() { return moveSpeed; }
     /** Trả số giây mô phỏng của cá thể, dùng làm mốc đơn điệu cho goal. */

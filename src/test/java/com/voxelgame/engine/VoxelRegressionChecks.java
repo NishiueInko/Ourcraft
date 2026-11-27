@@ -1,7 +1,11 @@
 package com.voxelgame.engine;
 
+import com.badlogic.gdx.graphics.Pixmap;
+import com.badlogic.gdx.utils.GdxNativesLoader;
 import com.voxelgame.entity.Block;
+import com.voxelgame.entity.Item;
 import com.voxelgame.entity.Player;
+import java.io.InputStream;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.InputEventQueue;
@@ -14,6 +18,7 @@ public final class VoxelRegressionChecks {
     /** Chạy toàn bộ nhóm kiểm tra và ném lỗi khi hành vi sai. */
     public static void main(String[] args) {
         CombatAndLivingChecks.run();
+        CombatItemsChecks.run();
         MobAssetAndModelChecks.run();
         MobSpawnerChecks.run();
         HostileMobChecks.run();
@@ -27,9 +32,13 @@ public final class VoxelRegressionChecks {
         checkRaycast();
         checkPlayerSurfaces();
         checkTerrainSpeedShortcut();
+        checkWoolFoundation();
+        checkGrayscaleBlockTextures();
         ChunkMeshRegressionChecks.run();
         TerrainGenerationChecks.run();
         EnvironmentChecks.run();
+        VisualsLightingChecks.run();
+        SurvivalWorldChecks.run();
         System.out.println("Các kiểm tra hồi quy voxel đã qua.");
     }
 
@@ -329,6 +338,95 @@ public final class VoxelRegressionChecks {
             require(Block.fromId((byte) id) != Block.AIR, "Thiếu block mới ở ID " + id);
         }
         require(Block.fromId((byte) 255) == Block.AIR, "ID chưa đăng ký phải trả về Air");
+    }
+
+    /** Kiểm tra mở rộng atlas 8x6, 6 WoolBlock (ID 27..32) và liên kết Item.*_WOOL. */
+    private static void checkWoolFoundation() {
+        require(Texture.ATLAS_ROWS == 6 && Texture.ATLAS_HEIGHT == 96, "Atlas khối phải mở rộng lên 8x6 (128x96)");
+        require(Item.allStandaloneItems().size() == 56, "Phải giữ nguyên 56 standalone items trong ItemTextureAtlas");
+        Block[] wools = {Block.WHITE_WOOL, Block.LIGHT_GRAY_WOOL, Block.GRAY_WOOL,
+                Block.BLACK_WOOL, Block.BROWN_WOOL, Block.PINK_WOOL};
+        Item[] woolItems = {Item.WHITE_WOOL, Item.LIGHT_GRAY_WOOL, Item.GRAY_WOOL,
+                Item.BLACK_WOOL, Item.BROWN_WOOL, Item.PINK_WOOL};
+        for (int i = 0; i < wools.length; i++) {
+            require(Byte.toUnsignedInt(wools[i].getId()) == 27 + i, "ID len phải nối tiếp 27..32");
+            require(woolItems[i].isBlock() && woolItems[i].getBlock() == wools[i], "Item len phải trỏ đúng WoolBlock");
+            require(Item.of(wools[i]) == woolItems[i], "Item.of(WoolBlock) phải trả về đúng Item len");
+            require(woolItems[i].isCubeItem(), "Len rơi phải giữ dạng khối mini");
+        }
+    }
+
+    /** Kiểm tra giải mã PNG thang xám cho Stone/Bedrock, sprite trích xuất và 8 nhóm SFX 1.21.11. */
+    private static void checkGrayscaleBlockTextures() {
+        String[] requiredResources = {
+                "textures/stone.png",
+                "textures/bedrock.png",
+                "textures/fire_0.png",
+                "textures/fire_1.png",
+                "textures/destroy_stage_0.png",
+                "textures/destroy_stage_9.png",
+                "textures/entity/player/steve.png",
+                "textures/gui/container/inventory.png",
+                "textures/gui/sprites/hud/hotbar.png",
+                "textures/gui/sprites/hud/hotbar_selection.png",
+                "textures/gui/sprites/hud/heart/full.png",
+                "textures/gui/sprites/hud/food_full.png",
+                "textures/gui/sprites/hud/air.png",
+                "textures/gui/sprites/widget/button.png",
+                "audio/sfx/fire/fire.ogg",
+                "audio/sfx/fire/ignite.ogg",
+                "audio/sfx/entity/player/hurt/fire_hurt1.ogg",
+                "audio/sfx/entity/player/hurt/drown1.ogg",
+                "audio/sfx/damage/fallbig.ogg",
+                "audio/sfx/damage/hit1.ogg",
+                "audio/sfx/random/fizz.ogg",
+                "audio/sfx/random/eat1.ogg",
+                "audio/sfx/random/drink.ogg",
+                "audio/sfx/random/bow.ogg",
+                "audio/sfx/random/bowhit1.ogg",
+                "audio/sfx/item/goat_horn/call0.ogg",
+                "audio/sfx/entity/player/attack/crit1.ogg",
+                "audio/sfx/entity/player/attack/knockback1.ogg",
+                "audio/sfx/dig/cloth1.ogg",
+                "audio/sfx/mob/sheep/shear.ogg"
+        };
+        ClassLoader loader = VoxelRegressionChecks.class.getClassLoader();
+        for (String path : requiredResources) {
+            require(loader.getResource(path) != null, "Thiếu tài nguyên Task 0.3: " + path);
+        }
+
+        GdxNativesLoader.load();
+        assertHasDarkGrayPixels(loader, "textures/stone.png", "Stone");
+        assertHasDarkGrayPixels(loader, "textures/bedrock.png", "Bedrock");
+    }
+
+    /** Đảm bảo PNG thang xám không bị giải mã thành trắng tinh (255,255,255). */
+    private static void assertHasDarkGrayPixels(ClassLoader loader, String path, String label) {
+        try (InputStream stream = loader.getResourceAsStream(path)) {
+            require(stream != null, "Không mở được " + path);
+            byte[] bytes = stream.readAllBytes();
+            Pixmap pixmap = new Pixmap(bytes, 0, bytes.length);
+            try {
+                boolean foundDarkGray = false;
+                for (int y = 0; y < pixmap.getHeight() && !foundDarkGray; y++) {
+                    for (int x = 0; x < pixmap.getWidth(); x++) {
+                        int rgba = Texture.readNormalizedPixel(pixmap, x, y);
+                        int r = (rgba >>> 24) & 0xFF;
+                        int g = (rgba >>> 16) & 0xFF;
+                        int b = (rgba >>> 8) & 0xFF;
+                        if (r == g && g == b && r < 220) {
+                            foundDarkGray = true;
+                            break;
+                        }
+                    }
+                }
+                require(foundDarkGray, label + " bị giải mã trắng tinh thay vì thang xám thực tế");
+            } finally {
+                pixmap.dispose();
+            }
+        } catch (java.io.IOException e) {
+            throw new AssertionError("Lỗi đọc " + path, e);
+        }
     }
 
     /** Báo điều kiện hồi quy cụ thể để Gradle kết thúc với lỗi. */

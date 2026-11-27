@@ -67,6 +67,10 @@ public class Camera {
     // Các thông số ống kính 3D (Frustum)
     private static final float BASE_FOV_DEG = 70.0f;
     private float currentFovDeg = BASE_FOV_DEG;
+    /** Độ thu hẹp góc nhìn (độ âm, tối đa -8 độ) khi kéo dây cung và giá trị mục tiêu để nội suy mượt. */
+    private float bowZoomOffsetDeg = 0.0f;
+    private float targetBowZoomOffsetDeg = 0.0f;
+    private static final float BOW_ZOOM_LERP_SPEED = 16.0f;
     private static final float NEAR_PLANE = 0.08f;
     // Giới hạn chiều sâu kết xuất để giữ ngân sách vẽ khi thế giới mở rộng.
     private static final float FAR_PLANE = 1024.0f;
@@ -140,6 +144,41 @@ public class Camera {
     }
 
     /**
+     * Cập nhật mượt độ thu hẹp FOV khi kéo cung mà không làm thay đổi Dynamic FOV của Sprint/Fly.
+     *
+     * @param targetOffsetDeg độ lệch FOV mục tiêu (ví dụ {@code -8.0f * pullProgress})
+     * @param deltaTime       thời gian giữa hai khung hình
+     */
+    public void updateBowZoom(float targetOffsetDeg, float deltaTime) {
+        targetBowZoomOffsetDeg = Float.isFinite(targetOffsetDeg) ? targetOffsetDeg : 0.0f;
+        if (deltaTime > 0.0f && Float.isFinite(deltaTime)) {
+            float lerpSpeed = Math.min(1.0f, deltaTime * BOW_ZOOM_LERP_SPEED);
+            bowZoomOffsetDeg += (targetBowZoomOffsetDeg - bowZoomOffsetDeg) * lerpSpeed;
+        }
+    }
+
+    /**
+     * Đặt trực tiếp độ lệch FOV kéo cung (dùng khi hủy trạng thái kéo cung do đổi ô Hotbar).
+     *
+     * @param offsetDeg độ lệch FOV cần áp dụng ngay lập tức
+     */
+    public void setBowZoomOffset(float offsetDeg) {
+        float safe = Float.isFinite(offsetDeg) ? offsetDeg : 0.0f;
+        targetBowZoomOffsetDeg = safe;
+        bowZoomOffsetDeg = safe;
+    }
+
+    /** Trả về độ lệch FOV kéo cung hiện tại (0.0f khi không kéo cung). */
+    public float getBowZoomOffset() {
+        return bowZoomOffsetDeg;
+    }
+
+    /** Trả về góc FOV hiệu dụng (đã cộng cả Dynamic FOV lẫn độ lệch kéo cung). */
+    public float getCurrentFovDeg() {
+        return Math.max(30.0f, Math.min(110.0f, currentFovDeg + bowZoomOffsetDeg));
+    }
+
+    /**
      * Trả về Ma trận Nhìn (View Matrix) dùng phép biến đổi `lookAt(eye, center, up)`.
      * Tái sử dụng đối tượng viewMatrix có sẵn, không cấp phát thêm bộ nhớ.
      *
@@ -159,7 +198,7 @@ public class Camera {
      */
     public Matrix4 getProjectionMatrix(int windowWidth, int windowHeight) {
         float aspectRatio = (float) Math.max(1, windowWidth) / Math.max(1, windowHeight);
-        return projectionMatrix.setToProjection(NEAR_PLANE, FAR_PLANE, currentFovDeg, aspectRatio);
+        return projectionMatrix.setToProjection(NEAR_PLANE, FAR_PLANE, getCurrentFovDeg(), aspectRatio);
     }
 
     /**

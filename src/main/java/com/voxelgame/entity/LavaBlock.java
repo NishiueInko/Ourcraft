@@ -31,10 +31,20 @@ public class LavaBlock extends Block {
         // Dung nham không thể bị đập vỡ bằng tay không
     }
 
+    /** Giới hạn mức dòng chảy hợp lệ của dung nham trong khoảng 0 (nguồn) đến 7 (mỏng nhất). */
+    @Override
+    public int normalizeState(int state) {
+        return Math.max(0, Math.min(7, state));
+    }
+
     @Override
     public float getTopHeight(World world, int wx, int wy, int wz) {
         if (world != null && world.getBlock(wx, wy + 1, wz) == Block.AIR.getId()) {
-            return 0.88f;
+            int level = normalizeState(world.getBlockState(wx, wy, wz));
+            if (level == 0) {
+                return 0.88f;
+            }
+            return Math.max(0.125f, 0.88f - level * 0.105f);
         }
         return 1.0f;
     }

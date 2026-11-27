@@ -23,6 +23,8 @@ public class ShaderProgram implements Disposable {
 
     private final com.badlogic.gdx.graphics.glutils.ShaderProgram gdxShader;
     private final Matrix4 identityMatrix = new Matrix4();
+    /** Giá trị {@code uWorldLight} hiện tại để các bộ vẽ tự phát sáng lưu và khôi phục an toàn. */
+    private final Vector3 currentWorldLight = new Vector3(1f, 1f, 1f);
 
     /**
      * Mã nguồn Vertex Shader (GLSL 330 Core).
@@ -32,16 +34,19 @@ public class ShaderProgram implements Disposable {
             layout (location = 0) in vec3 aPos;
             layout (location = 1) in vec2 aTexCoord;
             layout (location = 2) in float aShade;
+            layout (location = 3) in vec4 aColor;
 
             out vec2 vTexCoord;
             out float vShade;
             out vec3 vPosition;
             out vec3 vEyeOffset;
+            out vec4 vColor;
 
             uniform mat4 uModel;
             uniform mat4 uView;
             uniform mat4 uProjection;
             uniform vec3 uFogEye;
+            uniform int uUseVertexColor;
 
             void main() {
                 vec4 worldPos = uModel * vec4(aPos, 1.0);
@@ -54,6 +59,14 @@ public class ShaderProgram implements Disposable {
                 vPosition = aPos;
                 // Dùng tọa độ sau biến đổi model để cả mesh chunk và thực thể nhận cùng khoảng cách.
                 vEyeOffset = worldPos.xyz - uFogEye;
+                // Chỉ đọc aColor khi vẽ chunk (7 floats/đỉnh); các mesh 6 floats mặc định dùng trắng (1, 1, 1, 1).
+                if (uUseVertexColor == 1) {
+                    vColor = aColor.a > 0.992
+                            ? vec4(aColor.rgb, 1.0)
+                            : vec4(aColor.rgb / max(aColor.a, 0.0039), 1.0);
+                } else {
+                    vColor = vec4(1.0);
+                }
             }
             """;
 
@@ -66,6 +79,7 @@ public class ShaderProgram implements Disposable {
             in float vShade;
             in vec3 vPosition;
             in vec3 vEyeOffset;
+            in vec4 vColor;
 
             out vec4 FragColor;
 
@@ -110,9 +124,9 @@ public class ShaderProgram implements Disposable {
                 // 1. Xác định màu cơ sở (lấy từ Texture Atlas hoặc dùng màu thuần túy cho 2D UI)
                 vec4 baseColor;
                 if (uUseTexture == 1) {
-                    baseColor = texture(uTexture, vTexCoord) * uTintColor;
+                    baseColor = texture(uTexture, vTexCoord) * uTintColor * vColor;
                 } else {
-                    baseColor = uTintColor;
+                    baseColor = uTintColor * vColor;
                 }
 
                 // Loại bỏ các điểm ảnh hoàn toàn trong suốt (Alpha Testing cơ bản)
@@ -177,6 +191,7 @@ public class ShaderProgram implements Disposable {
         bind();
         setUniform1i("uTexture", 0);
         setUniform1i("uUseTexture", 1);
+        setUniform1i("uUseVertexColor", 0);
         setUniformVec4("uTintColor", 1.0f, 1.0f, 1.0f, 1.0f);
         setUniform1f("uMobWhiteFlash", 0f);
         setUniformVec3("uWorldLight", 1f, 1f, 1f);
@@ -190,11 +205,24 @@ public class ShaderProgram implements Disposable {
     }
 
     public void setUniformVec3(String name, Vector3 vec) {
+        if ("uWorldLight".equals(name) && vec != null) {
+            currentWorldLight.set(vec);
+        }
         gdxShader.setUniformf(name, vec);
     }
 
     public void setUniformVec3(String name, float x, float y, float z) {
+        if ("uWorldLight".equals(name)) {
+            currentWorldLight.set(x, y, z);
+        }
         gdxShader.setUniformf(name, x, y, z);
+    }
+
+    /** Sao chép giá trị {@code uWorldLight} hiện tại vào {@code out} mà không cấp phát bộ nhớ mới. */
+    public void copyWorldLight(Vector3 out) {
+        if (out != null) {
+            out.set(currentWorldLight);
+        }
     }
 
     public void setUniformVec4(String name, float r, float g, float b, float a) {
@@ -214,7 +242,17 @@ public class ShaderProgram implements Disposable {
      */
     public void enable3DWorldMode() {
         setUniform1i("uUseTexture", 1);
+        setUniform1i("uUseVertexColor", 0);
         setUniformVec4("uTintColor", 1.0f, 1.0f, 1.0f, 1.0f);
+    }
+
+    /**
+     * Bật hoặc tắt chế độ đọc màu đỉnh {@code aColor} (location 3) khi vẽ mesh chunk.
+     * Mặc định tắt ({@code false}) để các mesh 6 floats (UIRenderer, MobRenderer, EnvironmentMesh, ItemEntity)
+     * luôn dùng màu trắng {@code vec4(1.0)} mà không bị lỗi định dạng đỉnh.
+     */
+    public void enableChunkColorMode(boolean enabled) {
+        setUniform1i("uUseVertexColor", enabled ? 1 : 0);
     }
 
     /** Cập nhật vị trí mắt và hai mốc sương, tính bằng block thế giới. */
@@ -241,6 +279,7 @@ public class ShaderProgram implements Disposable {
      * Chuyển Shader sang phép chiếu 2D và đặt View, Model về ma trận đơn vị.
      */
     public void enable2DUIMode(Matrix4 orthoProjectionMatrix) {
+        setUniform1i("uUseVertexColor", 0);
         setUniformVec3("uWorldLight", 1f, 1f, 1f);
         setUniformMatrix4f("uProjection", orthoProjectionMatrix);
         setUniformMatrix4f("uView", identityMatrix);

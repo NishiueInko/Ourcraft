@@ -21,15 +21,15 @@ import com.voxelgame.entity.mob.MountableMob;
  *
  * THỂ HIỆN CÁC TÍNH CHẤT OOP:
  * 1. Tính Trừu tượng (Abstraction):
- *    - Triển khai `Disposable` để thống nhất cơ chế giải phóng bộ đệm Mesh của giao diện.
- *    - Đóng gói toàn bộ thuật toán vẽ 2D Orthographic và bảng mã phông chữ ma trận điểm ảnh 5x7
- *      đằng sau phương thức `render2DHUD(...)` và `renderTargetBlockOverlay3D(...)`.
+ *    - Triển khai `Disposable` để thống nhất cơ chế giải phóng bộ đệm Mesh và {@link GuiTextureAtlas}.
+ *    - Đóng gói toàn bộ thuật toán vẽ 2D Orthographic, sprite pixel-perfect Minecraft 1.21.11
+ *      và bảng mã phông chữ ma trận điểm ảnh 5x7 đằng sau `render2DHUD(...)` và `renderTargetBlockOverlay3D(...)`.
  * 2. Tính Đóng gói (Encapsulation):
  *    - Truy xuất thông tin khối đang ngắm thông qua các phương thức getter đóng gói của `Raycast.HitResult`
  *      (`hit.isHit()`, `hit.getBlockX()`, `hit.getBlockY()`, `hit.getBlockZ()`) thay vì truy cập trường trực tiếp.
  * 3. Tính Đa hình (Polymorphism):
  *    - Sử dụng tile mặt nam trên atlas để vẽ biểu tượng của từng
- *      loại `Block` nào đang nằm trong 9 ô `Hotbar`.
+ *      loại `Block` hoặc `Item` đang nằm trong 9 ô `Hotbar`.
  */
 public class UIRenderer implements Disposable {
 
@@ -54,16 +54,17 @@ public class UIRenderer implements Disposable {
     private static final float SLIDER_WIDTH = 176.0f;
     private static final float SLIDER_HEIGHT = 24.0f;
 
-    // Kích thước của 9 ô Hotbar ở cạnh dưới màn hình
+    // Kích thước dự phòng của 9 ô Hotbar khi chưa có GuiTextureAtlas
     private static final float HOTBAR_SLOT_SIZE = 50.0f;
     private static final float HOTBAR_SLOT_PADDING = 4.0f;
-    /** Một nền, một viền, tối đa sáu lượt mỗi ô và hai lượt tên khối. */
-    private static final int HOTBAR_STYLES = 4 + Hotbar.SLOT_COUNT * 6;
+    /** Một nền/khung chọn, tối đa sáu lượt mỗi ô và hai lượt tên khối. */
+    private static final int HOTBAR_STYLES = 6 + Hotbar.SLOT_COUNT * 6;
     /** Dự trù cả nhãn khối/vật phẩm dài, bóng chữ và số lượng hai chữ số ở mọi ô. */
     private static final int HOTBAR_VERTEX_CAPACITY = 4096 * 6;
     private static final byte TEXTURE_NONE = 0;
     private static final byte TEXTURE_BLOCK_ATLAS = 1;
     private static final byte TEXTURE_ITEM_ATLAS = 2;
+    private static final byte TEXTURE_GUI_ATLAS = 3;
     private final float[] hotbarVertices = new float[HOTBAR_VERTEX_CAPACITY * 6];
     private final float[] hotbarTints = new float[HOTBAR_STYLES * 4];
     private final byte[] hotbarTextureSource = new byte[HOTBAR_STYLES];
@@ -76,6 +77,8 @@ public class UIRenderer implements Disposable {
     private int hotbarWidth = -1;
     private int hotbarHeight = -1;
     private int hotbarSelection = -1;
+    private boolean hotbarUsedGuiAtlas = false;
+    private boolean hotbarMounted = false;
     private boolean recordingHotbar;
 
     // Hộp mặc định cho đường gọi cũ và bộ đệm đỉnh dùng lại cho lớp phủ, viền và biểu tượng.
@@ -93,7 +96,7 @@ public class UIRenderer implements Disposable {
     private final StringBuilder effectLabel = new StringBuilder(32);
     private static final int[] HEART_ROWS = {0b0110110, 0b1111111, 0b1111111, 0b0111110, 0b0011100, 0b0001000};
     private static final int[] FOOD_ROWS = {0b0001110, 0b0011111, 0b0011111, 0b0111110, 0b1111000, 0b1100000};
-    /** Mỗi biểu tượng đại diện hai điểm, với hai pixel màn hình trên mỗi pixel mẫu. */
+    /** Mỗi biểu tượng đại diện hai điểm, với hai pixel màn hình trên mỗi pixel mẫu (fallback). */
     private static final int VITAL_ICON_COUNT = 10;
     private static final float VITAL_PIXEL = 2f;
     private static final float VITAL_SPACING = 17f;
@@ -105,17 +108,273 @@ public class UIRenderer implements Disposable {
     private int vitalHeight = -1;
     private int vitalHealth = -1;
     private int vitalFood = -1;
+    private boolean vitalPoisoned = false;
+    private boolean vitalHungerEffect = false;
+    private boolean vitalMounted = false;
+    private int vitalMountHp = -1;
+    private int vitalMountMaxHp = -1;
+    private boolean vitalUsedGuiAtlas = false;
     private int healthVertex;
     private int foodVertex;
     private int vitalVertexCount;
     private WorldTime worldTime;
     private WeatherManager weather;
+    // === HOOK: TRACK B - FIELDS ===
+    // Khai báo tài nguyên overlay nứt khối / ẩn crosshair của Track B tại đây.
+    // === END HOOK: TRACK B - FIELDS ===
+
+    // === HOOK: TRACK C - FIELDS ===
+    // Khai báo GuiTextureAtlas, thanh Oxy, InventoryScreenRenderer, DebugOverlayRenderer tại đây.
+    /** Atlas sprite HUD/Widget chuẩn Minecraft 1.21.11, khởi tạo lười khi có OpenGL Context. */
+    private GuiTextureAtlas guiAtlas;
+    private boolean guiAtlasFailed = false;
+
+    /** Mẫu bitmap 7×6 dự phòng cho viền bọt khí (rỗng) và lõi bọt khí (đầy) trên thanh Oxy. */
+    private static final int[] BUBBLE_OUTLINE_ROWS = {
+            0b0011100,
+            0b0100010,
+            0b1000001,
+            0b1000001,
+            0b0100010,
+            0b0011100
+    };
+    private static final int[] BUBBLE_FILL_ROWS = {
+            0b0011100,
+            0b0111110,
+            0b1111111,
+            0b1111111,
+            0b0111110,
+            0b0011100
+    };
+    private static final int OXYGEN_VERTEX_CAPACITY =
+            VITAL_ICON_COUNT * BUBBLE_FILL_ROWS.length * 4 * 6;
+    private Mesh oxygenMesh;
+    private int oxygenWidth = -1;
+    private int oxygenHeight = -1;
+    private int oxygenFullBubbles = -1;
+    private boolean oxygenPopping = false;
+    private boolean oxygenMounted = false;
+    private boolean oxygenUsedGuiAtlas = false;
+    private int oxygenOutlineVertexCount;
+    private int oxygenFullVertexCount;
+    private int oxygenTotalVertexCount;
+    private InventoryScreenRenderer inventoryScreen;
+    private DebugOverlayRenderer debugOverlay;
+    private World debugWorld;
+
+    /** Khởi tạo lười {@link GuiTextureAtlas} khi đã có OpenGL Context hợp lệ. */
+    private GuiTextureAtlas ensureGuiAtlas() {
+        if (guiAtlas == null && !guiAtlasFailed && Gdx.gl != null) {
+            try {
+                guiAtlas = new GuiTextureAtlas();
+            } catch (RuntimeException | Error e) {
+                guiAtlasFailed = true;
+            }
+        }
+        return guiAtlas;
+    }
+
+    /** Tính hệ số phóng nguyên pixel-perfect (2 hoặc 3) phù hợp với chiều rộng cửa sổ. */
+    private static int getHudScale(int windowWidth) {
+        return Math.max(2, Math.min(3, windowWidth / 420));
+    }
+
+    /** Gắn bộ kết xuất màn hình túi đồ 36 ô để vẽ trong lượt HUD 2D. */
+    public void setInventoryScreen(InventoryScreenRenderer inventoryScreen) {
+        this.inventoryScreen = inventoryScreen;
+    }
+
+    /** Gắn bộ kết xuất màn hình thông số F3 và thế giới để vẽ trong lượt HUD 2D. */
+    public void setDebugOverlay(DebugOverlayRenderer debugOverlay, World world) {
+        this.debugOverlay = debugOverlay;
+        this.debugWorld = world;
+    }
+
+    /** Kiểm tra ký tự có mẫu glyph 5x7 tích hợp (phục vụ màn hình F3 và kiểm thử). */
+    public static boolean hasGlyph(char c) {
+        char upper = Character.toUpperCase(c);
+        return upper < GLYPHS.length && GLYPHS[upper] != null;
+    }
+
+    /** Vẽ hình chữ nhật 2D dùng lại bộ đệm của UIRenderer cho màn hình thông số F3. */
+    void drawOverlayRect(ShaderProgram shader, float x, float y, float w, float h,
+                         float r, float g, float b, float a) {
+        this.currentShader = shader;
+        shader.setUniform1i("uUseTexture", 0);
+        shader.setUniformVec4("uTintColor", r, g, b, a);
+        drawRect2D(x, y, w, h);
+    }
+
+    /** Vẽ dòng chữ 5x7 có bóng đổ cho màn hình thông số F3 (zero-GC). */
+    void drawOverlayText(ShaderProgram shader, CharSequence text, float x, float y, float scale) {
+        this.currentShader = shader;
+        shader.setUniform1i("uUseTexture", 0);
+        shader.setUniformVec4("uTintColor", 0.0f, 0.0f, 0.0f, 0.85f);
+        drawPixelText(text, x + 1.5f, y + 1.5f, scale);
+        shader.setUniformVec4("uTintColor", 0.92f, 0.94f, 0.98f, 1.0f);
+        drawPixelText(text, x, y, scale);
+    }
+
+    /** Vẽ hàng 10 bọt khí Oxy phía trên thanh đói bên phải bằng sprite {@link GuiTextureAtlas} (zero-GC). */
+    private void renderOxygenBar(Player player, int windowWidth, int windowHeight) {
+        GuiTextureAtlas atlas = ensureGuiAtlas();
+        boolean useGui = atlas != null;
+        int airTicks = Math.max(0, Math.min(Player.AIR_MAX_TICKS, player.getAirTicks()));
+        int fullBubbles = airTicks / 30;
+        boolean popping = airTicks > 0 && (airTicks % 30) != 0 && fullBubbles < VITAL_ICON_COUNT;
+        boolean mounted = player.getMount() instanceof MountableMob;
+
+        if (windowWidth != oxygenWidth || windowHeight != oxygenHeight
+                || fullBubbles != oxygenFullBubbles || popping != oxygenPopping
+                || mounted != oxygenMounted || useGui != oxygenUsedGuiAtlas) {
+            if (useGui) {
+                rebuildTexturedOxygenBar(windowWidth, windowHeight, fullBubbles, popping, mounted);
+            } else {
+                rebuildFallbackOxygenBar(windowWidth, windowHeight, fullBubbles, popping, mounted);
+            }
+        }
+
+        if (useGui) {
+            atlas.bindHudAtlas();
+            currentShader.setUniform1i("uUseTexture", 1);
+            currentShader.setUniformVec4("uTintColor", 1.0f, 1.0f, 1.0f, 1.0f);
+            oxygenMesh.render(currentShader.getGdxShader(), GL20.GL_TRIANGLES, 0, oxygenTotalVertexCount);
+            atlas.unbind();
+        } else {
+            currentShader.setUniform1i("uUseTexture", 0);
+            currentShader.setUniformVec4("uTintColor", 0.08f, 0.22f, 0.38f, 0.90f);
+            oxygenMesh.render(currentShader.getGdxShader(), GL20.GL_TRIANGLES, 0, oxygenOutlineVertexCount);
+            if (oxygenFullVertexCount > oxygenOutlineVertexCount) {
+                currentShader.setUniformVec4("uTintColor", 0.25f, 0.76f, 0.98f, 1.0f);
+                oxygenMesh.render(currentShader.getGdxShader(), GL20.GL_TRIANGLES,
+                        oxygenOutlineVertexCount, oxygenFullVertexCount - oxygenOutlineVertexCount);
+            }
+            if (oxygenTotalVertexCount > oxygenFullVertexCount) {
+                currentShader.setUniformVec4("uTintColor", 0.65f, 0.92f, 1.0f, 0.85f);
+                oxygenMesh.render(currentShader.getGdxShader(), GL20.GL_TRIANGLES,
+                        oxygenFullVertexCount, oxygenTotalVertexCount - oxygenFullVertexCount);
+            }
+        }
+    }
+
+    /** Dựng lưới 10 bọt khí từ {@code air.png}, {@code air_bursting.png}, {@code air_empty.png}. */
+    private void rebuildTexturedOxygenBar(int windowWidth, int windowHeight, int fullBubbles,
+                                          boolean popping, boolean mounted) {
+        if (oxygenMesh == null) {
+            oxygenMesh = new Mesh(Mesh.VertexDataType.VertexBufferObjectWithVAO, true,
+                    OXYGEN_VERTEX_CAPACITY, 0, VERTEX_ATTRIBUTES);
+        }
+        int scale = getHudScale(windowWidth);
+        float hotbarW = 182.0f * scale;
+        float hotbarH = 22.0f * scale;
+        float hotbarX = Math.round((windowWidth - hotbarW) * 0.5f);
+        float hotbarY = windowHeight - hotbarH - 12.0f;
+        float vitalsY = hotbarY - (mounted ? 18.0f : 12.0f) * scale;
+        float y = vitalsY - (mounted ? 20.0f : 10.0f) * scale;
+        float iconSize = 9.0f * scale;
+        float iconStep = 8.0f * scale;
+        float rightMostX = hotbarX + hotbarW - iconSize;
+
+        float[] fullUv = GuiTextureAtlas.uvOf(GuiTextureAtlas.SpriteKey.AIR);
+        float[] burstUv = GuiTextureAtlas.uvOf(GuiTextureAtlas.SpriteKey.AIR_BURSTING);
+        float[] emptyUv = GuiTextureAtlas.uvOf(GuiTextureAtlas.SpriteKey.AIR_EMPTY);
+
+        int length = 0;
+        for (int i = 0; i < VITAL_ICON_COUNT; i++) {
+            float x = rightMostX - i * iconStep;
+            float[] uv;
+            if (i < fullBubbles) {
+                uv = fullUv;
+            } else if (i == fullBubbles && popping) {
+                uv = burstUv;
+            } else {
+                uv = emptyUv;
+            }
+            writeQuad(textVertices, length, x, y + iconSize, 0f, x + iconSize, y + iconSize, 0f,
+                    x + iconSize, y, 0f, x, y, 0f, uv[0], uv[1], uv[2], uv[3]);
+            length += 36;
+        }
+
+        oxygenTotalVertexCount = length / 6;
+        oxygenOutlineVertexCount = oxygenTotalVertexCount;
+        oxygenFullVertexCount = oxygenTotalVertexCount;
+        oxygenMesh.setVertices(textVertices, 0, length);
+        oxygenWidth = windowWidth;
+        oxygenHeight = windowHeight;
+        oxygenFullBubbles = fullBubbles;
+        oxygenPopping = popping;
+        oxygenMounted = mounted;
+        oxygenUsedGuiAtlas = true;
+    }
+
+    /** Dựng lại hình học 10 bọt khí dạng bitmap dự phòng khi không có GuiTextureAtlas. */
+    private void rebuildFallbackOxygenBar(int windowWidth, int windowHeight, int fullBubbles,
+                                          boolean popping, boolean mounted) {
+        float halfBarWidth = (Hotbar.SLOT_COUNT * HOTBAR_SLOT_SIZE
+                + (Hotbar.SLOT_COUNT + 1) * HOTBAR_SLOT_PADDING) * 0.5f;
+        float span = (VITAL_ICON_COUNT - 1) * VITAL_SPACING + 7f * VITAL_PIXEL;
+        float inset = Math.max(4f, windowWidth * 0.5f - halfBarWidth);
+        float foodY = windowHeight - HOTBAR_SLOT_SIZE - HOTBAR_SLOT_PADDING * 2f - 58f;
+        float y = mounted ? (foodY - 33f) : (foodY - 17f);
+        float foodX = windowWidth - inset - span;
+        if (oxygenMesh == null) {
+            oxygenMesh = new Mesh(Mesh.VertexDataType.VertexBufferObjectWithVAO, true,
+                    OXYGEN_VERTEX_CAPACITY, 0, VERTEX_ATTRIBUTES);
+        }
+        int length = writeBubbleIcons(BUBBLE_OUTLINE_ROWS, foodX, y, 0, VITAL_ICON_COUNT, 0);
+        oxygenOutlineVertexCount = length / 6;
+        length = writeBubbleIcons(BUBBLE_FILL_ROWS, foodX, y, 0, fullBubbles, length);
+        oxygenFullVertexCount = length / 6;
+        if (popping) {
+            length = writeBubbleIcons(BUBBLE_OUTLINE_ROWS, foodX, y, fullBubbles, 1, length);
+        }
+        oxygenTotalVertexCount = length / 6;
+        oxygenMesh.setVertices(textVertices, 0, length);
+        oxygenWidth = windowWidth;
+        oxygenHeight = windowHeight;
+        oxygenFullBubbles = fullBubbles;
+        oxygenPopping = popping;
+        oxygenMounted = mounted;
+        oxygenUsedGuiAtlas = false;
+    }
+
+    /** Ghi các dải pixel bọt khí từ phải sang trái thẳng hàng với thanh đói (dự phòng). */
+    private int writeBubbleIcons(int[] rows, float foodX, float y, int startIndex, int count, int offset) {
+        for (int i = 0; i < count; i++) {
+            int icon = startIndex + i;
+            float iconX = foodX + (VITAL_ICON_COUNT - 1 - icon) * VITAL_SPACING;
+            for (int row = 0; row < rows.length; row++) {
+                int col = 0;
+                while (col < 7) {
+                    if ((rows[row] & (1 << (6 - col))) == 0) {
+                        col++;
+                        continue;
+                    }
+                    int first = col++;
+                    while (col < 7 && (rows[row] & (1 << (6 - col))) != 0) {
+                        col++;
+                    }
+                    float x0 = iconX + first * VITAL_PIXEL;
+                    float x1 = iconX + col * VITAL_PIXEL;
+                    float y0 = y + row * VITAL_PIXEL;
+                    float y1 = y0 + VITAL_PIXEL;
+                    writeQuad(textVertices, offset, x0, y1, 0f, x1, y1, 0f, x1, y0, 0f,
+                            x0, y0, 0f, 0f, 0f, 1f, 1f);
+                    offset += 36;
+                }
+            }
+        }
+        return offset;
+    }
+    // === END HOOK: TRACK C - FIELDS ===
+
     static {
         for (int i = 0; i < NUMBER_LABELS.length; i++) {
             NUMBER_LABELS[i] = Integer.toString(i);
             VOLUME_LABELS[i] = "VOLUME: " + i + "%";
         }
     }
+
     /** Bốn hộp màn tạm dùng chung cho vẽ và kiểm tra click trên luồng chính. */
     private final float[] resumeButtonBounds = new float[4];
     private final float[] volumeMinusBounds = new float[4];
@@ -348,6 +607,8 @@ public class UIRenderer implements Disposable {
                              int windowHeight, float miningProgress, boolean isPaused, double mouseX,
                              double mouseY, Player player) {
         this.currentShader = shader;
+        GuiTextureAtlas atlas = ensureGuiAtlas();
+        boolean mounted = player != null && player.getMount() instanceof MountableMob;
 
         Gdx.gl.glDisable(GL20.GL_DEPTH_TEST);
         Gdx.gl.glDisable(GL20.GL_CULL_FACE);
@@ -358,12 +619,16 @@ public class UIRenderer implements Disposable {
 
         // 1. Luôn vẽ thanh 9 ô Hotbar ở cạnh dưới màn hình
         if (hotbar != null) {
-            renderHotbar(shader, textureAtlas, itemAtlas, hotbar, windowWidth, windowHeight);
+            renderHotbar(shader, textureAtlas, itemAtlas, atlas, hotbar, windowWidth, windowHeight, mounted);
         }
         if (player != null) {
-            renderVitals(player, windowWidth, windowHeight);
+            renderVitals(player, atlas, windowWidth, windowHeight);
             if (player.getMount() instanceof MountableMob mount) {
-                renderMountVitals(mount, windowWidth, windowHeight);
+                if (atlas != null) {
+                    renderTexturedMountJumpBar(atlas, mount, windowWidth, windowHeight);
+                } else {
+                    renderMountVitals(mount, windowWidth, windowHeight);
+                }
             }
         }
 
@@ -375,15 +640,28 @@ public class UIRenderer implements Disposable {
                 renderEnvironment();
             }
             // 2. Khi đang chơi: Vẽ tâm ngắm Crosshair ở chính giữa màn hình
-            renderCrosshair(shader, windowWidth, windowHeight);
+            renderCrosshair(shader, atlas, windowWidth, windowHeight);
 
             // 3. Nếu đang giữ chuột trái đập một Block: Vẽ thanh Tiến trình Đập Block ngay dưới tâm ngắm
             if (miningProgress > 0.001f) {
                 renderMiningProgressBar(shader, windowWidth, windowHeight, miningProgress);
             }
+            // === HOOK: TRACK C - INGAME HUD ===
+            // Vẽ thanh Oxy (10 bóng khí), DebugOverlayRenderer (F3) và InventoryScreenRenderer (E) tại đây.
+            if (player != null && (player.isEyeInWater() || player.getAirTicks() < Player.AIR_MAX_TICKS)) {
+                renderOxygenBar(player, windowWidth, windowHeight);
+            }
+            if (debugOverlay != null && debugOverlay.isVisible()) {
+                debugOverlay.render(shader, this, debugWorld, player, camera, windowWidth, windowHeight);
+            }
+            if (inventoryScreen != null && inventoryScreen.isOpen() && player != null) {
+                inventoryScreen.render(shader, player.getInventory(), textureAtlas, itemAtlas, atlas,
+                        windowWidth, windowHeight, (float) mouseX, (float) mouseY);
+            }
+            // === END HOOK: TRACK C - INGAME HUD ===
         } else {
             // 4. Khi bấm ESC tạm dừng: Vẽ Menu Tạm dừng (Pause Menu) với ô Resume và điều chỉnh Âm lượng
-            renderPauseMenu(shader, audioManager, windowWidth, windowHeight, mouseX, mouseY);
+            renderPauseMenu(shader, atlas, audioManager, windowWidth, windowHeight, mouseX, mouseY);
         }
 
         shader.enable3DWorldMode();
@@ -392,27 +670,194 @@ public class UIRenderer implements Disposable {
         Gdx.gl.glEnable(GL20.GL_DEPTH_TEST);
     }
 
-    /** Vẽ lại cùng ba dải đỉnh khi kích thước và số điểm hiển thị giữ nguyên. */
-    private void renderVitals(Player player, int windowWidth, int windowHeight) {
-        int hp = (int) Math.ceil(player.getHealth());
-        int food = (int) Math.ceil(player.getHunger());
-        if (windowWidth != vitalWidth || windowHeight != vitalHeight || hp != vitalHealth || food != vitalFood) {
-            rebuildVitals(windowWidth, windowHeight, hp, food);
-        }
-        currentShader.setUniform1i("uUseTexture", 0);
-        currentShader.setUniformVec4("uTintColor", 0.15f, 0.12f, 0.17f, 0.95f);
-        vitalMesh.render(currentShader.getGdxShader(), GL20.GL_TRIANGLES, 0, healthVertex);
-        currentShader.setUniformVec4("uTintColor", 0.94f, 0.29f, 0.35f, 1f);
-        if (foodVertex > healthVertex) {
-            vitalMesh.render(currentShader.getGdxShader(), GL20.GL_TRIANGLES, healthVertex, foodVertex - healthVertex);
-        }
-        currentShader.setUniformVec4("uTintColor", 0.97f, 0.64f, 0.30f, 1f);
-        if (vitalVertexCount > foodVertex) {
-            vitalMesh.render(currentShader.getGdxShader(), GL20.GL_TRIANGLES, foodVertex, vitalVertexCount - foodVertex);
+    /** Vẽ dải tim người chơi (thường/độc), đùi thịt (thường/đói) và tim thú cưỡi (khi đang cưỡi). */
+    private void renderVitals(Player player, GuiTextureAtlas atlas, int windowWidth, int windowHeight) {
+        int hp = Math.max(0, Math.min(20, (int) Math.ceil(player.getHealth())));
+        int food = Math.max(0, Math.min(20, (int) Math.ceil(player.getHunger())));
+        boolean poisoned = player.hasEffect(StatusEffectType.POISON);
+        boolean hungerEffect = player.hasEffect(StatusEffectType.HUNGER);
+        MountableMob mount = (player.getMount() instanceof MountableMob m) ? m : null;
+        boolean mounted = mount != null;
+        int mountHp = mounted ? Math.max(0, (int) Math.ceil(mount.getHealth())) : 0;
+        int mountMaxHp = mounted ? Math.max(1, (int) Math.ceil(mount.getMaxHealth())) : 0;
+        boolean useGui = atlas != null;
+
+        if (useGui) {
+            if (windowWidth != vitalWidth || windowHeight != vitalHeight
+                    || hp != vitalHealth || food != vitalFood
+                    || poisoned != vitalPoisoned || hungerEffect != vitalHungerEffect
+                    || mounted != vitalMounted || mountHp != vitalMountHp
+                    || mountMaxHp != vitalMountMaxHp || !vitalUsedGuiAtlas) {
+                rebuildTexturedVitals(windowWidth, windowHeight, hp, food, poisoned, hungerEffect,
+                        mounted, mountHp, mountMaxHp);
+            }
+            atlas.bindHudAtlas();
+            currentShader.setUniform1i("uUseTexture", 1);
+            currentShader.setUniformVec4("uTintColor", 1.0f, 1.0f, 1.0f, 1.0f);
+            vitalMesh.render(currentShader.getGdxShader(), GL20.GL_TRIANGLES, 0, vitalVertexCount);
+            atlas.unbind();
+        } else {
+            if (windowWidth != vitalWidth || windowHeight != vitalHeight
+                    || hp != vitalHealth || food != vitalFood || vitalUsedGuiAtlas) {
+                rebuildFallbackVitals(windowWidth, windowHeight, hp, food);
+            }
+            currentShader.setUniform1i("uUseTexture", 0);
+            currentShader.setUniformVec4("uTintColor", 0.15f, 0.12f, 0.17f, 0.95f);
+            vitalMesh.render(currentShader.getGdxShader(), GL20.GL_TRIANGLES, 0, healthVertex);
+            currentShader.setUniformVec4("uTintColor", 0.94f, 0.29f, 0.35f, 1f);
+            if (foodVertex > healthVertex) {
+                vitalMesh.render(currentShader.getGdxShader(), GL20.GL_TRIANGLES,
+                        healthVertex, foodVertex - healthVertex);
+            }
+            currentShader.setUniformVec4("uTintColor", 0.97f, 0.64f, 0.30f, 1f);
+            if (vitalVertexCount > foodVertex) {
+                vitalMesh.render(currentShader.getGdxShader(), GL20.GL_TRIANGLES,
+                        foodVertex, vitalVertexCount - foodVertex);
+            }
         }
     }
 
-    /** Hiển thị máu và tiến độ nhảy hoặc hồi lướt ngay trên hàng chỉ số người chơi. */
+    /** Dựng lưới sprite tim, đùi thịt và tim thú cưỡi từ {@link GuiTextureAtlas} (zero-GC). */
+    private void rebuildTexturedVitals(int windowWidth, int windowHeight, int hp, int food,
+                                       boolean poisoned, boolean hungerEffect,
+                                       boolean mounted, int mountHp, int mountMaxHp) {
+        if (vitalMesh == null) {
+            vitalMesh = new Mesh(Mesh.VertexDataType.VertexBufferObjectWithVAO, true, VITAL_VERTEX_CAPACITY,
+                    0, VERTEX_ATTRIBUTES);
+        }
+        int scale = getHudScale(windowWidth);
+        float hotbarW = 182.0f * scale;
+        float hotbarH = 22.0f * scale;
+        float hotbarX = Math.round((windowWidth - hotbarW) * 0.5f);
+        float hotbarY = windowHeight - hotbarH - 12.0f;
+        float vitalsY = hotbarY - (mounted ? 18.0f : 12.0f) * scale;
+        float iconSize = 9.0f * scale;
+        float iconStep = 8.0f * scale;
+        float foodRightMostX = hotbarX + hotbarW - iconSize;
+
+        int length = 0;
+
+        // 1. Thanh máu 10 tim bên trái (nền container trước, lớp tim đầy/nửa đè lên sau)
+        float[] heartBgUv = GuiTextureAtlas.uvOf(GuiTextureAtlas.SpriteKey.HEART_CONTAINER);
+        float[] heartFullUv = GuiTextureAtlas.uvOf(poisoned
+                ? GuiTextureAtlas.SpriteKey.HEART_POISONED_FULL
+                : GuiTextureAtlas.SpriteKey.HEART_FULL);
+        float[] heartHalfUv = GuiTextureAtlas.uvOf(poisoned
+                ? GuiTextureAtlas.SpriteKey.HEART_POISONED_HALF
+                : GuiTextureAtlas.SpriteKey.HEART_HALF);
+        for (int i = 0; i < VITAL_ICON_COUNT; i++) {
+            float x = hotbarX + i * iconStep;
+            length = writeSpriteQuad(textVertices, length, x, vitalsY, iconSize, iconSize, heartBgUv);
+            int threshold = (i + 1) * 2;
+            if (hp >= threshold) {
+                length = writeSpriteQuad(textVertices, length, x, vitalsY, iconSize, iconSize, heartFullUv);
+            } else if (hp == threshold - 1) {
+                length = writeSpriteQuad(textVertices, length, x, vitalsY, iconSize, iconSize, heartHalfUv);
+            }
+        }
+
+        // 2. Thanh đói 10 đùi thịt bên phải (từ phải sang trái, đổi sang màu xanh khi dính HUNGER)
+        float[] foodBgUv = GuiTextureAtlas.uvOf(hungerEffect
+                ? GuiTextureAtlas.SpriteKey.FOOD_EMPTY_HUNGER
+                : GuiTextureAtlas.SpriteKey.FOOD_EMPTY);
+        float[] foodFullUv = GuiTextureAtlas.uvOf(hungerEffect
+                ? GuiTextureAtlas.SpriteKey.FOOD_FULL_HUNGER
+                : GuiTextureAtlas.SpriteKey.FOOD_FULL);
+        float[] foodHalfUv = GuiTextureAtlas.uvOf(hungerEffect
+                ? GuiTextureAtlas.SpriteKey.FOOD_HALF_HUNGER
+                : GuiTextureAtlas.SpriteKey.FOOD_HALF);
+        for (int i = 0; i < VITAL_ICON_COUNT; i++) {
+            float x = foodRightMostX - i * iconStep;
+            length = writeSpriteQuad(textVertices, length, x, vitalsY, iconSize, iconSize, foodBgUv);
+            int threshold = (i + 1) * 2;
+            if (food >= threshold) {
+                length = writeSpriteQuad(textVertices, length, x, vitalsY, iconSize, iconSize, foodFullUv);
+            } else if (food == threshold - 1) {
+                length = writeSpriteQuad(textVertices, length, x, vitalsY, iconSize, iconSize, foodHalfUv);
+            }
+        }
+
+        // 3. Nếu đang cưỡi thú: vẽ tim thú cưỡi phía trên thanh đói bên phải
+        if (mounted) {
+            float mountY = vitalsY - 10.0f * scale;
+            int mountHearts = Math.max(1, Math.min(VITAL_ICON_COUNT, (mountMaxHp + 1) / 2));
+            float[] mBgUv = GuiTextureAtlas.uvOf(GuiTextureAtlas.SpriteKey.HEART_VEHICLE_CONTAINER);
+            float[] mFullUv = GuiTextureAtlas.uvOf(GuiTextureAtlas.SpriteKey.HEART_VEHICLE_FULL);
+            float[] mHalfUv = GuiTextureAtlas.uvOf(GuiTextureAtlas.SpriteKey.HEART_VEHICLE_HALF);
+            for (int i = 0; i < mountHearts; i++) {
+                float x = foodRightMostX - i * iconStep;
+                length = writeSpriteQuad(textVertices, length, x, mountY, iconSize, iconSize, mBgUv);
+                int threshold = (i + 1) * 2;
+                if (mountHp >= threshold) {
+                    length = writeSpriteQuad(textVertices, length, x, mountY, iconSize, iconSize, mFullUv);
+                } else if (mountHp == threshold - 1) {
+                    length = writeSpriteQuad(textVertices, length, x, mountY, iconSize, iconSize, mHalfUv);
+                }
+            }
+        }
+
+        vitalVertexCount = length / 6;
+        healthVertex = vitalVertexCount;
+        foodVertex = vitalVertexCount;
+        vitalMesh.setVertices(textVertices, 0, length);
+
+        vitalWidth = windowWidth;
+        vitalHeight = windowHeight;
+        vitalHealth = hp;
+        vitalFood = food;
+        vitalPoisoned = poisoned;
+        vitalHungerEffect = hungerEffect;
+        vitalMounted = mounted;
+        vitalMountHp = mountHp;
+        vitalMountMaxHp = mountMaxHp;
+        vitalUsedGuiAtlas = true;
+    }
+
+    /** Ghi nhanh 1 quad sprite UV vào mảng đỉnh tái sử dụng. */
+    private static int writeSpriteQuad(float[] buffer, int offset, float x, float y,
+                                       float w, float h, float[] uv) {
+        if (offset + 36 > buffer.length) {
+            return offset;
+        }
+        writeQuad(buffer, offset, x, y + h, 0f, x + w, y + h, 0f,
+                x + w, y, 0f, x, y, 0f, uv[0], uv[1], uv[2], uv[3]);
+        return offset + 36;
+    }
+
+    /** Vẽ thanh nhảy / hồi lướt thú cưỡi chuẩn 182 × 5 từ {@link GuiTextureAtlas}. */
+    private void renderTexturedMountJumpBar(GuiTextureAtlas atlas, MountableMob mount,
+                                            int windowWidth, int windowHeight) {
+        int scale = getHudScale(windowWidth);
+        float hotbarW = 182.0f * scale;
+        float hotbarH = 22.0f * scale;
+        float hotbarX = Math.round((windowWidth - hotbarW) * 0.5f);
+        float hotbarY = windowHeight - hotbarH - 12.0f;
+        float jumpY = hotbarY - 7.0f * scale;
+        float jumpH = 5.0f * scale;
+
+        float[] bgUv = GuiTextureAtlas.uvOf(GuiTextureAtlas.SpriteKey.JUMP_BAR_BACKGROUND);
+        float cooldown = mount.dashCooldownRemaining();
+        float progress = cooldown > 0f ? 1f - cooldown / 2.75f : mount.chargeProgress();
+        float clamped = Math.max(0.0f, Math.min(1.0f, progress));
+
+        atlas.bindHudAtlas();
+        currentShader.setUniform1i("uUseTexture", 1);
+        currentShader.setUniformVec4("uTintColor", 1.0f, 1.0f, 1.0f, 1.0f);
+        drawTexturedRect2D(hotbarX, jumpY, hotbarW, jumpH, bgUv[0], bgUv[1], bgUv[2], bgUv[3]);
+
+        if (clamped > 0.001f) {
+            GuiTextureAtlas.SpriteKey fillKey = cooldown > 0f
+                    ? GuiTextureAtlas.SpriteKey.JUMP_BAR_COOLDOWN
+                    : GuiTextureAtlas.SpriteKey.JUMP_BAR_PROGRESS;
+            float[] fillUv = GuiTextureAtlas.uvOf(fillKey);
+            float uEnd = fillUv[0] + (fillUv[2] - fillUv[0]) * clamped;
+            drawTexturedRect2D(hotbarX, jumpY, hotbarW * clamped, jumpH,
+                    fillUv[0], fillUv[1], uEnd, fillUv[3]);
+        }
+        atlas.unbind();
+    }
+
+    /** Hiển thị máu và tiến độ nhảy hoặc hồi lướt dạng dự phòng khi chưa có GuiTextureAtlas. */
     private void renderMountVitals(MountableMob mount, int width, int height) {
         float y = height - HOTBAR_SLOT_SIZE - HOTBAR_SLOT_PADDING * 2f - 75f;
         float left = width * 0.5f - 100f;
@@ -436,8 +881,8 @@ public class UIRenderer implements Disposable {
         drawPixelText(label, x, y - 9f, 1f);
     }
 
-    /** Ghi nền, tim và thịt vào một bộ đệm khi số điểm hoặc kích thước cửa sổ thay đổi. */
-    private void rebuildVitals(int windowWidth, int windowHeight, int hp, int food) {
+    /** Ghi nền, tim và thịt dạng bitmap dự phòng khi không có GuiTextureAtlas. */
+    private void rebuildFallbackVitals(int windowWidth, int windowHeight, int hp, int food) {
         float halfBarWidth = (Hotbar.SLOT_COUNT * HOTBAR_SLOT_SIZE
                 + (Hotbar.SLOT_COUNT + 1) * HOTBAR_SLOT_PADDING) * 0.5f;
         float span = (VITAL_ICON_COUNT - 1) * VITAL_SPACING + 7f * VITAL_PIXEL;
@@ -460,6 +905,7 @@ public class UIRenderer implements Disposable {
         vitalHeight = windowHeight;
         vitalHealth = hp;
         vitalFood = food;
+        vitalUsedGuiAtlas = false;
     }
 
     /** Gộp từng dải pixel liên tiếp thành một quad, cắt nửa biểu tượng khi còn một điểm. */
@@ -503,6 +949,7 @@ public class UIRenderer implements Disposable {
             effectLabel.setLength(0);
             effectLabel.append(type.name()).append(' ').append((int) Math.ceil(remaining)).append('S');
             float x = windowWidth - 10f - effectLabel.length() * 9f;
+            currentShader.setUniform1i("uUseTexture", 0);
             currentShader.setUniformVec4("uTintColor", 0f, 0f, 0f, 0.8f);
             drawPixelText(effectLabel, x + 1.5f, y + 1.5f, 1.5f);
             currentShader.setUniformVec4("uTintColor", 1f, 1f, 1f, 0.95f);
@@ -543,7 +990,22 @@ public class UIRenderer implements Disposable {
         drawPixelText(label, 10f, y, 1.5f);
     }
 
-    private void renderCrosshair(ShaderProgram shader, int windowWidth, int windowHeight) {
+    /** Vẽ tâm ngắm Crosshair 15 × 15 chuẩn Minecraft từ {@link GuiTextureAtlas} (có fallback). */
+    private void renderCrosshair(ShaderProgram shader, GuiTextureAtlas atlas, int windowWidth, int windowHeight) {
+        if (atlas != null) {
+            int scale = getHudScale(windowWidth);
+            float size = 15.0f * scale;
+            float x = Math.round(windowWidth * 0.5f - size * 0.5f);
+            float y = Math.round(windowHeight * 0.5f - size * 0.5f);
+            float[] uv = GuiTextureAtlas.uvOf(GuiTextureAtlas.SpriteKey.CROSSHAIR);
+            atlas.bindHudAtlas();
+            shader.setUniform1i("uUseTexture", 1);
+            shader.setUniformVec4("uTintColor", 1.0f, 1.0f, 1.0f, 0.92f);
+            drawTexturedRect2D(x, y, size, size, uv[0], uv[1], uv[2], uv[3]);
+            atlas.unbind();
+            return;
+        }
+
         float cx = windowWidth * 0.5f;
         float cy = windowHeight * 0.5f;
 
@@ -583,12 +1045,17 @@ public class UIRenderer implements Disposable {
             ShaderProgram shader,
             Texture textureAtlas,
             ItemTextureAtlas itemAtlas,
+            GuiTextureAtlas guiAtlas,
             Hotbar hotbar,
             int windowWidth,
-            int windowHeight
+            int windowHeight,
+            boolean mounted
     ) {
+        boolean useGui = guiAtlas != null;
         boolean changed = windowWidth != hotbarWidth || windowHeight != hotbarHeight
-                || hotbar.getSelectedSlot() != hotbarSelection;
+                || hotbar.getSelectedSlot() != hotbarSelection
+                || useGui != hotbarUsedGuiAtlas
+                || mounted != hotbarMounted;
         for (int i = 0; i < Hotbar.SLOT_COUNT; i++) {
             Item item = hotbar.getSlotItem(i);
             int count = hotbar.getSlotCount(i);
@@ -600,10 +1067,16 @@ public class UIRenderer implements Disposable {
             hotbarWidth = windowWidth;
             hotbarHeight = windowHeight;
             hotbarSelection = hotbar.getSelectedSlot();
+            hotbarUsedGuiAtlas = useGui;
+            hotbarMounted = mounted;
             hotbarLength = 0;
             hotbarStyleCount = 0;
             recordingHotbar = true;
-            rebuildHotbar(hotbar, windowWidth, windowHeight);
+            if (useGui) {
+                rebuildTexturedHotbar(hotbar, windowWidth, windowHeight, mounted);
+            } else {
+                rebuildFallbackHotbar(hotbar, windowWidth, windowHeight);
+            }
             recordingHotbar = false;
             if (hotbarMesh == null) {
                 hotbarMesh = new Mesh(Mesh.VertexDataType.VertexBufferObjectWithVAO, true,
@@ -611,6 +1084,7 @@ public class UIRenderer implements Disposable {
             }
             hotbarMesh.setVertices(hotbarVertices, 0, hotbarLength);
         }
+
         // Chuyển đổi atlas chỉ khi loại texture thay đổi để giữ chi phí draw call tối thiểu.
         var program = shader.getGdxShader();
         int start = 0;
@@ -628,9 +1102,14 @@ public class UIRenderer implements Disposable {
             } else if (source == TEXTURE_ITEM_ATLAS && itemAtlas != null && boundSource != TEXTURE_ITEM_ATLAS) {
                 itemAtlas.bind();
                 boundSource = TEXTURE_ITEM_ATLAS;
+            } else if (source == TEXTURE_GUI_ATLAS && guiAtlas != null && boundSource != TEXTURE_GUI_ATLAS) {
+                guiAtlas.bindHudAtlas();
+                boundSource = TEXTURE_GUI_ATLAS;
             }
             int tint = i * 4;
-            boolean useTexture = source == TEXTURE_BLOCK_ATLAS || (source == TEXTURE_ITEM_ATLAS && itemAtlas != null);
+            boolean useTexture = source == TEXTURE_BLOCK_ATLAS
+                    || (source == TEXTURE_ITEM_ATLAS && itemAtlas != null)
+                    || (source == TEXTURE_GUI_ATLAS && guiAtlas != null);
             shader.setUniform1i("uUseTexture", useTexture ? 1 : 0);
             shader.setUniformVec4("uTintColor", hotbarTints[tint], hotbarTints[tint + 1],
                     hotbarTints[tint + 2], hotbarTints[tint + 3]);
@@ -638,15 +1117,108 @@ public class UIRenderer implements Disposable {
             start = end;
         }
         hotbarMesh.unbind(program);
-        if (boundSource == TEXTURE_ITEM_ATLAS && itemAtlas != null) {
+        if (boundSource == TEXTURE_GUI_ATLAS && guiAtlas != null) {
+            guiAtlas.unbind();
+        } else if (boundSource == TEXTURE_ITEM_ATLAS && itemAtlas != null) {
             itemAtlas.unbind();
-        } else {
+        } else if (boundSource == TEXTURE_BLOCK_ATLAS) {
             textureAtlas.unbind();
         }
     }
 
-    /** Ghi lại chiều hình học của các ô, biểu tượng và nhãn khi dữ liệu hiển thị thay đổi. */
-    private void rebuildHotbar(Hotbar hotbar, int windowWidth, int windowHeight) {
+    /** Dựng lưới Hotbar chuẩn Minecraft 182 × 22 + khung chọn 24 × 23 từ {@link GuiTextureAtlas}. */
+    private void rebuildTexturedHotbar(Hotbar hotbar, int windowWidth, int windowHeight, boolean mounted) {
+        int scale = getHudScale(windowWidth);
+        float totalWidth = 182.0f * scale;
+        float barHeight = 22.0f * scale;
+        float startX = Math.round((windowWidth - totalWidth) * 0.5f);
+        float startY = windowHeight - barHeight - 12.0f;
+
+        // 1. Vẽ tấm nền 9 ô hotbar.png (182 × 22) và khung chọn hotbar_selection.png (24 × 23)
+        float[] hotbarUv = GuiTextureAtlas.uvOf(GuiTextureAtlas.SpriteKey.HOTBAR);
+        beginHotbarStyle(TEXTURE_GUI_ATLAS, 1.0f, 1.0f, 1.0f, 1.0f);
+        drawTexturedRect2D(startX, startY, totalWidth, barHeight,
+                hotbarUv[0], hotbarUv[1], hotbarUv[2], hotbarUv[3]);
+
+        int selectedSlot = hotbar.getSelectedSlot();
+        float[] selUv = GuiTextureAtlas.uvOf(GuiTextureAtlas.SpriteKey.HOTBAR_SELECTION);
+        float selX = startX + (selectedSlot * 20.0f - 1.0f) * scale;
+        float selY = startY - 1.0f * scale;
+        drawTexturedRect2D(selX, selY, 24.0f * scale, 23.0f * scale,
+                selUv[0], selUv[1], selUv[2], selUv[3]);
+
+        // 2. Vẽ số phím (1..9), biểu tượng khối/vật phẩm và số lượng từng ô
+        float slotInner = 16.0f * scale;
+        float keyLabelScale = Math.max(1.0f, scale * 0.45f);
+        float countScale = Math.max(1.4f, scale * 0.60f);
+
+        for (int i = 0; i < Hotbar.SLOT_COUNT; i++) {
+            float slotX = startX + (3.0f + i * 20.0f) * scale;
+            float slotY = startY + 3.0f * scale;
+
+            // Số thứ tự phím (1..9) nhỏ ở góc trái-trên của ô
+            beginHotbarStyle(TEXTURE_NONE, 0.78f, 0.80f, 0.85f, 0.78f);
+            drawPixelText(NUMBER_LABELS[i + 1], slotX + 1.5f, slotY + 1.5f, keyLabelScale);
+
+            Item item = hotbar.getSlotItem(i);
+            int count = hotbar.getSlotCount(i);
+            if (!item.isNone() && count > 0) {
+                float iconWidth = slotInner;
+                float iconHeight = slotInner;
+                float[] uv;
+                byte texSource;
+                if (item.isBlock()) {
+                    Block itemBlock = item.getBlock();
+                    if (itemBlock.getGeometryType() == Block.GeometryType.CACTUS) {
+                        Block.Bounds shape = itemBlock.getSelectionBounds(0);
+                        iconWidth *= shape.maxX() - shape.minX();
+                    } else if (itemBlock.getGeometryType() == Block.GeometryType.SNOW_LAYER) {
+                        iconHeight *= itemBlock.getSelectionBounds(0).maxY();
+                    }
+                    uv = Chunk.tileUv(itemBlock.getTileIndex(Block.Face.SOUTH));
+                    texSource = TEXTURE_BLOCK_ATLAS;
+                } else {
+                    uv = item.getTileUV();
+                    texSource = TEXTURE_ITEM_ATLAS;
+                }
+                float iconX = slotX + (slotInner - iconWidth) * 0.5f;
+                float iconY = slotY + (slotInner - iconHeight) * 0.5f;
+
+                beginHotbarStyle(texSource, 1.0f, 1.0f, 1.0f, 1.0f);
+                drawTexturedRect2D(iconX, iconY, iconWidth, iconHeight, uv[0], uv[1], uv[2], uv[3]);
+
+                // Số lượng item ở góc phải-dưới của ô
+                String countStr = NUMBER_LABELS[count];
+                float textW = countStr.length() * 6.0f * countScale;
+                float tx = slotX + slotInner - textW - 1.0f;
+                float ty = slotY + slotInner - 7.0f * countScale - 1.0f;
+
+                beginHotbarStyle(TEXTURE_NONE, 0.05f, 0.05f, 0.05f, 0.95f);
+                drawPixelText(countStr, tx + 1.5f, ty + 1.5f, countScale);
+
+                beginHotbarStyle(TEXTURE_NONE, 1.0f, 1.0f, 1.0f, 1.0f);
+                drawPixelText(countStr, tx, ty, countScale);
+            }
+        }
+
+        // 3. Hiển thị tên loại Block/Item đang cầm phía trên các dải chỉ số
+        Item selectedItem = hotbar.getSelectedItem();
+        if (!selectedItem.isNone() && hotbar.getSelectedCount() > 0) {
+            String label = selectedItem.getDisplayName();
+            float nameScale = Math.max(1.5f, scale * 0.68f);
+            float labelW = label.length() * 6.0f * nameScale;
+            float lx = (windowWidth - labelW) * 0.5f;
+            float ly = startY - (mounted ? 40.0f : 29.0f) * scale;
+
+            beginHotbarStyle(TEXTURE_NONE, 0.0f, 0.0f, 0.0f, 0.78f);
+            drawPixelText(label, lx + 2.0f, ly + 2.0f, nameScale);
+            beginHotbarStyle(TEXTURE_NONE, 1.0f, 0.96f, 0.72f, 1.0f);
+            drawPixelText(label, lx, ly, nameScale);
+        }
+    }
+
+    /** Ghi lại hình học Hotbar dạng dự phòng khi chưa có GuiTextureAtlas. */
+    private void rebuildFallbackHotbar(Hotbar hotbar, int windowWidth, int windowHeight) {
         float totalWidth = Hotbar.SLOT_COUNT * HOTBAR_SLOT_SIZE + (Hotbar.SLOT_COUNT + 1) * HOTBAR_SLOT_PADDING;
         float barHeight = HOTBAR_SLOT_SIZE + HOTBAR_SLOT_PADDING * 2.0f;
         float startX = (windowWidth - totalWidth) * 0.5f;
@@ -757,6 +1329,7 @@ public class UIRenderer implements Disposable {
 
     private void renderPauseMenu(
             ShaderProgram shader,
+            GuiTextureAtlas atlas,
             AudioManager audioManager,
             int windowWidth,
             int windowHeight,
@@ -794,27 +1367,32 @@ public class UIRenderer implements Disposable {
         // 4. Ô Nút bấm "RESUME GAME"
         float[] resumeBounds = getResumeButtonBounds(windowWidth, windowHeight);
         boolean hoverResume = isPointInRect(mouseX, mouseY, resumeBounds);
-
-        shader.setUniformVec4("uTintColor", hoverResume ? 1.0f : 0.75f, hoverResume ? 0.95f : 0.78f, 0.40f, 1.0f);
-        drawRect2D(resumeBounds[0] - 2.0f, resumeBounds[1] - 2.0f, resumeBounds[2] + 4.0f, resumeBounds[3] + 4.0f);
-
-        if (hoverResume) {
-            shader.setUniformVec4("uTintColor", 0.26f, 0.58f, 0.30f, 1.0f);
+        if (atlas != null) {
+            drawWidgetSprite(shader, atlas, hoverResume
+                    ? GuiTextureAtlas.SpriteKey.WIDGET_BUTTON_HIGHLIGHTED
+                    : GuiTextureAtlas.SpriteKey.WIDGET_BUTTON, resumeBounds);
         } else {
-            shader.setUniformVec4("uTintColor", 0.20f, 0.44f, 0.24f, 1.0f);
+            shader.setUniform1i("uUseTexture", 0);
+            shader.setUniformVec4("uTintColor", hoverResume ? 1.0f : 0.75f, hoverResume ? 0.95f : 0.78f, 0.40f, 1.0f);
+            drawRect2D(resumeBounds[0] - 2.0f, resumeBounds[1] - 2.0f, resumeBounds[2] + 4.0f, resumeBounds[3] + 4.0f);
+            shader.setUniformVec4("uTintColor",
+                    hoverResume ? 0.26f : 0.20f,
+                    hoverResume ? 0.58f : 0.44f,
+                    hoverResume ? 0.30f : 0.24f, 1.0f);
+            drawRect2D(resumeBounds[0], resumeBounds[1], resumeBounds[2], resumeBounds[3]);
         }
-        drawRect2D(resumeBounds[0], resumeBounds[1], resumeBounds[2], resumeBounds[3]);
 
         String resumeLabel = "RESUME GAME";
         float resScale = 2.4f;
         float resW = resumeLabel.length() * 6.0f * resScale;
-        shader.setUniformVec4("uTintColor", 1.0f, 1.0f, 1.0f, 1.0f);
-        drawPixelText(
-                resumeLabel,
-                resumeBounds[0] + (resumeBounds[2] - resW) * 0.5f,
-                resumeBounds[1] + (resumeBounds[3] - 7.0f * resScale) * 0.5f,
-                resScale
-        );
+        float resX = resumeBounds[0] + (resumeBounds[2] - resW) * 0.5f;
+        float resY = resumeBounds[1] + (resumeBounds[3] - 7.0f * resScale) * 0.5f;
+        shader.setUniform1i("uUseTexture", 0);
+        shader.setUniformVec4("uTintColor", 0.12f, 0.12f, 0.12f, 0.92f);
+        drawPixelText(resumeLabel, resX + 2.0f, resY + 2.0f, resScale);
+        shader.setUniformVec4("uTintColor", hoverResume ? 1.0f : 0.96f, hoverResume ? 1.0f : 0.96f,
+                hoverResume ? 0.65f : 0.96f, 1.0f);
+        drawPixelText(resumeLabel, resX, resY, resScale);
 
         // 5. Khu vực Điều chỉnh Âm lượng Nhạc nền (Volume Control: Nút [-], Thanh trượt, Nút [+])
         int volPercent = (audioManager != null) ? audioManager.getVolumePercent() : 70;
@@ -827,45 +1405,89 @@ public class UIRenderer implements Disposable {
         // Nút Giảm âm lượng [-]
         float[] minusBounds = getVolumeMinusBounds(windowWidth, windowHeight);
         boolean hoverMinus = isPointInRect(mouseX, mouseY, minusBounds);
-        shader.setUniformVec4("uTintColor", 0.75f, 0.78f, 0.82f, 1.0f);
-        drawRect2D(minusBounds[0] - 2.0f, minusBounds[1] - 2.0f, minusBounds[2] + 4.0f, minusBounds[3] + 4.0f);
-        shader.setUniformVec4("uTintColor", hoverMinus ? 0.42f : 0.26f, hoverMinus ? 0.45f : 0.29f, 0.36f, 1.0f);
-        drawRect2D(minusBounds[0], minusBounds[1], minusBounds[2], minusBounds[3]);
-        shader.setUniformVec4("uTintColor", 1.0f, 1.0f, 1.0f, 1.0f);
-        drawPixelText("-", minusBounds[0] + 15.0f, minusBounds[1] + 11.0f, 2.8f);
+        drawPauseSquareButton(shader, atlas, minusBounds, hoverMinus, "-");
 
-        // Thanh trượt Volume (Slider Track & Fill)
+        // Thanh trượt Volume (Slider Track & Handle)
         float[] sliderBounds = getVolumeSliderBounds(windowWidth, windowHeight);
         float volRatio = (audioManager != null) ? audioManager.getVolume() : 0.7f;
+        boolean hoverSlider = getSliderVolumeAtCursor(mouseX, mouseY, windowWidth, windowHeight) >= 0.0f;
 
-        shader.setUniformVec4("uTintColor", 0.08f, 0.09f, 0.12f, 1.0f);
-        drawRect2D(sliderBounds[0] - 2.0f, sliderBounds[1] - 2.0f, sliderBounds[2] + 4.0f, sliderBounds[3] + 4.0f);
+        if (atlas != null) {
+            drawWidgetSprite(shader, atlas, hoverSlider
+                    ? GuiTextureAtlas.SpriteKey.WIDGET_SLIDER_HIGHLIGHTED
+                    : GuiTextureAtlas.SpriteKey.WIDGET_SLIDER, sliderBounds);
 
-        shader.setUniformVec4("uTintColor", 0.24f, 0.65f, 0.92f, 1.0f);
-        drawRect2D(sliderBounds[0], sliderBounds[1], sliderBounds[2] * volRatio, sliderBounds[3]);
+            float knobW = 14.0f;
+            float knobH = sliderBounds[3] + 6.0f;
+            float knobX = sliderBounds[0] + (sliderBounds[2] - knobW) * volRatio;
+            float knobY = sliderBounds[1] - 3.0f;
+            float[] handleUv = GuiTextureAtlas.uvOf(hoverSlider
+                    ? GuiTextureAtlas.SpriteKey.WIDGET_SLIDER_HANDLE_HIGHLIGHTED
+                    : GuiTextureAtlas.SpriteKey.WIDGET_SLIDER_HANDLE);
+            atlas.bindHudAtlas();
+            shader.setUniform1i("uUseTexture", 1);
+            shader.setUniformVec4("uTintColor", 1.0f, 1.0f, 1.0f, 1.0f);
+            drawTexturedRect2D(knobX, knobY, knobW, knobH, handleUv[0], handleUv[1], handleUv[2], handleUv[3]);
+            atlas.unbind();
+        } else {
+            shader.setUniform1i("uUseTexture", 0);
+            shader.setUniformVec4("uTintColor", 0.08f, 0.09f, 0.12f, 1.0f);
+            drawRect2D(sliderBounds[0] - 2.0f, sliderBounds[1] - 2.0f, sliderBounds[2] + 4.0f, sliderBounds[3] + 4.0f);
 
-        float knobW = 12.0f;
-        float knobX = sliderBounds[0] + sliderBounds[2] * volRatio - knobW * 0.5f;
-        knobX = Math.max(sliderBounds[0], Math.min(sliderBounds[0] + sliderBounds[2] - knobW, knobX));
-        shader.setUniformVec4("uTintColor", 1.0f, 0.95f, 0.50f, 1.0f);
-        drawRect2D(knobX, sliderBounds[1] - 5.0f, knobW, sliderBounds[3] + 10.0f);
+            shader.setUniformVec4("uTintColor", 0.24f, 0.65f, 0.92f, 1.0f);
+            drawRect2D(sliderBounds[0], sliderBounds[1], sliderBounds[2] * volRatio, sliderBounds[3]);
+
+            float knobW = 12.0f;
+            float knobX = sliderBounds[0] + sliderBounds[2] * volRatio - knobW * 0.5f;
+            knobX = Math.max(sliderBounds[0], Math.min(sliderBounds[0] + sliderBounds[2] - knobW, knobX));
+            shader.setUniformVec4("uTintColor", 1.0f, 0.95f, 0.50f, 1.0f);
+            drawRect2D(knobX, sliderBounds[1] - 5.0f, knobW, sliderBounds[3] + 10.0f);
+        }
 
         // Nút Tăng âm lượng [+]
         float[] plusBounds = getVolumePlusBounds(windowWidth, windowHeight);
         boolean hoverPlus = isPointInRect(mouseX, mouseY, plusBounds);
-        shader.setUniformVec4("uTintColor", 0.75f, 0.78f, 0.82f, 1.0f);
-        drawRect2D(plusBounds[0] - 2.0f, plusBounds[1] - 2.0f, plusBounds[2] + 4.0f, plusBounds[3] + 4.0f);
-        shader.setUniformVec4("uTintColor", hoverPlus ? 0.42f : 0.26f, hoverPlus ? 0.45f : 0.29f, 0.36f, 1.0f);
-        drawRect2D(plusBounds[0], plusBounds[1], plusBounds[2], plusBounds[3]);
-        shader.setUniformVec4("uTintColor", 1.0f, 1.0f, 1.0f, 1.0f);
-        drawPixelText("+", plusBounds[0] + 15.0f, plusBounds[1] + 11.0f, 2.8f);
+        drawPauseSquareButton(shader, atlas, plusBounds, hoverPlus, "+");
 
         // 6. Dòng hướng dẫn bấm ESC lần 2 để thoát game
         String quitHint = "PRESS ESC AGAIN TO QUIT";
         float hintScale = 1.6f;
         float hintW = quitHint.length() * 6.0f * hintScale;
+        shader.setUniform1i("uUseTexture", 0);
         shader.setUniformVec4("uTintColor", 0.75f, 0.78f, 0.84f, 0.90f);
         drawPixelText(quitHint, (windowWidth - hintW) * 0.5f, panelY + PANEL_HEIGHT - 28.0f, hintScale);
+    }
+
+    /** Vẽ một widget hình chữ nhật từ {@link GuiTextureAtlas} khớp đúng khung hit-test. */
+    private void drawWidgetSprite(ShaderProgram shader, GuiTextureAtlas atlas,
+                                  GuiTextureAtlas.SpriteKey key, float[] bounds) {
+        float[] uv = GuiTextureAtlas.uvOf(key);
+        atlas.bindHudAtlas();
+        shader.setUniform1i("uUseTexture", 1);
+        shader.setUniformVec4("uTintColor", 1.0f, 1.0f, 1.0f, 1.0f);
+        drawTexturedRect2D(bounds[0], bounds[1], bounds[2], bounds[3], uv[0], uv[1], uv[2], uv[3]);
+        atlas.unbind();
+    }
+
+    /** Vẽ nút vuông [-]/[+] trên Pause Menu bằng widget Minecraft hoặc hình chữ nhật dự phòng. */
+    private void drawPauseSquareButton(ShaderProgram shader, GuiTextureAtlas atlas,
+                                       float[] bounds, boolean hovered, String symbol) {
+        if (atlas != null) {
+            drawWidgetSprite(shader, atlas, hovered
+                    ? GuiTextureAtlas.SpriteKey.WIDGET_BUTTON_HIGHLIGHTED
+                    : GuiTextureAtlas.SpriteKey.WIDGET_BUTTON, bounds);
+        } else {
+            shader.setUniform1i("uUseTexture", 0);
+            shader.setUniformVec4("uTintColor", 0.75f, 0.78f, 0.82f, 1.0f);
+            drawRect2D(bounds[0] - 2.0f, bounds[1] - 2.0f, bounds[2] + 4.0f, bounds[3] + 4.0f);
+            shader.setUniformVec4("uTintColor", hovered ? 0.42f : 0.26f, hovered ? 0.45f : 0.29f, 0.36f, 1.0f);
+            drawRect2D(bounds[0], bounds[1], bounds[2], bounds[3]);
+        }
+        shader.setUniform1i("uUseTexture", 0);
+        shader.setUniformVec4("uTintColor", 0.12f, 0.12f, 0.12f, 0.92f);
+        drawPixelText(symbol, bounds[0] + 16.5f, bounds[1] + 12.5f, 2.8f);
+        shader.setUniformVec4("uTintColor", 1.0f, 1.0f, 1.0f, 1.0f);
+        drawPixelText(symbol, bounds[0] + 15.0f, bounds[1] + 11.0f, 2.8f);
     }
 
     // =========================================================================
@@ -1103,6 +1725,12 @@ public class UIRenderer implements Disposable {
             case '%' -> new int[]{0b11001, 0b11010, 0b00010, 0b00100, 0b01000, 0b01011, 0b10011};
             case '-' -> new int[]{0b00000, 0b00000, 0b00000, 0b11111, 0b00000, 0b00000, 0b00000};
             case '+' -> new int[]{0b00000, 0b00100, 0b00100, 0b11111, 0b00100, 0b00100, 0b00000};
+            case '.' -> new int[]{0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b01100, 0b01100};
+            case '/' -> new int[]{0b00001, 0b00010, 0b00010, 0b00100, 0b01000, 0b01000, 0b10000};
+            case ',' -> new int[]{0b00000, 0b00000, 0b00000, 0b00000, 0b00110, 0b00100, 0b01000};
+            case '(' -> new int[]{0b00010, 0b00100, 0b01000, 0b01000, 0b01000, 0b00100, 0b00010};
+            case ')' -> new int[]{0b01000, 0b00100, 0b00010, 0b00010, 0b00010, 0b00100, 0b01000};
+            case '=' -> new int[]{0b00000, 0b00000, 0b11111, 0b00000, 0b11111, 0b00000, 0b00000};
             default -> null;
         };
     }
@@ -1122,5 +1750,24 @@ public class UIRenderer implements Disposable {
             uiMesh.dispose();
             uiMesh = null;
         }
+        // === HOOK: TRACK B - DISPOSE ===
+        // Giải phóng tài nguyên bổ sung của Track B tại đây.
+        // === END HOOK: TRACK B - DISPOSE ===
+
+        // === HOOK: TRACK C - DISPOSE ===
+        // Giải phóng GuiTextureAtlas và UI màn hình của Track C tại đây.
+        if (oxygenMesh != null) {
+            oxygenMesh.dispose();
+            oxygenMesh = null;
+            oxygenWidth = -1;
+        }
+        if (guiAtlas != null) {
+            guiAtlas.dispose();
+            guiAtlas = null;
+        }
+        inventoryScreen = null;
+        debugOverlay = null;
+        debugWorld = null;
+        // === END HOOK: TRACK C - DISPOSE ===
     }
 }

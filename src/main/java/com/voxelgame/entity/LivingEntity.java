@@ -18,7 +18,7 @@ public abstract class LivingEntity extends Entity {
     /** Dùng chung mảng rỗng cho thực thể không có ghế. */
     private static final LivingEntity[] NO_PASSENGERS = new LivingEntity[0];
 
-    protected final float maxHealth;
+    protected float maxHealth;
     protected final float armor;
     protected final boolean undead;
     private float health;
@@ -104,7 +104,7 @@ public abstract class LivingEntity extends Entity {
             return false;
         }
         if (((source == DamageSource.FIRE || source == DamageSource.LAVA || source == DamageSource.SUNLIGHT)
-                && hasEffect(StatusEffectType.FIRE_RESISTANCE))
+                && isImmuneToFire())
                 || source == DamageSource.DROWNING && hasEffect(StatusEffectType.WATER_BREATHING)) {
             return false;
         }
@@ -118,6 +118,9 @@ public abstract class LivingEntity extends Entity {
         applyKnockback(knockbackX, knockbackZ);
         if (health <= 0f) {
             endLife(DEATH_SECONDS);
+        }
+        if (world != null && attacker != null) {
+            world.playEntityHitSound(position.x, position.y, position.z);
         }
         return true;
     }
@@ -196,6 +199,11 @@ public abstract class LivingEntity extends Entity {
         poisonElapsed = 0f;
     }
 
+    /** Thực thể có miễn nhiễm sát thương Lửa, Dung nham và Ánh nắng hay không. */
+    public boolean isImmuneToFire() {
+        return hasEffect(StatusEffectType.FIRE_RESISTANCE);
+    }
+
     /** Thực thể undead miễn nhiễm độc. */
     public boolean isImmuneTo(StatusEffectType type) {
         return undead && type == StatusEffectType.POISON;
@@ -244,7 +252,7 @@ public abstract class LivingEntity extends Entity {
     /** Bắt đầu hoặc nối dài thời gian cháy mà giữ nhịp sát thương hiện tại. */
     public void ignite(float durationSeconds) {
         if (!dead && durationSeconds > fireTimer && Float.isFinite(durationSeconds)
-                && !hasEffect(StatusEffectType.FIRE_RESISTANCE)) {
+                && !isImmuneToFire()) {
             fireTimer = durationSeconds;
         }
     }
@@ -338,6 +346,16 @@ public abstract class LivingEntity extends Entity {
         resetFallTracking();
     }
 
+    /** Trả quãng rơi tích lũy hiện tại theo trục Y (block). */
+    public float getFallDistance() {
+        return fallDistance;
+    }
+
+    /** Xóa toàn bộ vận tốc hiện tại của thực thể (dùng khi dịch chuyển tức thời). */
+    public void stopMotion() {
+        velocity.setZero();
+    }
+
     /** Đặt lại sinh tồn khi tái sinh. */
     protected final void restoreLife() {
         health = maxHealth;
@@ -361,6 +379,23 @@ public abstract class LivingEntity extends Entity {
     /** Trả HP tối đa. */
     public float getMaxHealth() {
         return maxHealth;
+    }
+
+    /**
+     * Cập nhật máu tối đa cho thực thể (ví dụ {@code Wolf} khi được thuần hóa tăng từ 8 lên 20 HP).
+     *
+     * @param newMaxHealth máu tối đa mới (phải dương và hữu hạn)
+     * @param healToMax    {@code true} nếu hồi đầy HP lên mức tối đa mới ngay lập tức
+     */
+    protected final void setMaxHealth(float newMaxHealth, boolean healToMax) {
+        if (Float.isFinite(newMaxHealth) && newMaxHealth > 0f) {
+            this.maxHealth = newMaxHealth;
+            if (healToMax && !dead) {
+                this.health = newMaxHealth;
+            } else {
+                this.health = Math.min(this.health, newMaxHealth);
+            }
+        }
     }
 
     /** Trả lượng giáp tự nhiên. */

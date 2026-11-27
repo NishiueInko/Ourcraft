@@ -2,13 +2,16 @@ package com.voxelgame.entity;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
+import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Vector3;
 import com.voxelgame.engine.AudioManager;
 import com.voxelgame.engine.BiomeType;
 import com.voxelgame.engine.Camera;
+import com.voxelgame.engine.Raycast;
 import com.voxelgame.engine.ShaderProgram;
 import com.voxelgame.engine.World;
 import com.voxelgame.entity.mob.MountableMob;
+import com.voxelgame.entity.mob.Wolf;
 
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -87,6 +90,86 @@ public class Player extends LivingEntity {
 
     // Quan hệ Hợp thành (Composition - Player "has-a" Hotbar)
     private final Hotbar hotbar = new Hotbar();
+    // === HOOK: TRACK A - FIELDS ===
+    /** Thời gian hồi chiêu chuẩn Minecraft (giây) sau khi thổi sừng dê Goat Horn. */
+    public static final float GOAT_HORN_COOLDOWN = 7.0f;
+    /** Mức bão hòa (saturation) khởi đầu chuẩn Minecraft và thông số thuốc Witch. */
+    private static final float INITIAL_SATURATION = 5.0f;
+    private static final float POTION_HEALING_AMOUNT = 4.0f;
+    private static final float POTION_EFFECT_DURATION = 180.0f;
+    /** Độ bão hòa hiện tại, luôn bị chặn không vượt quá {@code hunger}. */
+    private float saturation = INITIAL_SATURATION;
+    /** Hệ số giảm tốc khi kéo cung, ăn hoặc uống (0.4x tốc độ đi bộ). */
+    private static final float ITEM_USE_SPEED_MULTIPLIER = 0.4f;
+    private boolean itemUseSlowdown;
+
+    /** Chế độ góc nhìn camera người chơi chuyển đổi qua phím F5. */
+    public enum CameraMode {
+        /** Góc nhìn thứ nhất mặc định. */
+        FIRST_PERSON,
+        /** Góc nhìn thứ ba phía sau lưng người chơi. */
+        THIRD_BACK,
+        /** Góc nhìn thứ ba phía trước mặt nhìn ngược lại người chơi. */
+        THIRD_FRONT
+    }
+
+    /** Khoảng cách lùi/tiến tối đa ở góc nhìn thứ 3 và khoảng đệm tránh xuyên vào mặt tường rắn. */
+    private static final float THIRD_PERSON_DISTANCE = 4.0f;
+    private static final float THIRD_PERSON_CLIP_PADDING = 0.15f;
+    /** Thời lượng một chu kỳ vung tay cận chiến/đào block (giây). */
+    private static final float SWING_DURATION = 0.25f;
+    /** Biên độ dao động View Bobbing ngang và dọc trên camera góc nhìn thứ nhất. */
+    private static final float BOB_CAMERA_SWAY_X = 0.04f;
+    private static final float BOB_CAMERA_BOUNCE_Y = 0.04f;
+
+    private CameraMode cameraMode = CameraMode.FIRST_PERSON;
+    private float bobPhase;
+    private float bobStrength;
+    private float limbSwing;
+    private float limbSwingAmount;
+    private boolean swinging;
+    private float swingElapsed;
+
+    /** Bộ đệm tia và vector tái sử dụng (zero-GC) cho camera góc nhìn thứ 3 và View Bobbing. */
+    private final Vector3 tmpCamOrigin = new Vector3();
+    private final Vector3 tmpCamDir = new Vector3();
+    private final Vector3 tmpCamRight = new Vector3();
+    private final Vector3 tmpCamUp = new Vector3();
+    private final Raycast.HitResult tmpCamHit = Raycast.HitResult.miss();
+    // === END HOOK: TRACK A - FIELDS ===
+
+    // === HOOK: TRACK C - FIELDS ===
+    // Khai báo PlayerInventory 36 ô, oxy (tối đa 300 ticks / 10 bóng) và sprint-swim của Track C tại đây.
+    /** Mức Oxy tối đa khi lặn dưới nước (300 tick = 15 giây ở nhịp 20 tick/giây). */
+    public static final int AIR_MAX_TICKS = 300;
+    /** Tốc độ tiêu hao Oxy mỗi giây khi mắt ngập nước (20 tick/giây). */
+    private static final float AIR_DRAIN_PER_SECOND = 20.0f;
+    /** Tốc độ hồi Oxy mỗi giây khi mắt lên khỏi mặt nước (hồi đầy 300 tick trong 2 giây). */
+    private static final float AIR_RECOVER_PER_SECOND = 150.0f;
+    /** Chu kỳ trừ HP khi đã cạn sạch Oxy (1.0 giây/lần). */
+    private static final float DROWN_DAMAGE_INTERVAL = 1.0f;
+    /** Sát thương ngạt nước mỗi chu kỳ (2.0 HP/giây). */
+    private static final float DROWN_DAMAGE_AMOUNT = 2.0f;
+    /** Hệ số tăng tốc bơi khi giữ Left Ctrl trong nước (Sprint-Swimming). */
+    private static final float SWIM_SPRINT_MULTIPLIER = 1.55f;
+    /** Sai số dấu phẩy động nhỏ khi so sánh mốc tích lũy Oxy và ngạt nước. */
+    private static final float OXYGEN_EPSILON = 0.0001f;
+
+    /** Túi đồ 36 ô đồng bộ 9 ô đầu với Hotbar. */
+    private final PlayerInventory inventory = new PlayerInventory(hotbar);
+    /** Bộ đệm vector dùng lại khi ném vật phẩm (Q / Ctrl+Q) để tránh cấp phát rác GC. */
+    private final Vector3 dropOriginBuffer = new Vector3();
+    private final Vector3 dropDirectionBuffer = new Vector3();
+    private final Vector3 dropVelocityBuffer = new Vector3();
+    /** Lượng Oxy hiện tại (tính theo float để tích lũy chính xác theo deltaTime). */
+    private float airTicksExact = AIR_MAX_TICKS;
+    /** Bộ đếm thời gian tích lũy để gây sát thương ngạt nước mỗi 1.0 giây. */
+    private float drownTimer = 0.0f;
+    /** Cờ lưu trạng thái mắt đang ngập trong nước từ lượt cập nhật gần nhất cho HUD. */
+    private boolean eyeInWater = false;
+    /** Cờ trạng thái người chơi đang Sprint-Swimming (giữ Left Ctrl + di chuyển trong nước). */
+    private boolean isSwimSprinting = false;
+    // === END HOOK: TRACK C - FIELDS ===
 
     // Tham chiếu góc nhìn Camera
     private Camera camera;
@@ -137,9 +220,12 @@ public class Player extends LivingEntity {
         lastSpaceTapTime = Float.NEGATIVE_INFINITY;
         lastShiftTapTime = Float.NEGATIVE_INFINITY;
         airborneTime = stepDistance = swimDistance = 0f;
+        resetViewmodelMotion();
         previousLiquid = Block.AIR;
         wasUnderwater = false;
         nearbyLiquidDelay = 0f;
+        isSwimSprinting = false;
+        eyeInWater = isEyeInWater(world);
         if (camera != null) {
             camera.setPosition(position.x, position.y + currentEyeHeight, position.z);
         }
@@ -192,6 +278,25 @@ public class Player extends LivingEntity {
         cactusCooldown = Math.max(0, cactusCooldown - deltaTime);
         cactusFlash = Math.max(0, cactusFlash - deltaTime);
         updateRegeneration(deltaTime);
+        // === HOOK: TRACK C - LIVING UPDATE ===
+        // Cập nhật bộ đếm Oxy dưới nước, ngạt thở và sprint-swim của Track C tại đây.
+        updateOxygen(world, deltaTime);
+        if (!isAlive()) {
+            return;
+        }
+        // === END HOOK: TRACK C - LIVING UPDATE ===
+
+        // === HOOK: TRACK A - LIVING UPDATE ===
+        // Giữ bất biến saturation <= hunger <= 20; giữ nguyên logic trừ hunger của regen và HungerEffect cũ.
+        saturation = Math.min(saturation, hunger);
+        if (swinging) {
+            swingElapsed += deltaTime;
+            if (swingElapsed >= SWING_DURATION) {
+                swinging = false;
+                swingElapsed = 0f;
+            }
+        }
+        // === END HOOK: TRACK A - LIVING UPDATE ===
         if (getMount() instanceof MountableMob vehicle) {
             updateRiding(world, vehicle, deltaTime);
             return;
@@ -232,6 +337,14 @@ public class Player extends LivingEntity {
         camera.setPosition(position.x, position.y + currentEyeHeight, position.z);
         camera.updateDynamicFov(isSprinting, isFlying, deltaTime);
 
+        // === HOOK: TRACK A - BOBBING UPDATE ===
+        if (respawned) {
+            resetViewmodelMotion();
+        } else {
+            updateViewBobbingAndLimbSwing(deltaTime, position.x - startX, position.z - startZ);
+        }
+        // === END HOOK: TRACK A - BOBBING UPDATE ===
+
         AudioManager audio = world.getAudio();
         if (audio != null) {
             if (respawned) {
@@ -258,6 +371,7 @@ public class Player extends LivingEntity {
         isFlying = false;
         isSneaking = false;
         isSprinting = false;
+        isSwimSprinting = false;
         pushX = pushZ = 0f;
         lastSpaceTapTime = lastShiftTapTime = Float.NEGATIVE_INFINITY;
         if (camera != null && Gdx.input != null) {
@@ -277,6 +391,10 @@ public class Player extends LivingEntity {
             camera.updateDynamicFov(sprint, false, dt);
         }
         currentEyeHeight += (STANDING_EYE_HEIGHT - currentEyeHeight) * Math.min(1f, dt * 14f);
+        // === HOOK: TRACK A - RIDING BOBBING ===
+        bobStrength += (0f - bobStrength) * Math.min(1f, dt * 10f);
+        limbSwingAmount += (0f - limbSwingAmount) * Math.min(1f, dt * 10f);
+        // === END HOOK: TRACK A - RIDING BOBBING ===
         updateLavaContact(world);
     }
 
@@ -310,6 +428,10 @@ public class Player extends LivingEntity {
         hunger = MAX_HUNGER;
         regenElapsed = attackCooldown = 0f;
         cactusCooldown = cactusFlash = 0f;
+        airTicksExact = AIR_MAX_TICKS;
+        drownTimer = 0f;
+        isSwimSprinting = false;
+        eyeInWater = isEyeInWater(world);
         if (camera != null) {
             camera.setPosition(position.x, position.y + currentEyeHeight, position.z);
         }
@@ -331,9 +453,11 @@ public class Player extends LivingEntity {
         pushX = pushZ = 0f;
         isSprinting = false;
         isSneaking = false;
+        itemUseSlowdown = false;
         onGround = false;
         lastSpaceTapTime = Float.NEGATIVE_INFINITY;
         airborneTime = stepDistance = swimDistance = 0f;
+        resetViewmodelMotion();
         previousLiquid = Block.AIR;
         wasUnderwater = false;
         nearbyLiquidDelay = 0f;
@@ -379,22 +503,19 @@ public class Player extends LivingEntity {
 
     /** Đánh một mục tiêu còn sống trong nhịp cho phép; hướng ngang truyền lực đẩy. */
     public void attack(World world, LivingEntity target, Vector3 direction) {
-        if (!isAlive() || !target.isAlive() || target == this || attackCooldown > 0.000001f) {
-            return;
-        }
-        attackCooldown = MELEE_COOLDOWN;
-        boolean critical = velocity.y < -0.1f && !onGround && !isFlying && !isInLiquid(world);
-        float amount = getMeleeDamage(1f) * (critical ? 1.5f : 1f);
-        float horizontalLength = (float) Math.sqrt(direction.x * direction.x + direction.z * direction.z);
-        float push = horizontalLength > 0.000001f ? 2f / horizontalLength : 0f;
-        target.damage(world, amount, DamageSource.MELEE, this, direction.x * push, direction.z * push);
+        attack(world, target, direction, 1f, MELEE_COOLDOWN);
     }
 
-    /** Giữ lực đẩy cận chiến ngay cả khi đầu vào ghi lại vận tốc di chuyển. */
+    /** Giữ lực đẩy cận chiến ngay cả khi đầu vào ghi lại vận tốc di chuyển và bật nảy khi đứng trên mặt đất. */
     @Override
     protected void applyKnockback(float x, float z) {
         pushX += x;
         pushZ += z;
+        // HOOK: TRACK A - Bật nảy chuẩn Minecraft khi bị thực thể khác hoặc đạn đánh trúng trên mặt đất
+        if (onGround && !isFlying && (x * x + z * z) > 0.0001f) {
+            velocity.y = Math.max(velocity.y, 4.5f);
+            onGround = false;
+        }
     }
 
     /** Bỏ theo dõi rơi khi đang bay hoặc ngồi trên thú. */
@@ -455,8 +576,12 @@ public class Player extends LivingEntity {
         readMovementDirection(camera);
         boolean isMovingHorizontally = wishDir.len2() > 0.0001f;
 
-        // 4. Tính tốc độ di chuyển (Sprint 1.5x / Sneak 0.5x / Fly)
-        isSprinting = ctrlDown && isMovingHorizontally && !isSneaking;
+        // 4. Tính tốc độ di chuyển (Sprint 1.5x / Sneak 0.5x / Fly / Sprint-Swimming 1.55x / ItemUse 0.4x)
+        Block bodyLiquid = liquidAtBody(world);
+        boolean inLiquid = bodyLiquid.isLiquid();
+        isSprinting = ctrlDown && isMovingHorizontally && !isSneaking && !itemUseSlowdown;
+        isSwimSprinting = !isFlying && !isSneaking && ctrlDown && isMovingHorizontally
+                && bodyLiquid == Block.WATER && !itemUseSlowdown;
 
         int terrainSpeedMultiplier = TERRAIN_SPEED_MULTIPLIERS[terrainSpeedIndex];
         float currentSpeed = MOVE_SPEED * terrainSpeedMultiplier * getMovementSpeedMultiplier();
@@ -467,11 +592,16 @@ public class Player extends LivingEntity {
             }
         } else if (isSneaking) {
             currentSpeed *= SNEAK_MULTIPLIER;
+        } else if (isSwimSprinting) {
+            // Bơi nhanh trong Block.WATER nhân 1.55x trên vận tốc bơi cơ bản (0.65x)
+            currentSpeed *= SWIM_SPRINT_MULTIPLIER;
         } else if (isSprinting) {
             currentSpeed *= SPRINT_MULTIPLIER;
         }
+        if (itemUseSlowdown && !isFlying) {
+            currentSpeed *= ITEM_USE_SPEED_MULTIPLIER;
+        }
 
-        boolean inLiquid = isInLiquid(world);
         if (inLiquid && !isFlying) {
             currentSpeed *= 0.65f;
         }
@@ -503,6 +633,24 @@ public class Player extends LivingEntity {
         } else if (inLiquid) {
             if (spaceDown) {
                 velocity.y = 4.2f;
+            } else if (isSwimSprinting) {
+                // Giữ W khi đang Sprint-Swimming sẽ điều hướng lặn/nổi dọc theo góc pitch của camera
+                boolean movingForward = Gdx.input.isKeyPressed(Input.Keys.W)
+                        && !Gdx.input.isKeyPressed(Input.Keys.S);
+                if (movingForward) {
+                    float pitchRad = (float) Math.toRadians(camera.getPitch());
+                    float cosPitch = (float) Math.cos(pitchRad);
+                    float sinPitch = (float) Math.sin(pitchRad);
+                    velocity.x *= cosPitch;
+                    velocity.z *= cosPitch;
+                    float swimY = sinPitch * currentSpeed;
+                    if (swimY > 0f && !isEyeInWater(world)) {
+                        swimY = 0f;
+                    }
+                    velocity.y = swimY;
+                } else {
+                    velocity.y = 0.0f;
+                }
             }
         } else {
             if (spaceDown && onGround) {
@@ -536,9 +684,11 @@ public class Player extends LivingEntity {
     private Block applyPhysicsAndCollision(World world, float deltaTime) {
         if (!isFlying) {
             if (isInLiquid(world)) {
-                velocity.y += (GRAVITY * 0.25f) * deltaTime;
-                if (velocity.y < -3.5f) {
-                    velocity.y = -3.5f;
+                if (!isSwimSprinting) {
+                    velocity.y += (GRAVITY * 0.25f) * deltaTime;
+                    if (velocity.y < -3.5f) {
+                        velocity.y = -3.5f;
+                    }
                 }
             } else {
                 velocity.y += GRAVITY * deltaTime;
@@ -808,11 +958,15 @@ public class Player extends LivingEntity {
     }
 
     public boolean isInLiquid(World world) {
+        return liquidAtBody(world).isLiquid();
+    }
+
+    /** Chia sẻ cách nhận diện chất lỏng tại chân và thắt lưng theo vị trí hiện tại của người chơi. */
+    private Block liquidAtBody(World world) {
         int bx = (int) Math.floor(position.x);
         int byFeet = (int) Math.floor(position.y + 0.1f);
         int bz = (int) Math.floor(position.z);
-
-        return liquidAtBody(world, bx, byFeet, bz).isLiquid();
+        return liquidAtBody(world, bx, byFeet, bz);
     }
 
     /** Chia sẻ cách nhận diện chất lỏng tại chân và thắt lưng với vật lý. */
@@ -837,4 +991,561 @@ public class Player extends LivingEntity {
     public boolean isSneaking() {
         return isSneaking;
     }
+    // === HOOK: TRACK A - METHODS ===
+    /**
+     * Trả mức bão hòa hiện tại (luôn bảo đảm không vượt quá {@code hunger}).
+     */
+    public float getSaturation() {
+        return Math.min(saturation, hunger);
+    }
+
+    /**
+     * Ăn một vật phẩm thuộc {@link FoodRegistry} nếu người chơi còn sống và chưa đầy đói ({@code hunger < 20}).
+     *
+     * @param item vật phẩm thức ăn cần tiêu thụ
+     * @return {@code true} nếu ăn thành công, {@code false} nếu không phải thức ăn hoặc đã no
+     */
+    public boolean consumeFood(Item item) {
+        return consumeFood(item, ThreadLocalRandom.current().nextFloat());
+    }
+
+    /**
+     * Phiên bản xác định trước giá trị tung xác suất hiệu ứng phụ để phục vụ kiểm thử đơn vị.
+     *
+     * @param item       vật phẩm thức ăn cần tiêu thụ
+     * @param effectRoll giá trị ngẫu nhiên trong {@code [0, 1)}
+     * @return {@code true} nếu ăn thành công
+     */
+    public boolean consumeFood(Item item, float effectRoll) {
+        FoodRegistry.FoodSpec spec = FoodRegistry.of(item);
+        if (spec == null || !isAlive() || hunger >= MAX_HUNGER) {
+            return false;
+        }
+        float clampedSaturation = Math.min(saturation, hunger);
+        hunger = Math.min(MAX_HUNGER, hunger + spec.nutrition());
+        saturation = Math.min(hunger, clampedSaturation + spec.saturation());
+        if (spec.effect() != null && spec.durationSeconds() > 0f && effectRoll < spec.effectChance()) {
+            applyEffect(spec.effect(), spec.amplifier(), spec.durationSeconds());
+        }
+        return true;
+    }
+
+    /**
+     * Uống một trong 4 lọ thuốc Witch ({@code POTION_HEALING}, {@code POTION_FIRE_RESISTANCE},
+     * {@code POTION_WATER_BREATHING}, {@code POTION_SWIFTNESS}), áp dụng hiệu ứng tương ứng và trả {@link Item#GLASS_BOTTLE}.
+     *
+     * @param potionItem lọ thuốc cần uống
+     * @return {@code true} nếu là lọ thuốc hợp lệ và uống thành công
+     */
+    public boolean consumePotion(Item potionItem) {
+        if (!isAlive() || potionItem == null) {
+            return false;
+        }
+        if (potionItem == Item.POTION_HEALING) {
+            heal(POTION_HEALING_AMOUNT);
+        } else if (potionItem == Item.POTION_FIRE_RESISTANCE) {
+            applyEffect(StatusEffectType.FIRE_RESISTANCE, 0, POTION_EFFECT_DURATION);
+        } else if (potionItem == Item.POTION_WATER_BREATHING) {
+            applyEffect(StatusEffectType.WATER_BREATHING, 0, POTION_EFFECT_DURATION);
+        } else if (potionItem == Item.POTION_SWIFTNESS) {
+            applyEffect(StatusEffectType.SWIFTNESS, 0, POTION_EFFECT_DURATION);
+        } else {
+            return false;
+        }
+
+        // Nếu lọ thuốc đang nằm ở ô Hotbar được chọn thì tiêu thụ và thay bằng lọ thủy tinh rỗng ngay tại ô đó
+        if (hotbar.getSelectedItem() == potionItem && hotbar.getSelectedCount() > 0) {
+            int selectedSlot = hotbar.getSelectedSlot();
+            hotbar.consumeSelectedItemStack();
+            if (hotbar.getSlotCount(selectedSlot) == 0) {
+                hotbar.setSlot(selectedSlot, Item.GLASS_BOTTLE, 1);
+            } else {
+                hotbar.addItem(Item.GLASS_BOTTLE, 1);
+            }
+        } else {
+            hotbar.addItem(Item.GLASS_BOTTLE, 1);
+        }
+        return true;
+    }
+
+    /** Kiểm tra người chơi đang có hiệu ứng kháng lửa ({@link StatusEffectType#FIRE_RESISTANCE}). */
+    public boolean hasFireResistance() {
+        return hasEffect(StatusEffectType.FIRE_RESISTANCE);
+    }
+
+    /**
+     * Trả về hệ số tốc độ di chuyển ngang theo hiệu ứng hiện có (gồm {@link StatusEffectType#SWIFTNESS} +20%/cấp
+     * và {@link StatusEffectType#SLOWNESS} -15%/cấp).
+     */
+    public float getSpeedMultiplier() {
+        return getMovementSpeedMultiplier();
+    }
+
+    /**
+     * Bật hoặc tắt trạng thái giảm tốc 0.4x khi đang kéo cung, ăn thức ăn hoặc uống thuốc.
+     *
+     * @param slowdown {@code true} khi đang thực hiện thao tác giữ chuột phải cần giảm tốc
+     */
+    public void setItemUseSlowdown(boolean slowdown) {
+        this.itemUseSlowdown = slowdown;
+    }
+
+    /** Trả {@code true} nếu người chơi đang bị giảm tốc do kéo cung, ăn hoặc uống. */
+    public boolean isItemUseSlowdown() {
+        return itemUseSlowdown;
+    }
+
+    /**
+     * Tấn công cận chiến với sát thương cơ sở và thời gian hồi chiêu tùy theo vũ khí (tay không 1 HP / 0.6s,
+     * giáo sắt {@code IRON_SPEAR} Jab 5 HP / 0.65s), giữ nguyên nhân 1.5x khi đánh chí mạng lúc rơi và gọi sói thuần hóa.
+     *
+     * @param world           thế giới hiện tại
+     * @param target          mục tiêu bị đánh
+     * @param direction       hướng ngắm để truyền đẩy lùi ngang
+     * @param baseDamage      sát thương cơ sở trước Weakness và Critical Hit
+     * @param cooldownSeconds thời gian hồi chiêu sau đòn đánh
+     * @return {@code true} nếu đòn đánh thực sự gây sát thương lên mục tiêu
+     */
+    public boolean attack(World world, LivingEntity target, Vector3 direction,
+                          float baseDamage, float cooldownSeconds) {
+        if (!isAlive() || target == null || !target.isAlive() || target == this
+                || attackCooldown > 0.000001f) {
+            return false;
+        }
+        attackCooldown = cooldownSeconds;
+        boolean critical = velocity.y < -0.1f && !onGround && !isFlying && !isInLiquid(world);
+        float amount = getMeleeDamage(baseDamage) * (critical ? 1.5f : 1f);
+        float horizontalLength = (float) Math.sqrt(direction.x * direction.x + direction.z * direction.z);
+        float push = horizontalLength > 0.000001f ? 2f / horizontalLength : 0f;
+        boolean applied = target.damage(world, amount, DamageSource.MELEE, this,
+                direction.x * push, direction.z * push);
+        if (applied) {
+            notifyTamedWolves(world, target);
+        }
+        return applied;
+    }
+
+    /**
+     * Khi người chơi nhận sát thương từ một thực thể khác, báo cho đàn sói đã thuần hóa để đánh trả.
+     */
+    @Override
+    public boolean damage(World world, float amount, DamageSource source, Entity attacker,
+                          float knockbackX, float knockbackZ) {
+        boolean applied = super.damage(world, amount, source, attacker, knockbackX, knockbackZ);
+        if (applied && isAlive() && attacker instanceof LivingEntity threat && threat != this) {
+            notifyTamedWolves(world, threat);
+        }
+        return applied;
+    }
+
+    /**
+     * Báo hiệu cho toàn bộ sói đã thuần hóa thuộc sở hữu của người chơi này tấn công mục tiêu đe dọa.
+     *
+     * @param world  thế giới chứa các thực thể
+     * @param threat mục tiêu vừa bị chủ đánh hoặc vừa gây sát thương cho chủ
+     */
+    public void notifyTamedWolves(World world, LivingEntity threat) {
+        if (world == null || threat == null || !threat.isAlive() || threat == this) {
+            return;
+        }
+        for (int i = 0, count = world.entityCount(); i < count; i++) {
+            if (world.entityAt(i) instanceof Wolf wolf && wolf.isTamed() && wolf.getOwner() == this) {
+                wolf.onOwnerAttackOrHurt(threat);
+            }
+        }
+    }
+
+    /** Trả về chế độ góc nhìn camera hiện tại ({@code FIRST_PERSON}, {@code THIRD_BACK}, {@code THIRD_FRONT}). */
+    public CameraMode getCameraMode() {
+        return cameraMode;
+    }
+
+    /**
+     * Xoay vòng chế độ góc nhìn theo thứ tự {@code FIRST_PERSON -> THIRD_BACK -> THIRD_FRONT -> FIRST_PERSON}
+     * khi người chơi nhấn phím {@code F5}.
+     *
+     * @return chế độ góc nhìn mới sau khi chuyển
+     */
+    public CameraMode cycleCameraMode() {
+        cameraMode = switch (cameraMode) {
+            case FIRST_PERSON -> CameraMode.THIRD_BACK;
+            case THIRD_BACK -> CameraMode.THIRD_FRONT;
+            case THIRD_FRONT -> CameraMode.FIRST_PERSON;
+        };
+        return cameraMode;
+    }
+
+    /** Kích hoạt chu kỳ hoạt ảnh vung tay góc nhìn thứ nhất và thứ ba khi đánh hoặc bắt đầu đào. */
+    public void triggerSwing() {
+        swinging = true;
+        swingElapsed = 0.0f;
+    }
+
+    /** Tiếp tục lặp chu kỳ vung tay mượt mà khi giữ chuột trái đào khối liên tục. */
+    public void continueSwing() {
+        if (!swinging) {
+            triggerSwing();
+        }
+    }
+
+    /** Trả về {@code true} nếu cánh tay đang trong chu kỳ vung. */
+    public boolean isSwinging() {
+        return swinging;
+    }
+
+    /** Trả về tiến trình vung tay hiện tại trong đoạn {@code [0.0f, 1.0f]}. */
+    public float getSwingProgress() {
+        return swinging ? Math.min(1.0f, swingElapsed / SWING_DURATION) : 0.0f;
+    }
+
+    /** Trả về pha dao động View Bobbing tích lũy theo quãng đường đi trên mặt đất. */
+    public float getBobPhase() {
+        return bobPhase;
+    }
+
+    /** Trả về cường độ View Bobbing hiện tại trong đoạn {@code [0.0f, 1.25f]}. */
+    public float getBobStrength() {
+        return bobStrength;
+    }
+
+    /** Trả về pha đánh tay chân dùng cho mô hình nhân vật ở góc nhìn thứ 3. */
+    public float getLimbSwing() {
+        return limbSwing;
+    }
+
+    /** Trả về biên độ đánh tay chân hiện tại ({@code 0.0f..1.0f}) cho góc nhìn thứ 3. */
+    public float getLimbSwingAmount() {
+        return limbSwingAmount;
+    }
+
+    /** Trả về chiều cao tầm mắt hiện tại đã nội suy (1.62f đứng, 1.45f khi rón rén). */
+    public float getCurrentEyeHeight() {
+        return currentEyeHeight;
+    }
+
+    /** Trả về tham chiếu {@link Camera} gắn với người chơi (có thể {@code null} trong kiểm thử). */
+    public Camera getAttachedCamera() {
+        return camera;
+    }
+
+    /** Trả vận tốc đẩy lùi ngang hiện tại theo trục X (block/giây). */
+    public float getPushX() {
+        return pushX;
+    }
+
+    /** Trả vận tốc đẩy lùi ngang hiện tại theo trục Z (block/giây). */
+    public float getPushZ() {
+        return pushZ;
+    }
+
+    /** Cập nhật pha View Bobbing (chỉ khi {@code onGround && !isFlying}) và pha bước chân góc nhìn 3. */
+    private void updateViewBobbingAndLimbSwing(float dt, float movedX, float movedZ) {
+        float horizDist = (float) Math.sqrt(movedX * movedX + movedZ * movedZ);
+        float horizSpeed = dt > 0.0001f ? horizDist / dt : 0.0f;
+        float targetStrength;
+        if (onGround && !isFlying && horizDist > 0.0001f) {
+            bobPhase += horizDist * 2.4f;
+            targetStrength = Math.min(1.25f, horizSpeed / MOVE_SPEED);
+        } else {
+            targetStrength = 0.0f;
+        }
+        float lerp = Math.min(1.0f, dt * 10.0f);
+        bobStrength += (targetStrength - bobStrength) * lerp;
+
+        if (horizDist > 0.0001f) {
+            limbSwing += horizDist * 2.4f;
+        }
+        float targetLimbAmount = Math.min(1.0f, horizSpeed / MOVE_SPEED);
+        limbSwingAmount += (targetLimbAmount - limbSwingAmount) * lerp;
+    }
+
+    /** Đặt lại toàn bộ trạng thái dao động tay chân khi chết hoặc dịch chuyển sang biome mới. */
+    private void resetViewmodelMotion() {
+        bobPhase = 0.0f;
+        bobStrength = 0.0f;
+        limbSwing = 0.0f;
+        limbSwingAmount = 0.0f;
+        swinging = false;
+        swingElapsed = 0.0f;
+    }
+
+    /**
+     * Tính tọa độ đặt camera ở góc nhìn thứ 3 dựa trên {@link Camera} gắn sẵn của người chơi,
+     * có bắn tia {@link Raycast#castOccluder} để không xuyên vào khối rắn.
+     */
+    public Vector3 computeThirdPersonCameraPos(World world, Vector3 out) {
+        return computeThirdPersonCameraPos(world, this.camera, out);
+    }
+
+    /**
+     * Tính tọa độ đặt camera ở góc nhìn thứ 3 dựa trên hướng nhìn của {@code cam},
+     * có bắn tia {@link Raycast#castOccluder} để rút ngắn khoảng cách trước tường rắn.
+     */
+    public Vector3 computeThirdPersonCameraPos(World world, Camera cam, Vector3 out) {
+        if (cam != null) {
+            cam.copyFront(tmpCamDir);
+        } else {
+            tmpCamDir.set(0.0f, 0.0f, -1.0f);
+        }
+        return computeThirdPersonCameraPos(
+                world,
+                position.x,
+                position.y + currentEyeHeight,
+                position.z,
+                tmpCamDir.x,
+                tmpCamDir.y,
+                tmpCamDir.z,
+                cameraMode,
+                THIRD_PERSON_DISTANCE,
+                out
+        );
+    }
+
+    /**
+     * Tính tọa độ camera góc nhìn thứ 3 từ tâm mắt và hướng nhìn chỉ định,
+     * rút ngắn khoảng cách khi có khối va chạm rắn nằm trên đường nối.
+     *
+     * @param world       thế giới voxel để kiểm tra vật cản (có thể {@code null})
+     * @param eyeX        tọa độ X tâm mắt người chơi
+     * @param eyeY        tọa độ Y tâm mắt người chơi
+     * @param eyeZ        tọa độ Z tâm mắt người chơi
+     * @param dirX        thành phần X hướng nhìn phía trước
+     * @param dirY        thành phần Y hướng nhìn phía trước
+     * @param dirZ        thành phần Z hướng nhìn phía trước
+     * @param mode        chế độ camera mục tiêu
+     * @param maxDistance khoảng cách tối đa (mặc định 4.0 block)
+     * @param out         vector nhận kết quả (tái sử dụng zero-GC)
+     * @return {@code out} chứa vị trí đặt camera an toàn
+     */
+    public Vector3 computeThirdPersonCameraPos(World world,
+                                               float eyeX, float eyeY, float eyeZ,
+                                               float dirX, float dirY, float dirZ,
+                                               CameraMode mode, float maxDistance, Vector3 out) {
+        out.set(eyeX, eyeY, eyeZ);
+        if (mode == null || mode == CameraMode.FIRST_PERSON || !(maxDistance > 0.0f)) {
+            return out;
+        }
+        float sign = mode == CameraMode.THIRD_BACK ? -1.0f : 1.0f;
+        tmpCamDir.set(dirX * sign, dirY * sign, dirZ * sign);
+        float lenSq = tmpCamDir.len2();
+        if (lenSq < 1e-8f || !Float.isFinite(lenSq)) {
+            return out;
+        }
+        tmpCamDir.scl(1.0f / (float) Math.sqrt(lenSq));
+
+        float distance = maxDistance;
+        if (world != null) {
+            tmpCamOrigin.set(eyeX, eyeY, eyeZ);
+            Raycast.castOccluder(world, tmpCamOrigin, tmpCamDir, maxDistance + THIRD_PERSON_CLIP_PADDING, tmpCamHit);
+            if (tmpCamHit.isHit()) {
+                distance = Math.max(0.0f, Math.min(maxDistance, tmpCamHit.getDistance() - THIRD_PERSON_CLIP_PADDING));
+            }
+        }
+        out.set(
+                eyeX + tmpCamDir.x * distance,
+                eyeY + tmpCamDir.y * distance,
+                eyeZ + tmpCamDir.z * distance
+        );
+        return out;
+    }
+
+    /**
+     * Áp dụng tạm thời vị trí camera cho lượt kết xuất (View Bobbing ở góc nhìn 1 hoặc vị trí lùi/tiến ở góc nhìn 3)
+     * mà không làm thay đổi {@link Entity#position} hay kết quả Raycast sau khi khôi phục cuối lượt vẽ.
+     *
+     * @param world        thế giới để tránh xuyên tường ở góc nhìn thứ 3
+     * @param cam          camera cần tạm đặt vị trí kết xuất
+     * @param outRenderPos bộ đệm nhận tọa độ kết xuất đã áp dụng
+     */
+    public void applyRenderCameraPosition(World world, Camera cam, Vector3 outRenderPos) {
+        if (cam == null) {
+            outRenderPos.set(position.x, position.y + currentEyeHeight, position.z);
+            return;
+        }
+        if (cameraMode == CameraMode.FIRST_PERSON) {
+            outRenderPos.set(position.x, position.y + currentEyeHeight, position.z);
+            if (bobStrength > 0.0001f) {
+                cam.copyFront(tmpCamDir);
+                tmpCamRight.set(tmpCamDir).crs(Vector3.Y);
+                if (tmpCamRight.len2() > 1e-6f) {
+                    tmpCamRight.nor();
+                    tmpCamUp.set(tmpCamRight).crs(tmpCamDir).nor();
+                } else {
+                    tmpCamRight.set(1.0f, 0.0f, 0.0f);
+                    tmpCamUp.set(0.0f, 1.0f, 0.0f);
+                }
+                float swayX = (float) Math.sin(bobPhase) * BOB_CAMERA_SWAY_X * bobStrength;
+                float bounceY = -(float) Math.abs(Math.cos(bobPhase)) * BOB_CAMERA_BOUNCE_Y * bobStrength;
+                outRenderPos.add(
+                        tmpCamRight.x * swayX + tmpCamUp.x * bounceY,
+                        tmpCamRight.y * swayX + tmpCamUp.y * bounceY,
+                        tmpCamRight.z * swayX + tmpCamUp.z * bounceY
+                );
+            }
+            cam.setPosition(outRenderPos.x, outRenderPos.y, outRenderPos.z);
+            return;
+        }
+        computeThirdPersonCameraPos(world, cam, outRenderPos);
+        cam.setPosition(outRenderPos.x, outRenderPos.y, outRenderPos.z);
+    }
+
+    /**
+     * Tính ma trận nhìn cho lượt kết xuất hiện tại: dùng {@code lookAt} ngược từ vị trí trước mặt
+     * về tầm mắt người chơi khi ở {@link CameraMode#THIRD_FRONT} mà không làm trôi {@code yaw}/{@code pitch}.
+     *
+     * @param cam       camera hiện tại (đã đặt tại vị trí kết xuất)
+     * @param eyeTarget tọa độ tầm mắt người chơi để camera nhìn về ở {@code THIRD_FRONT}
+     * @param outView   ma trận đích tái sử dụng (zero-GC)
+     * @return {@code outView} đã cập nhật
+     */
+    public Matrix4 computeRenderViewMatrix(Camera cam, Vector3 eyeTarget, Matrix4 outView) {
+        if (cam == null) {
+            return outView.idt();
+        }
+        if (cameraMode == CameraMode.THIRD_FRONT) {
+            cam.copyPosition(tmpCamOrigin);
+            return outView.setToLookAt(tmpCamOrigin, eyeTarget, Vector3.Y);
+        }
+        return outView.set(cam.getViewMatrix());
+    }
+    // === END HOOK: TRACK A - METHODS ===
+
+    // === HOOK: TRACK C - METHODS ===
+    // Getter/setter PlayerInventory 36 ô, Oxygen và Hunger của Track C tại đây.
+
+    /**
+     * Trả về túi đồ đầy đủ 36 ô (0..8 Hotbar, 9..35 balo) thuộc sở hữu của người chơi.
+     *
+     * @return đối tượng {@link PlayerInventory}
+     */
+    public PlayerInventory getInventory() {
+        return inventory;
+    }
+
+    /**
+     * Vứt 1 đơn vị (Q) hoặc toàn bộ stack (Ctrl+Q) ở ô Hotbar đang chọn ra phía trước mặt người chơi.
+     * Vật phẩm rơi có {@code pickupDelay = 1.0f} giây để không bị nam châm hút ngược lại ngay lập tức.
+     *
+     * @param world thế giới để thả thực thể {@link ItemEntity}
+     * @param wholeStack true nếu vứt cả stack, false nếu chỉ vứt 1 đơn vị
+     * @return thực thể {@link ItemEntity} vừa sinh ra, hoặc {@code null} nếu ô trống hoặc thiếu world
+     */
+    public ItemEntity dropSelectedItem(World world, boolean wholeStack) {
+        if (world == null) {
+            return null;
+        }
+        int selectedSlot = hotbar.getSelectedSlot();
+        Item selectedItem = hotbar.getSelectedItem();
+        int selectedCount = hotbar.getSelectedCount();
+        if (selectedItem == null || selectedItem.isNone() || selectedCount <= 0) {
+            return null;
+        }
+
+        int dropAmount = wholeStack ? selectedCount : 1;
+        int consumed = inventory.consumeFromSlot(selectedSlot, dropAmount);
+        if (consumed <= 0) {
+            return null;
+        }
+
+        if (!copyAim(dropOriginBuffer, dropDirectionBuffer)) {
+            dropOriginBuffer.set(position.x, position.y + currentEyeHeight, position.z);
+            dropDirectionBuffer.set(0f, 0f, -1f);
+        }
+
+        // Sinh vật phẩm ở phía trước tầm mắt để bay ra ngoài tự nhiên
+        float spawnX = dropOriginBuffer.x + dropDirectionBuffer.x * 0.45f;
+        float spawnY = dropOriginBuffer.y - 0.25f + dropDirectionBuffer.y * 0.25f;
+        float spawnZ = dropOriginBuffer.z + dropDirectionBuffer.z * 0.45f;
+
+        dropVelocityBuffer.set(
+                dropDirectionBuffer.x * 5.2f,
+                dropDirectionBuffer.y * 5.2f + 1.8f,
+                dropDirectionBuffer.z * 5.2f
+        );
+
+        ItemEntity dropped = new ItemEntity(spawnX, spawnY, spawnZ, dropVelocityBuffer,
+                selectedItem, consumed, 1.0f);
+        world.spawnDroppedItem(dropped);
+        return dropped;
+    }
+
+    /**
+     * Cập nhật thanh Oxy dưới nước (giảm 20 tick/giây khi mắt ngập nước và không có Water Breathing),
+     * gây 2.0 HP sát thương ngạt mỗi 1.0 giây khi cạn Oxy, hoặc hồi nhanh về 300 khi lên khỏi nước.
+     */
+    private void updateOxygen(World world, float deltaTime) {
+        eyeInWater = isEyeInWater(world);
+        if (!eyeInWater) {
+            airTicksExact = Math.min(AIR_MAX_TICKS, airTicksExact + AIR_RECOVER_PER_SECOND * deltaTime);
+            drownTimer = 0.0f;
+            return;
+        }
+        if (hasEffect(StatusEffectType.WATER_BREATHING)) {
+            drownTimer = 0.0f;
+            return;
+        }
+
+        float remainingTime = deltaTime;
+        if (airTicksExact > OXYGEN_EPSILON) {
+            float timeToEmpty = airTicksExact / AIR_DRAIN_PER_SECOND;
+            if (remainingTime <= timeToEmpty + OXYGEN_EPSILON) {
+                airTicksExact = Math.max(0.0f, airTicksExact - AIR_DRAIN_PER_SECOND * remainingTime);
+                if (airTicksExact <= OXYGEN_EPSILON) {
+                    airTicksExact = 0.0f;
+                }
+                return;
+            }
+            remainingTime -= timeToEmpty;
+            airTicksExact = 0.0f;
+        } else {
+            airTicksExact = 0.0f;
+        }
+
+        drownTimer += remainingTime;
+        while (isAlive() && drownTimer + OXYGEN_EPSILON >= DROWN_DAMAGE_INTERVAL) {
+            drownTimer = Math.max(0.0f, drownTimer - DROWN_DAMAGE_INTERVAL);
+            damage(world, DROWN_DAMAGE_AMOUNT, DamageSource.DROWNING, null, 0.0f, 0.0f);
+        }
+    }
+
+    /**
+     * Trả về lượng Oxy hiện tại (0..{@link #AIR_MAX_TICKS}).
+     *
+     * @return số tick Oxy còn lại
+     */
+    public int getAirTicks() {
+        return Math.round(airTicksExact);
+    }
+
+    /**
+     * Kiểm tra tầm mắt của người chơi có đang ngập trong {@link Block#WATER} hay không.
+     *
+     * @param world thế giới chứa dữ liệu chất lỏng
+     * @return {@code true} nếu cao độ mắt đang nằm dưới mặt thoáng khối nước
+     */
+    public boolean isEyeInWater(World world) {
+        if (world == null) {
+            return false;
+        }
+        return world.liquidAt(position.x, position.y + currentEyeHeight, position.z) == Block.WATER;
+    }
+
+    /**
+     * Trả về cờ mắt đang ngập nước đã lưu từ lượt cập nhật sinh tồn gần nhất (dùng cho HUD).
+     *
+     * @return {@code true} nếu mắt người chơi đang ở dưới nước
+     */
+    public boolean isEyeInWater() {
+        return eyeInWater;
+    }
+
+    /**
+     * Cho biết người chơi có đang ở trạng thái Sprint-Swimming (giữ Left Ctrl + di chuyển trong nước).
+     *
+     * @return {@code true} nếu đang bơi nhanh trong nước
+     */
+    public boolean isSwimSprinting() {
+        return isSwimSprinting;
+    }
+    // === END HOOK: TRACK C - METHODS ===
 }

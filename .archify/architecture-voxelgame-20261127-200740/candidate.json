@@ -1,0 +1,239 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Kiến Trúc Hệ Thống VoxelGame (Ourcraft)",
+    "locale": "vi",
+    "output": ".archify/architecture-voxelgame-20261127-200740/voxelgame-architecture.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/NishiueInko/Ourcraft.git",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "4f353cec6b05f14c7a849af75e151d6793ad5d25"
+    }
+  },
+  "layout": {
+    "mode": "auto"
+  },
+  "components": [
+    {
+      "id": "player_input",
+      "type": "external",
+      "label": "Người chơi & Input",
+      "sublabel": "WASD, Chuột, E/Q/F3/F5",
+      "sources": [
+        { "path": "src/main/java/com/voxelgame/VoxelGameApp.java", "line": 61, "end_line": 72, "label": "InputProcessor" }
+      ]
+    },
+    {
+      "id": "app_loop",
+      "type": "backend",
+      "emphasis": true,
+      "label": "Main & VoxelGameApp",
+      "sublabel": "LWJGL3 60 FPS Game Loop",
+      "tag": "Entry Point",
+      "sources": [
+        { "path": "src/main/java/com/voxelgame/Main.java", "line": 23, "end_line": 60, "label": "Lwjgl3Application" },
+        { "path": "src/main/java/com/voxelgame/VoxelGameApp.java", "line": 261, "end_line": 420, "label": "create & render" }
+      ]
+    },
+    {
+      "id": "item_use",
+      "type": "backend",
+      "label": "ItemUseHandler & Raycast",
+      "sublabel": "DDA, Cung, Giáo, Thuốc",
+      "sources": [
+        { "path": "src/main/java/com/voxelgame/engine/ItemUseHandler.java", "line": 27, "end_line": 98, "label": "UseState" }
+      ]
+    },
+    {
+      "id": "world_core",
+      "type": "backend",
+      "emphasis": true,
+      "label": "World & Chunk Grid",
+      "sublabel": "250×16×128 Chunk, Entities",
+      "tag": "Zero-GC Loop",
+      "sources": [
+        { "path": "src/main/java/com/voxelgame/engine/World.java", "line": 43, "end_line": 145, "label": "World state" },
+        { "path": "src/main/java/com/voxelgame/engine/Chunk.java", "line": 21, "end_line": 60, "label": "Chunk mesh" }
+      ]
+    },
+    {
+      "id": "terrain_lighting",
+      "type": "database",
+      "label": "TerrainGen & Lighting",
+      "sublabel": "5 Biome, BFS Sky/Block Light",
+      "sources": [
+        { "path": "src/main/java/com/voxelgame/engine/TerrainGenerator.java", "line": 13, "end_line": 59, "label": "TerrainGenerator" },
+        { "path": "src/main/java/com/voxelgame/engine/ChunkLighting.java", "line": 17, "end_line": 40, "label": "ChunkLighting" }
+      ]
+    },
+    {
+      "id": "player_entity",
+      "type": "frontend",
+      "label": "Player & Inventory",
+      "sublabel": "AABB, 36 ô, Oxy, Camera",
+      "sources": [
+        { "path": "src/main/java/com/voxelgame/entity/Player.java", "line": 29, "end_line": 100, "label": "Player" }
+      ]
+    },
+    {
+      "id": "mob_system",
+      "type": "backend",
+      "label": "MobSpawner & MobEntity",
+      "sublabel": "AI Goals, Navigator, 24 loài",
+      "sources": [
+        { "path": "src/main/java/com/voxelgame/engine/MobSpawner.java", "line": 19, "end_line": 59, "label": "MobSpawner" },
+        { "path": "src/main/java/com/voxelgame/entity/mob/MobEntity.java", "line": 21, "end_line": 60, "label": "MobEntity" }
+      ]
+    },
+    {
+      "id": "render_3d",
+      "type": "frontend",
+      "label": "3D Render Pipeline",
+      "sublabel": "GLSL 330, Sky, Mob, Hạt",
+      "sources": [
+        { "path": "src/main/java/com/voxelgame/VoxelGameApp.java", "line": 527, "end_line": 600, "label": "Render 3D pass" }
+      ]
+    },
+    {
+      "id": "ui_hud",
+      "type": "frontend",
+      "label": "UIRenderer & Túi đồ",
+      "sublabel": "HUD, Pause, 36 ô, F3",
+      "sources": [
+        { "path": "src/main/java/com/voxelgame/engine/UIRenderer.java", "line": 34, "end_line": 60, "label": "UIRenderer" }
+      ]
+    },
+    {
+      "id": "audio_sys",
+      "type": "messagebus",
+      "label": "AudioManager",
+      "sublabel": "OpenAL: Nhạc nền & SFX",
+      "sources": [
+        { "path": "src/main/java/com/voxelgame/engine/AudioManager.java", "line": 13, "end_line": 48, "label": "AudioManager" }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Application & Presentation Layer",
+      "wraps": ["app_loop", "item_use", "render_3d", "ui_hud", "audio_sys"]
+    },
+    {
+      "kind": "region",
+      "label": "World Simulation & Entity Layer",
+      "wraps": ["world_core", "terrain_lighting", "player_entity", "mob_system"]
+    }
+  ],
+  "connections": [
+    {
+      "id": "input-to-app",
+      "from": "player_input",
+      "to": "app_loop",
+      "label": "Sự kiện Input",
+      "variant": "emphasis"
+    },
+    {
+      "id": "app-to-itemuse",
+      "from": "app_loop",
+      "to": "item_use",
+      "label": "Raycast & Dùng item"
+    },
+    {
+      "id": "itemuse-to-world",
+      "from": "item_use",
+      "to": "world_core",
+      "label": "Đạn đạo & Tác động"
+    },
+    {
+      "id": "app-to-world",
+      "from": "app_loop",
+      "to": "world_core",
+      "label": "updateEntities(dt)",
+      "variant": "emphasis"
+    },
+    {
+      "id": "world-to-terrain",
+      "from": "world_core",
+      "to": "terrain_lighting",
+      "label": "Sinh địa hình & BFS"
+    },
+    {
+      "id": "world-to-player",
+      "from": "world_core",
+      "to": "player_entity",
+      "label": "Vật lý & Sinh tồn"
+    },
+    {
+      "id": "world-to-mobs",
+      "from": "world_core",
+      "to": "mob_system",
+      "label": "Spawn & AI Tick"
+    },
+    {
+      "id": "app-to-render3d",
+      "from": "app_loop",
+      "to": "render_3d",
+      "label": "Vẽ Chunk, Mob, Sky",
+      "variant": "emphasis"
+    },
+    {
+      "id": "world-to-render3d",
+      "from": "world_core",
+      "to": "render_3d",
+      "label": "Frustum & Mesh",
+      "variant": "dashed"
+    },
+    {
+      "id": "app-to-ui",
+      "from": "app_loop",
+      "to": "ui_hud",
+      "label": "Vẽ HUD, Pause, F3"
+    },
+    {
+      "id": "world-to-audio",
+      "from": "world_core",
+      "to": "audio_sys",
+      "label": "SFX theo vị trí",
+      "variant": "dashed"
+    },
+    {
+      "id": "app-to-audio",
+      "from": "app_loop",
+      "to": "audio_sys",
+      "label": "Nhạc nền & Mưa"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Vòng Lặp & Hiệu Năng 60 FPS",
+      "items": [
+        "Main khởi tạo Lwjgl3Application (1280×720, V-Sync, GL 3.3)",
+        "VoxelGameApp dùng pool tĩnh và vector tái sử dụng để tránh GC churn",
+        "Chunk dựng tối đa 16 mesh/frame với Frustum Culling & Distance Bins"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Thế Giới & Thực Thể",
+      "items": [
+        "World quản lý lưới 250×16×128 Chunk (4000×256×2048 block) và 33 loại Block",
+        "TerrainGenerator sinh 5 dải biome với seed cố định 20261114L",
+        "ChunkLighting lan truyền Sky Light & Block Light 4-bit zero-GC"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Hiển Thị & Âm Thanh",
+      "items": [
+        "ShaderProgram GLSL 330 dùng chung cho 3D World, Mob, Sky và 2D HUD",
+        "UIRenderer kết hợp InventoryScreenRenderer (36 ô) & DebugOverlayRenderer (F3)",
+        "AudioManager phát 5 bản nhạc nền OGG và 340+ SFX qua OpenAL"
+      ]
+    }
+  ]
+}

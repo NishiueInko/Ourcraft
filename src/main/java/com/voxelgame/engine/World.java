@@ -87,6 +87,8 @@ public class World implements Disposable {
     private final List<Entity> entities = new ArrayList<>();
     /** Hệ thống âm thanh do ứng dụng sở hữu và vị trí nghe dùng lại khi tính độ xa. */
     private AudioManager audio;
+    /** Bộ đếm số lần sự kiện âm thanh trúng đòn giữa các thực thể đã được kích hoạt (dùng cho kiểm thử CPU). */
+    private int entityHitSoundCount;
     /** Lượt vẽ mob và atlas vật phẩm do ứng dụng cung cấp khi có ngữ cảnh OpenGL. */
     private MobRenderer mobRenderer;
     private Texture blockAtlas;
@@ -105,7 +107,13 @@ public class World implements Disposable {
     private final Vector3 droppedItemPosition = new Vector3();
     // Các luật có thể ghi thêm ô trong lúc hàng đợi đang được xử lý.
     private final BlockUpdateQueue blockUpdates = new BlockUpdateQueue();
+    private final LeafDecaySystem leafDecay = new LeafDecaySystem();
+    /** Bộ mô phỏng dòng chảy Water/Lava và phản ứng tạo Stone (chỉ chạy trên thay đổi gameplay). */
+    private final LiquidFlowSimulator liquidFlow = new LiquidFlowSimulator();
     private boolean drainingBlockUpdates;
+    /** Hệ thống tính toán và lan truyền Sky Light / Block Light 4-bit cho toàn thế giới. */
+    private final ChunkLighting lighting = new ChunkLighting();
+    private boolean incrementalLightingUpdate;
 
     private final Matrix4 identityMatrix = new Matrix4();
     // Khung nhìn và bộ đệm dựng mesh được tái sử dụng trên luồng kết xuất.
@@ -495,6 +503,8 @@ public class World implements Disposable {
             syncMobListener();
         }
         updateRandomBlocks(deltaTime);
+        leafDecay.update(this, deltaTime);
+        liquidFlow.tick(this, deltaTime);
         mobSpawner.update(this, worldTime, deltaTime);
     }
 
@@ -533,6 +543,26 @@ public class World implements Disposable {
     /** Cho thực thể phát âm thanh tại điểm xảy ra tương tác gameplay. */
     public AudioManager getAudio() {
         return audio;
+    }
+
+    /**
+     * Ghi nhận sự kiện trúng đòn giữa các thực thể và phát hiệu ứng {@code damage/hit1..3.ogg}
+     * theo khoảng cách nếu hệ thống âm thanh đang hoạt động.
+     *
+     * @param x tọa độ X tại điểm thực thể nhận sát thương
+     * @param y tọa độ Y tại điểm thực thể nhận sát thương
+     * @param z tọa độ Z tại điểm thực thể nhận sát thương
+     */
+    public void playEntityHitSound(float x, float y, float z) {
+        entityHitSoundCount++;
+        if (audio != null) {
+            audio.playEntityHit(x, y, z);
+        }
+    }
+
+    /** Trả số lần sự kiện trúng đòn giữa các thực thể đã kích hoạt âm thanh (phục vụ kiểm thử CPU). */
+    public int getEntityHitSoundCount() {
+        return entityHitSoundCount;
     }
 
     /** Hạ âm lượng theo khoảng cách đến người chơi, tắt ngoài bán kính 16 block. */
@@ -629,14 +659,69 @@ public class World implements Disposable {
         if (!chunk.setBlockLocal(lx, ly, lz, blockId, state)) {
             return false;
         }
+        if (!incrementalLightingUpdate) {
+            lighting.invalidateColumn(cx, cz);
+        }
         if (chunk.isEmpty()) {
             if (chunk.hasMesh()) {
                 residentMeshes.removeValue(chunk, true);
             }
             chunk.dispose();
-            chunks[cx][cy][cz] = null;
+            if (!chunk.hasNonDefaultLight()) {
+                chunks[cx][cy][cz] = null;
+            }
         }
         return true;
+    }
+
+    /** Đọc Sky Light (0..15) tại tọa độ thế giới, khởi tạo lười cột chunk nếu chưa tính. */
+    public int getSkyLight(int x, int y, int z) {
+        return lighting.getSkyLight(this, x, y, z);
+    }
+
+    /** Đọc Block Light (0..15) tại tọa độ thế giới, khởi tạo lười cột chunk nếu chưa tính. */
+    public int getBlockLight(int x, int y, int z) {
+        return lighting.getBlockLight(this, x, y, z);
+    }
+
+    /**
+     * Hệ số Sky Light dùng khi dựng hình học chunk (1.0f vì độ sáng ngày/đêm được điều chế
+     * thời gian thực qua uniform {@code uWorldLight} trong ShaderProgram).
+     */
+    float getSkyLightFactor() {
+        return 1.0f;
+    }
+
+    /** Truy cập trực tiếp Chunk thô theo tọa độ chunk cho {@link ChunkLighting}. */
+    Chunk getChunkRaw(int cx, int cy, int cz) {
+        if (cx < 0 || cx >= WORLD_CHUNKS_X || cy < 0 || cy >= WORLD_CHUNKS_Y
+                || cz < 0 || cz >= WORLD_CHUNKS_Z) {
+            return null;
+        }
+        return chunks[cx][cy][cz];
+    }
+
+    /** Lấy hoặc tạo mới section chunk để lưu dữ liệu ánh sáng khác mặc định. */
+    Chunk getOrCreateLightChunk(int cx, int cy, int cz, boolean createIfMissing) {
+        if (cx < 0 || cx >= WORLD_CHUNKS_X || cy < 0 || cy >= WORLD_CHUNKS_Y
+                || cz < 0 || cz >= WORLD_CHUNKS_Z) {
+            return null;
+        }
+        Chunk chunk = chunks[cx][cy][cz];
+        if (chunk == null && createIfMissing) {
+            chunk = new Chunk(cx, cy, cz);
+            chunk.markDirty();
+            chunks[cx][cy][cz] = chunk;
+        }
+        return chunk;
+    }
+
+    /** Đánh dấu chunk bẩn nếu section chunk đang tồn tại trong bộ nhớ. */
+    void markChunkDirtyIfExists(int cx, int cy, int cz) {
+        Chunk chunk = getChunkRaw(cx, cy, cz);
+        if (chunk != null) {
+            chunk.markDirty();
+        }
     }
 
     public boolean isInsideWorld(int worldX, int worldY, int worldZ) {
@@ -696,9 +781,17 @@ public class World implements Disposable {
                             int x = blockRandom.nextInt(Chunk.SIZE);
                             int y = blockRandom.nextInt(Chunk.SIZE);
                             int z = blockRandom.nextInt(Chunk.SIZE);
-                            if (chunk.getBlockLocal(x, y, z) == Block.GRASS.getId()) {
+                            byte localId = chunk.getBlockLocal(x, y, z);
+                            if (localId == Block.GRASS.getId()) {
                                 ((GrassBlock) Block.GRASS).randomTick(this, cx * Chunk.SIZE + x,
                                         cy * Chunk.SIZE + y, cz * Chunk.SIZE + z, blockRandom);
+                            } else if (LeafDecaySystem.isLeafId(localId)
+                                    && (chunk.getStateLocal(x, y, z) & LeafDecaySystem.PERSISTENT_LEAF_STATE) == 0) {
+                                LeafDecaySystem.tickLeaf(this, cx * Chunk.SIZE + x,
+                                        cy * Chunk.SIZE + y, cz * Chunk.SIZE + z);
+                                if (chunks[cx][cy][cz] == null) {
+                                    break;
+                                }
                             }
                         }
                     }
@@ -814,19 +907,50 @@ public class World implements Disposable {
         drainBlockUpdates();
     }
 
-    /** Ghi một ô, dọn nửa cỏ cũ nếu có và xếp lịch các luật phụ thuộc. */
+    /** Ghi một ô, dọn nửa cỏ cũ nếu có, cập nhật ánh sáng BFS và xếp lịch các luật phụ thuộc. */
     private void writeGameplayBlock(int x, int y, int z, byte blockId, int state) {
         byte oldId = getBlock(x, y, z);
         int oldState = getBlockState(x, y, z);
-        if (!setBlockInternal(x, y, z, blockId, Block.fromId(blockId).normalizeState(state))) {
+        int normalizedState = Block.fromId(blockId).normalizeState(state);
+        boolean lit = isInsideWorld(x, y, z) && lighting.isColumnLit(x / Chunk.SIZE, z / Chunk.SIZE);
+        if (lit) {
+            lighting.ensureColumnLit(this, x / Chunk.SIZE, z / Chunk.SIZE);
+        }
+        boolean changed;
+        incrementalLightingUpdate = lit;
+        try {
+            changed = setBlockInternal(x, y, z, blockId, normalizedState);
+        } finally {
+            incrementalLightingUpdate = false;
+        }
+        if (!changed) {
             return;
+        }
+        if (lit) {
+            lighting.onBlockChanged(this, x, y, z, oldId, blockId);
         }
         scheduleChangedBlock(x, y, z, oldId, blockId);
         if (oldId == Block.TALL_GRASS.getId() && (blockId != oldId || oldState != state)) {
             int otherY = oldState == 0 ? y + 1 : y - 1;
-            if (getBlock(x, otherY, z) == oldId && getBlockState(x, otherY, z) == 1 - oldState
-                    && setBlockInternal(x, otherY, z, Block.AIR.getId())) {
-                scheduleChangedBlock(x, otherY, z, oldId, Block.AIR.getId());
+            if (getBlock(x, otherY, z) == oldId && getBlockState(x, otherY, z) == 1 - oldState) {
+                boolean otherLit = isInsideWorld(x, otherY, z)
+                        && lighting.isColumnLit(x / Chunk.SIZE, z / Chunk.SIZE);
+                if (otherLit) {
+                    lighting.ensureColumnLit(this, x / Chunk.SIZE, z / Chunk.SIZE);
+                }
+                boolean otherChanged;
+                incrementalLightingUpdate = otherLit;
+                try {
+                    otherChanged = setBlockInternal(x, otherY, z, Block.AIR.getId(), 0);
+                } finally {
+                    incrementalLightingUpdate = false;
+                }
+                if (otherChanged) {
+                    if (otherLit) {
+                        lighting.onBlockChanged(this, x, otherY, z, oldId, Block.AIR.getId());
+                    }
+                    scheduleChangedBlock(x, otherY, z, oldId, Block.AIR.getId());
+                }
             }
         }
     }
@@ -882,6 +1006,20 @@ public class World implements Disposable {
                 }
             }
         }
+        if ((LeafDecaySystem.isLogId(oldId) || LeafDecaySystem.isLeafId(oldId)) && newId != oldId) {
+            LeafDecaySystem.notifyNeighbors(this, worldX, worldY, worldZ);
+        }
+        liquidFlow.onBlockChanged(this, worldX, worldY, worldZ, oldId, newId);
+    }
+
+    /** Trả về bộ mô phỏng dòng chảy chất lỏng gắn với thế giới hiện tại. */
+    public LiquidFlowSimulator getLiquidFlow() {
+        return liquidFlow;
+    }
+
+    /** Xếp lịch kiểm tra phân hủy trễ cho lá tự nhiên bằng hàng đợi không cấp phát rác. */
+    void scheduleLeafDecayCheck(int x, int y, int z) {
+        leafDecay.schedule(x, y, z);
     }
 
     /** Xử lý cho đến khi các thay đổi dây chuyền kết thúc, tránh gọi đệ quy. */
@@ -930,15 +1068,21 @@ public class World implements Disposable {
 
     /** Kiểm tra và cam kết thao tác đặt, kể cả hai ô đồng thời của cỏ cao. */
     public boolean tryPlaceBlock(int x, int y, int z, Block block, Player placingPlayer) {
+        return tryPlaceBlock(x, y, z, block, 0, placingPlayer);
+    }
+
+    /** Kiểm tra và cam kết thao tác đặt với metadata ban đầu (như state = 1 cho lá đặt tay). */
+    public boolean tryPlaceBlock(int x, int y, int z, Block block, int state, Player placingPlayer) {
+        int normalizedState = block.normalizeState(state);
         if (!isInsideWorld(x, y, z) || block == Block.AIR || !block.canPlaceAt(this, x, y, z)
-                || !canReplace(x, y, z, block) || intersectsPlayer(placingPlayer, block, 0, x, y, z)) {
+                || !canReplace(x, y, z, block) || intersectsPlayer(placingPlayer, block, normalizedState, x, y, z)) {
             return false;
         }
         if (block == Block.TALL_GRASS && (!isInsideWorld(x, y + 1, z)
                 || getBlock(x, y + 1, z) != Block.AIR.getId())) {
             return false;
         }
-        writeGameplayBlock(x, y, z, block.getId(), 0);
+        writeGameplayBlock(x, y, z, block.getId(), block == Block.TALL_GRASS ? 0 : normalizedState);
         if (block == Block.TALL_GRASS) {
             writeGameplayBlock(x, y + 1, z, block.getId(), 1);
         }
@@ -1110,10 +1254,15 @@ public class World implements Disposable {
             }
         }
         shader.setUniformMatrix4f("uModel", identityMatrix);
-        for (int head : opaqueHead) {
-            for (int i = head; i >= 0; i = opaqueNext[i]) {
-                visibleChunks[i].render(shader);
+        shader.enableChunkColorMode(true);
+        try {
+            for (int head : opaqueHead) {
+                for (int i = head; i >= 0; i = opaqueNext[i]) {
+                    visibleChunks[i].render(shader);
+                }
             }
+        } finally {
+            shader.enableChunkColorMode(false);
         }
         Arrays.fill(visibleChunks, 0, visibleChunkCount, null);
         // Thực thể đục phải ghi chiều sâu trước khi vẽ nước và băng.
@@ -1161,11 +1310,13 @@ public class World implements Disposable {
         Gdx.gl.glDepthMask(false);
         Gdx.gl.glEnable(GL20.GL_BLEND);
         Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        shader.enableChunkColorMode(true);
         try {
             for (int i = 0; i < count; i++) {
                 translucentChunks[i].renderTranslucent(shader);
             }
         } finally {
+            shader.enableChunkColorMode(false);
             Gdx.gl.glDepthMask(true);
             Gdx.gl.glDisable(GL20.GL_BLEND);
             for (int i = 0; i < count; i++) {

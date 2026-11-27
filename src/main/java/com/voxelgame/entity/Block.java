@@ -50,6 +50,20 @@ public abstract class Block extends Entity {
     /** Rương gỗ trang trí được sinh trong tầng ngầm của kim tự tháp. */
     public static final Block CHEST = new DecorativeChestBlock();
 
+    /** Sáu khối len cừu nối tiếp mã khối 27..32 để đặt xuống thế giới. */
+    public static final Block WHITE_WOOL = new WoolBlock(27, "White Wool",
+            Texture.TILE_WHITE_WOOL, new float[]{0.93f, 0.93f, 0.93f});
+    public static final Block LIGHT_GRAY_WOOL = new WoolBlock(28, "Light Gray Wool",
+            Texture.TILE_LIGHT_GRAY_WOOL, new float[]{0.62f, 0.62f, 0.59f});
+    public static final Block GRAY_WOOL = new WoolBlock(29, "Gray Wool",
+            Texture.TILE_GRAY_WOOL, new float[]{0.29f, 0.31f, 0.32f});
+    public static final Block BLACK_WOOL = new WoolBlock(30, "Black Wool",
+            Texture.TILE_BLACK_WOOL, new float[]{0.11f, 0.12f, 0.14f});
+    public static final Block BROWN_WOOL = new WoolBlock(31, "Brown Wool",
+            Texture.TILE_BROWN_WOOL, new float[]{0.48f, 0.29f, 0.18f});
+    public static final Block PINK_WOOL = new WoolBlock(32, "Pink Wool",
+            Texture.TILE_PINK_WOOL, new float[]{0.93f, 0.56f, 0.67f});
+
     /** Lớp kết xuất quyết định cách ghi chiều sâu và hòa trộn alpha. */
     public enum RenderLayer { OPAQUE, CUTOUT, TRANSLUCENT }
 

@@ -62,6 +62,7 @@ public final class ChunkMeshRegressionChecks {
             String[] names = {"top", "bottom", "side", "side", "side", "side"};
             Block.Face[] faces = Block.Face.values();
             boolean sharedUvs = true;
+            int floatsPerFace = 6 * Chunk.FLOATS_PER_VERTEX;
             for (int face = 0; face < faces.length; face++) {
                 int tile = Block.CACTUS.getTileIndex(faces[face]);
                 int tileX = tile % Texture.ATLAS_COLS * Texture.TILE_SIZE;
@@ -71,7 +72,7 @@ public final class ChunkMeshRegressionChecks {
                         "/textures/cactus_" + names[face] + ".png")) {
                     require(source != null, "Thiếu PNG xương rồng " + names[face]);
                     BufferedImage pixels = ImageIO.read(source);
-                    for (int i = face * 36; i < (face + 1) * 36; i += 6) {
+                    for (int i = face * floatsPerFace; i < (face + 1) * floatsPerFace; i += Chunk.FLOATS_PER_VERTEX) {
                         float u = opaque.items[i + 3];
                         float v = opaque.items[i + 4];
                         int x = (int) (u * Texture.ATLAS_WIDTH) - tileX;
@@ -107,10 +108,12 @@ public final class ChunkMeshRegressionChecks {
             require(shaded < clear && clear == 1.0f, "AO phải đọc ô chắn ở góc chéo của chunk");
             require(opaque.items[0] == 16.0f && opaque.items[2] == 16.0f,
                     "Mặt có một góc che phải dùng đường chéo qua góc tối");
-            require(opaque.items[5] == shaded && opaque.items[23] == shaded,
+            require(opaque.items[Chunk.SHADE_OFFSET] == shaded
+                            && opaque.items[3 * Chunk.FLOATS_PER_VERTEX + Chunk.SHADE_OFFSET] == shaded,
                     "Hai tam giác dùng chung giá trị AO tại đỉnh trùng");
             Chunk.compactQuads(opaque, 6);
-            require(opaque.items[5] == shaded && opaque.items[17] == clear,
+            require(opaque.items[Chunk.SHADE_OFFSET] == shaded
+                            && opaque.items[2 * Chunk.FLOATS_PER_VERTEX + Chunk.SHADE_OFFSET] == clear,
                     "Nén mesh phải giữ nguyên độ sáng hai đầu đường chéo");
         } finally {
             world.dispose();
@@ -119,9 +122,9 @@ public final class ChunkMeshRegressionChecks {
 
     /** Đọc giá trị độ sáng của một góc thuộc mặt đang kiểm tra. */
     private static float shadeOnQuad(FloatArray vertices, int first, float x, float y, float z) {
-        for (int i = first; i < first + 36; i += 6) {
+        for (int i = first; i < first + 6 * Chunk.FLOATS_PER_VERTEX; i += Chunk.FLOATS_PER_VERTEX) {
             if (vertices.items[i] == x && vertices.items[i + 1] == y && vertices.items[i + 2] == z) {
-                return vertices.items[i + 5];
+                return vertices.items[i + Chunk.SHADE_OFFSET];
             }
         }
         throw new AssertionError("Không tìm thấy góc cần đo độ sáng");
@@ -129,7 +132,7 @@ public final class ChunkMeshRegressionChecks {
 
     /** Kiểm tra việc nén tại chỗ giữ đủ vị trí, UV và độ sáng của bốn đỉnh qua nhiều mặt. */
     private static void checkIndexedQuadPacking() {
-        int floatsPerVertex = 6;
+        int floatsPerVertex = Chunk.FLOATS_PER_VERTEX;
         int quads = 3;
         int[] inputCorners = {0, 1, 2, 0, 2, 3};
         FloatArray vertices = new FloatArray();
@@ -195,13 +198,14 @@ public final class ChunkMeshRegressionChecks {
         FloatArray translucent = new FloatArray();
         place(world, chunk, 15, 0, 0, Block.WATER, 0);
         world.setBlockInternal(16, 0, 0, Block.WATER.getId(), 0);
+        int floatsPerFace = 6 * Chunk.FLOATS_PER_VERTEX;
         chunk.buildVertices(world, opaque, translucent);
-        require(opaque.size == 0 && translucent.size == 5 * 36, "Nước ở biên chunk còn mặt trong");
+        require(opaque.size == 0 && translucent.size == 5 * floatsPerFace, "Nước ở biên chunk còn mặt trong");
         require(hasVertex(translucent, 15.0f, 0.88f, 0.0f), "Mặt thoáng nước sai độ cao ở biên thế giới");
 
         world.setBlockInternal(16, 0, 0, Block.ICE.getId(), 0);
         chunk.buildVertices(world, opaque, translucent);
-        require(translucent.size == 6 * 36, "Mặt nước giáp băng phải hiển thị");
+        require(translucent.size == 6 * floatsPerFace, "Mặt nước giáp băng phải hiển thị");
     }
 
     /** Xác nhận khối đá còn mặt sau khe lá và hình xương rồng nằm cách biên ô 1/16. */
@@ -210,15 +214,16 @@ public final class ChunkMeshRegressionChecks {
         Chunk chunk = new Chunk(0, 0, 0);
         FloatArray opaque = new FloatArray();
         FloatArray translucent = new FloatArray();
+        int floatsPerFace = 6 * Chunk.FLOATS_PER_VERTEX;
         place(world, chunk, 1, 1, 1, Block.STONE, 0);
         place(world, chunk, 2, 1, 1, Block.OAK_LEAVES, 0);
         chunk.buildVertices(world, opaque, translucent);
-        require(opaque.size == 11 * 36 && translucent.size == 0, "Đá sau lá cần mặt riêng trong pha đục");
+        require(opaque.size == 11 * floatsPerFace && translucent.size == 0, "Đá sau lá cần mặt riêng trong pha đục");
 
         place(world, chunk, 1, 1, 1, Block.AIR, 0);
         place(world, chunk, 2, 1, 1, Block.CACTUS, 0);
         chunk.buildVertices(world, opaque, translucent);
-        require(opaque.size == 6 * 36, "Sai số mặt xương rồng đứng riêng");
+        require(opaque.size == 6 * floatsPerFace, "Sai số mặt xương rồng đứng riêng");
         require(hasVertex(opaque, 2.0625f, 2.0f, 1.9375f), "Xương rồng phải thụt vào 1/16 mỗi bên");
         require(!hasVertex(opaque, 2.0f, 2.0f, 2.0f), "Xương rồng tràn ra tới góc ô");
     }
@@ -229,14 +234,15 @@ public final class ChunkMeshRegressionChecks {
         Chunk chunk = new Chunk(0, 0, 0);
         FloatArray opaque = new FloatArray();
         FloatArray translucent = new FloatArray();
+        int floatsPerFace = 6 * Chunk.FLOATS_PER_VERTEX;
         place(world, chunk, 1, 1, 1, Block.DEAD_BUSH, 0);
         chunk.buildVertices(world, opaque, translucent);
-        require(opaque.size == 4 * 36 && translucent.size == 0, "Cây chữ X thiếu mặt quay ngược");
+        require(opaque.size == 4 * floatsPerFace && translucent.size == 0, "Cây chữ X thiếu mặt quay ngược");
 
         place(world, chunk, 1, 1, 1, Block.SNOW_LAYER, 0);
         place(world, chunk, 2, 1, 1, Block.SNOW_LAYER, 2);
         chunk.buildVertices(world, opaque, translucent);
-        require(opaque.size == 11 * 36, "Hai lớp tuyết chỉ sinh một phần thành chung lộ ra");
+        require(opaque.size == 11 * floatsPerFace, "Hai lớp tuyết chỉ sinh một phần thành chung lộ ra");
         require(hasVertex(opaque, 2.0f, 1.125f, 1.0f), "Thiếu đáy của phần thành tuyết nằm trên lớp thấp");
         require(hasVertex(opaque, 2.0f, 1.375f, 1.0f), "Mặt tuyết 3 lớp sai độ cao");
     }
@@ -249,7 +255,7 @@ public final class ChunkMeshRegressionChecks {
 
     /** Tìm một đỉnh theo tọa độ vị trí, bỏ qua UV và hệ số ánh sáng. */
     private static boolean hasVertex(FloatArray vertices, float x, float y, float z) {
-        for (int i = 0; i < vertices.size; i += 6) {
+        for (int i = 0; i < vertices.size; i += Chunk.FLOATS_PER_VERTEX) {
             if (vertices.items[i] == x && vertices.items[i + 1] == y && vertices.items[i + 2] == z) {
                 return true;
             }

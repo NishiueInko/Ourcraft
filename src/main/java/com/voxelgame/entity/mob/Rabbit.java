@@ -4,6 +4,7 @@ import com.voxelgame.engine.MobAppearance;
 import com.voxelgame.engine.MobVisualState;
 import com.voxelgame.engine.World;
 import com.voxelgame.entity.Block;
+import com.voxelgame.entity.Item;
 import com.voxelgame.entity.Player;
 
 import java.util.concurrent.ThreadLocalRandom;
@@ -51,18 +52,23 @@ public final class Rabbit extends MobEntity {
         goals().add(new MobGoals.FleeEntityGoal(2, 10f, 1.85f,
                 entity -> entity instanceof MobEntity animal && animal.type() == MobType.WOLF));
         goals().add(new MobGoals.FleeEntityGoal(3, 8f, 1.65f,
-                entity -> entity instanceof Player player && !holdsDandelion(player)));
+                entity -> entity instanceof Player player && !holdsTemptItem(player)));
         goals().add(new MobGoals.FleeEntityGoal(4, 4f, 1.65f,
                 entity -> entity instanceof MobEntity monster && monster.attitude() == MobAttitude.HOSTILE));
-        goals().add(new MobGoals.TemptFollowGoal(5, Block.DANDELION, 10f, 0.8f));
+        goals().add(new MobGoals.TemptFollowGoal(5, Rabbit::isTemptItem, 10f, 0.8f));
         goals().add(new MobGoals.WanderGoal(6, 9, 0.65f));
         goals().add(new MobGoals.LookAtPlayerGoal(7, 8f));
         goals().add(new MobGoals.RandomLookAroundGoal(8));
     }
 
-    /** Chỉ vật phẩm còn trong chính ô đang chọn được dùng để dụ thỏ. */
-    private static boolean holdsDandelion(Player player) {
-        return player.getHotbar().getSelectedCount() > 0 && player.getHotbar().getSelectedBlock() == Block.DANDELION;
+    /** Chỉ vật phẩm còn trong chính ô đang chọn được dùng để dụ thỏ (Carrot hoặc Dandelion). */
+    private static boolean holdsTemptItem(Player player) {
+        return player.getHotbar().getSelectedCount() > 0 && isTemptItem(player.getHotbar().getSelectedItem());
+    }
+
+    /** Nhận diện mồi dụ của thỏ: {@link Item#CARROT} hoặc {@link Block#DANDELION}. */
+    private static boolean isTemptItem(Item item) {
+        return item == Item.CARROT || item == Item.of(Block.DANDELION);
     }
 
     /** Đổi hướng đã được điều hướng kiểm tra thành một vòng nhảy, không kéo thỏ đi bộ trên cạn. */

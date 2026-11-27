@@ -26,7 +26,7 @@ public class ItemEntity extends Entity {
 
     /** Các hằng số vật lý của Item rơi. */
     private static final float ITEM_GRAVITY = -18.0f;
-    private static final float PICKUP_DELAY = 0.25f;
+    private static final float DEFAULT_PICKUP_DELAY = 0.25f;
     private static final float MAGNET_DISTANCE = 1.85f;
     private static final float PICKUP_DISTANCE = 0.85f;
     private static final float MAX_LIFETIME = 300.0f;
@@ -35,6 +35,8 @@ public class ItemEntity extends Entity {
     private final Vector3 pullDirection = new Vector3();
 
     private final Item item;
+    private int count = 1;
+    private float pickupDelay = DEFAULT_PICKUP_DELAY;
     private float age = 0.0f;
     private boolean collected = false;
 
@@ -86,11 +88,21 @@ public class ItemEntity extends Entity {
      * Constructor 4: Cho phép chỉ định vector vận tốc văng cụ thể cho {@link Item}.
      */
     public ItemEntity(float startX, float startY, float startZ, Vector3 initialVelocity, Item item) {
+        this(startX, startY, startZ, initialVelocity, item, 1, DEFAULT_PICKUP_DELAY);
+    }
+
+    /**
+     * Constructor 5: Cho phép chỉ định đầy đủ vận tốc, số lượng stack và thời gian trễ trước khi nhặt.
+     */
+    public ItemEntity(float startX, float startY, float startZ, Vector3 initialVelocity,
+                      Item item, int count, float pickupDelay) {
         super(startX, startY, startZ, HALF_SIZE, ITEM_SCALE);
         if (initialVelocity != null) {
             this.velocity.set(initialVelocity);
         }
         this.item = (item != null) ? item : Item.NONE;
+        this.count = Math.max(1, count);
+        this.pickupDelay = Math.max(0.0f, pickupDelay);
     }
 
     /**
@@ -126,15 +138,22 @@ public class ItemEntity extends Entity {
             Vector3 playerCenter = player.copyCenterPosition(pullDirection);
             float distSq = position.dst2(playerCenter);
 
-            if (age >= PICKUP_DELAY && distSq <= MAGNET_DISTANCE * MAGNET_DISTANCE) {
+            if (age >= pickupDelay && distSq <= MAGNET_DISTANCE * MAGNET_DISTANCE) {
                 if (distSq <= PICKUP_DISTANCE * PICKUP_DISTANCE) {
-                    if (hotbar.addItem(item, 1)) {
-                        collected = true;
+                    int added = hotbar.addItemUpTo(item, count);
+                    if (added > 0) {
+                        count -= added;
+                        if (count <= 0) {
+                            count = 0;
+                            collected = true;
+                        }
                         AudioManager audio = world == null ? null : world.getAudio();
                         if (audio != null) {
                             audio.playEffect(AudioManager.Effect.PICKUP, 0.3f);
                         }
-                        return;
+                        if (collected) {
+                            return;
+                        }
                     }
                 }
 
@@ -178,7 +197,7 @@ public class ItemEntity extends Entity {
      */
     @Override
     public void render(ShaderProgram shader) {
-        if (collected || item == null || item.isNone()) {
+        if (collected || item == null || item.isNone() || count <= 0) {
             return;
         }
 
@@ -212,12 +231,36 @@ public class ItemEntity extends Entity {
         return collected;
     }
 
+    /** Trả về số lượng vật phẩm còn lại trong thực thể rơi này. */
+    public int getCount() {
+        return count;
+    }
+
+    /** Thiết lập số lượng vật phẩm trong thực thể rơi (tối thiểu 1). */
+    public void setCount(int count) {
+        this.count = Math.max(1, count);
+    }
+
+    /** Trả về thời gian chờ (giây) trước khi người chơi có thể nhặt vật phẩm này. */
+    public float getPickupDelay() {
+        return pickupDelay;
+    }
+
+    /** Thiết lập thời gian chờ (giây) trước khi người chơi có thể nhặt vật phẩm này. */
+    public void setPickupDelay(float pickupDelay) {
+        this.pickupDelay = Math.max(0.0f, pickupDelay);
+    }
+
     /** Chuyển vật phẩm sang thực thể nhặt nếu đó là một Block, giữ tương thích cho các luật cũ. */
     public Block collectForMob() {
         if (collected || !item.isBlock()) {
             return null;
         }
-        collected = true;
+        count--;
+        if (count <= 0) {
+            count = 0;
+            collected = true;
+        }
         return item.getBlock();
     }
 
@@ -226,7 +269,11 @@ public class ItemEntity extends Entity {
         if (collected || item.isNone()) {
             return null;
         }
-        collected = true;
+        count--;
+        if (count <= 0) {
+            count = 0;
+            collected = true;
+        }
         return item;
     }
 

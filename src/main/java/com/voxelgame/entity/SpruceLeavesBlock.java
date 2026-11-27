@@ -21,4 +21,10 @@ final class SpruceLeavesBlock extends Block {
     public RenderLayer getRenderLayer() {
         return RenderLayer.CUTOUT;
     }
+
+    /** Giữ lại bit 0 đánh dấu lá do người chơi tự đặt (PERSISTENT_LEAF_STATE = 1). */
+    @Override
+    public int normalizeState(int state) {
+        return state & 1;
+    }
 }

@@ -13,6 +13,8 @@ public class Hotbar {
 
     private final Item[] slotItems = new Item[SLOT_COUNT];
     private final int[] slotCounts = new int[SLOT_COUNT];
+    /** Túi đồ 36 ô sở hữu Hotbar này (null nếu Hotbar được tạo độc lập trong test cũ). */
+    private PlayerInventory owner;
 
     /** Chỉ số ô đang được người chơi chọn hiện tại (0..8, tương ứng phím 1..9). */
     private int selectedSlot = 0;
@@ -102,19 +104,51 @@ public class Hotbar {
     }
 
     /**
-     * Thêm một số lượng vật phẩm {@link Item} vừa nhặt được vào thanh Hotbar.
-     * Ưu tiên gộp vào các ô cùng loại chưa đầy giới hạn stack, sau đó mới xếp vào ô trống đầu tiên.
+     * Gắn {@link PlayerInventory} sở hữu để {@link #addItem} tự tràn sang 27 ô balo khi Hotbar đầy.
+     *
+     * @param owner túi đồ 36 ô chứa Hotbar này
+     */
+    void attachOwner(PlayerInventory owner) {
+        this.owner = owner;
+    }
+
+    /**
+     * Thêm một số lượng vật phẩm {@link Item} vừa nhặt được.
+     * Nếu Hotbar thuộc về {@link PlayerInventory}, tự động chuyển tiếp qua toàn bộ 36 ô;
+     * nếu đứng độc lập (như trong các test đơn vị), chỉ xử lý trong 9 ô Hotbar.
      *
      * @param item vật phẩm nhặt được
      * @param amount số lượng cần thêm
-     * @return true nếu đã thêm được ít nhất 1 vật phẩm vào Hotbar
+     * @return true nếu đã thêm được ít nhất 1 vật phẩm
      */
     public boolean addItem(Item item, int amount) {
+        return addItemUpTo(item, amount) > 0;
+    }
+
+    /**
+     * Thêm tối đa {@code amount} đơn vị {@link Item} và trả về số lượng thực tế đã thêm.
+     *
+     * @param item vật phẩm cần thêm
+     * @param amount số lượng mong muốn
+     * @return số đơn vị đã nạp được (0 nếu không còn chỗ)
+     */
+    public int addItemUpTo(Item item, int amount) {
+        if (owner != null) {
+            return owner.addItemUpTo(item, amount);
+        }
+        return addLocalItemUpTo(item, amount);
+    }
+
+    /** Thực thi thêm vật phẩm nội bộ trong phạm vi 9 ô khi Hotbar đứng độc lập. */
+    private int addLocalItemUpTo(Item item, int amount) {
         if (item == null || item.isNone() || amount <= 0) {
-            return false;
+            return 0;
         }
 
         int maxStack = item.getMaxStackSize();
+        if (maxStack <= 0) {
+            return 0;
+        }
         int remaining = amount;
 
         // Bước 1: Ưu tiên cộng dồn vào các ô đang chứa sẵn cùng loại vật phẩm và chưa đầy stack
@@ -125,7 +159,7 @@ public class Hotbar {
                 slotCounts[i] += toAdd;
                 remaining -= toAdd;
                 if (remaining == 0) {
-                    return true;
+                    return amount;
                 }
             }
         }
@@ -138,12 +172,12 @@ public class Hotbar {
                 slotCounts[i] = toAdd;
                 remaining -= toAdd;
                 if (remaining == 0) {
-                    return true;
+                    return amount;
                 }
             }
         }
 
-        return remaining < amount;
+        return amount - remaining;
     }
 
     /**

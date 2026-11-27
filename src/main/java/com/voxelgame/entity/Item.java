@@ -84,12 +84,12 @@ public final class Item {
     public static final Item POTION_FIRE_RESISTANCE = standalone("Potion of Fire Resistance", 1, "potion_fire_resistance", 0xFF9900);
     public static final Item POTION_WATER_BREATHING = standalone("Potion of Water Breathing", 1, "potion_water_breathing", 0x98DAC0);
     public static final Item POTION_SWIFTNESS = standalone("Potion of Swiftness", 1, "potion_swiftness", 0x33EBFF);
-    public static final Item WHITE_WOOL = wool("White Wool", "white_wool", 0xECECEC);
-    public static final Item LIGHT_GRAY_WOOL = wool("Light Gray Wool", "light_gray_wool", 0x9E9E97);
-    public static final Item GRAY_WOOL = wool("Gray Wool", "gray_wool", 0x4A4E52);
-    public static final Item BLACK_WOOL = wool("Black Wool", "black_wool", 0x1D1E23);
-    public static final Item BROWN_WOOL = wool("Brown Wool", "brown_wool", 0x7A4B2E);
-    public static final Item PINK_WOOL = wool("Pink Wool", "pink_wool", 0xEC8EAC);
+    public static final Item WHITE_WOOL = wool("White Wool", "white_wool", 0xECECEC, Block.WHITE_WOOL);
+    public static final Item LIGHT_GRAY_WOOL = wool("Light Gray Wool", "light_gray_wool", 0x9E9E97, Block.LIGHT_GRAY_WOOL);
+    public static final Item GRAY_WOOL = wool("Gray Wool", "gray_wool", 0x4A4E52, Block.GRAY_WOOL);
+    public static final Item BLACK_WOOL = wool("Black Wool", "black_wool", 0x1D1E23, Block.BLACK_WOOL);
+    public static final Item BROWN_WOOL = wool("Brown Wool", "brown_wool", 0x7A4B2E, Block.BROWN_WOOL);
+    public static final Item PINK_WOOL = wool("Pink Wool", "pink_wool", 0xEC8EAC, Block.PINK_WOOL);
     public static final Item SHEARS = standalone("Shears", 1, "shears", 0xC4C4C4);
     public static final Item FLINT_AND_STEEL = standalone("Flint and Steel", 1, "flint_and_steel", 0xB4B8BD);
     public static final Item BUCKET = standalone("Bucket", 16, "bucket", 0xB8BFC6);
@@ -127,11 +127,12 @@ public final class Item {
         return item;
     }
 
-    /** Tạo vật phẩm len cừu dạng khối lập phương mini khi rơi trên mặt đất. */
-    private static Item wool(String displayName, String textureName, int fallbackRgb) {
-        Item item = new Item(nextStandaloneId++, displayName, 64, Block.AIR,
+    /** Tạo vật phẩm len cừu dạng khối lập phương mini, liên kết hai chiều với {@link WoolBlock}. */
+    private static Item wool(String displayName, String textureName, int fallbackRgb, Block woolBlock) {
+        Item item = new Item(nextStandaloneId++, displayName, 64, woolBlock,
                 textureName, nextAtlasTileIndex++, true, fallbackRgb);
         STANDALONE_ITEMS.add(item);
+        BY_BLOCK_ID[Byte.toUnsignedInt(woolBlock.getId())] = item;
         return item;
     }
 
