@@ -110,11 +110,18 @@ public class AudioManager implements Disposable {
     private boolean waitingForTrack;
     private boolean underwaterPlaying;
     private boolean disposed;
-    /** Âm lượng chung của nhạc nền và mưa, điều khiển bằng Pause Menu. */
-    private float volume = 0.70f;
+    /** Cấu hình lưu trữ âm lượng tách biệt giữa Nhạc nền và Hiệu ứng âm thanh. */
+    private final AudioOptions audioOptions;
+    /** Âm lượng nhạc nền [0.0..1.0] (mặc định 70%, điều khiển 5 bản nhạc nền). */
+    private float musicVolume;
+    /** Âm lượng hiệu ứng âm thanh [0.0..1.0] (mặc định 70%, điều khiển toàn bộ SFX, mob, UI, mưa & dưới nước). */
+    private float sfxVolume;
 
-    /** Nạp trước mẫu ngắn và xác định các tài nguyên nhạc đã đóng gói. */
+    /** Nạp trước mẫu ngắn, nạp cấu hình âm lượng đã lưu và xác định các tài nguyên nhạc đã đóng gói. */
     public AudioManager() {
+        this.audioOptions = new AudioOptions();
+        this.musicVolume = audioOptions.getMusicVolume();
+        this.sfxVolume = audioOptions.getSfxVolume();
         for (int i = 0; i < TRACKS.length; i++) {
             trackFiles[i] = findAsset(MUSIC_ROOT + TRACKS[i]);
         }
@@ -151,7 +158,7 @@ public class AudioManager implements Disposable {
             try {
                 underwaterAmbience = Gdx.audio.newMusic(underwater);
                 underwaterAmbience.setLooping(true);
-                underwaterAmbience.setVolume(0.18f);
+                underwaterAmbience.setVolume(0.18f * sfxVolume);
             } catch (RuntimeException error) {
                 logLoadError(underwater, error);
                 if (underwaterAmbience != null) {
@@ -231,7 +238,7 @@ public class AudioManager implements Disposable {
             try {
                 backgroundMusic = Gdx.audio.newMusic(file);
                 backgroundMusic.setLooping(false);
-                backgroundMusic.setVolume(volume);
+                backgroundMusic.setVolume(musicVolume);
                 backgroundMusic.setOnCompletionListener(this::onTrackComplete);
                 backgroundMusic.play();
                 lastTrack = track;
@@ -262,15 +269,52 @@ public class AudioManager implements Disposable {
         }
     }
 
-    /** Áp dụng ngay âm lượng và dùng lại giá trị này cho những bài tiếp theo. */
-    public void setVolume(float newVolume) {
-        volume = Math.max(0f, Math.min(1f, newVolume));
+    /** Áp dụng ngay âm lượng nhạc nền [0.0..1.0] và lưu ra tệp cấu hình. */
+    public void setMusicVolume(float newVolume) {
+        musicVolume = Math.max(0f, Math.min(1f, newVolume));
         if (backgroundMusic != null) {
-            backgroundMusic.setVolume(volume);
+            backgroundMusic.setVolume(musicVolume);
         }
+        audioOptions.setMusicVolume(musicVolume);
+        audioOptions.save();
+    }
+
+    /** Áp dụng ngay âm lượng hiệu ứng âm thanh [0.0..1.0] (SFX, mob, UI, mưa, dưới nước) và lưu ra tệp cấu hình. */
+    public void setSfxVolume(float newVolume) {
+        sfxVolume = Math.max(0f, Math.min(1f, newVolume));
         if (rainAmbience != null) {
-            rainAmbience.setVolume(volume * rainGain);
+            rainAmbience.setVolume(sfxVolume * rainGain);
         }
+        if (underwaterAmbience != null) {
+            underwaterAmbience.setVolume(0.18f * sfxVolume);
+        }
+        audioOptions.setSfxVolume(sfxVolume);
+        audioOptions.save();
+    }
+
+    /** Đọc âm lượng nhạc nền hiện tại trong khoảng từ 0 đến 1. */
+    public float getMusicVolume() {
+        return musicVolume;
+    }
+
+    /** Quy đổi âm lượng nhạc nền sang phần trăm nguyên (0..100). */
+    public int getMusicVolumePercent() {
+        return Math.round(musicVolume * 100f);
+    }
+
+    /** Đọc âm lượng hiệu ứng âm thanh hiện tại trong khoảng từ 0 đến 1. */
+    public float getSfxVolume() {
+        return sfxVolume;
+    }
+
+    /** Quy đổi âm lượng hiệu ứng âm thanh sang phần trăm nguyên (0..100). */
+    public int getSfxVolumePercent() {
+        return Math.round(sfxVolume * 100f);
+    }
+
+    /** Áp dụng ngay âm lượng nhạc nền (giữ tương thích API cũ). */
+    public void setVolume(float newVolume) {
+        setMusicVolume(newVolume);
     }
 
     /** Áp dụng cường độ mưa cục bộ sau khi đã xét biome và mái che. */
@@ -278,7 +322,7 @@ public class AudioManager implements Disposable {
         if (rainGain != gain) {
             rainGain = gain;
             if (rainAmbience != null) {
-                rainAmbience.setVolume(volume * rainGain);
+                rainAmbience.setVolume(sfxVolume * rainGain);
             }
             syncRainPlayback();
         }
@@ -309,19 +353,19 @@ public class AudioManager implements Disposable {
         }
     }
 
-    /** Tăng hoặc giảm âm lượng theo bước của giao diện. */
+    /** Tăng hoặc giảm âm lượng nhạc nền theo bước của giao diện (giữ tương thích API cũ). */
     public void changeVolume(float delta) {
-        setVolume(volume + delta);
+        setMusicVolume(musicVolume + delta);
     }
 
-    /** Đọc âm lượng hiện tại trong khoảng từ 0 đến 1. */
+    /** Đọc âm lượng nhạc nền hiện tại trong khoảng từ 0 đến 1 (giữ tương thích API cũ). */
     public float getVolume() {
-        return volume;
+        return musicVolume;
     }
 
-    /** Quy đổi âm lượng sang phần trăm nguyên cho Pause Menu. */
+    /** Quy đổi âm lượng nhạc nền sang phần trăm nguyên (giữ tương thích API cũ). */
     public int getVolumePercent() {
-        return Math.round(volume * 100f);
+        return getMusicVolumePercent();
     }
 
     /** Kiểm tra xem bài nhạc hiện tại đang phát hay đang ở khoảng nghỉ. */
@@ -417,10 +461,14 @@ public class AudioManager implements Disposable {
         if (gain <= 0f) {
             return;
         }
+        float finalGain = gain * sfxVolume;
+        if (finalGain <= 0f) {
+            return;
+        }
         ThreadLocalRandom random = ThreadLocalRandom.current();
         Sound sound = mobSounds.choose(mobId, event, random);
         if (sound != null) {
-            sound.play(gain, mobPitch(pitchMultiplier, random.nextFloat()), 0f);
+            sound.play(finalGain, mobPitch(pitchMultiplier, random.nextFloat()), 0f);
         }
     }
 
@@ -462,7 +510,8 @@ public class AudioManager implements Disposable {
 
     /** Tận dụng bộ đệm OpenAL đã nạp và tìm biến thể kế nếu có tệp lỗi. */
     private void playSample(Effect effect, float gain, float pitch) {
-        if (disposed || gain <= 0f) {
+        float finalGain = gain * sfxVolume;
+        if (disposed || finalGain <= 0f) {
             return;
         }
         Sound[] variants = sounds[effect.ordinal()];
@@ -471,7 +520,7 @@ public class AudioManager implements Disposable {
         for (int i = 0; i < variants.length; i++) {
             Sound sample = variants[index];
             if (sample != null) {
-                sample.play(gain, pitch * (0.94f + 0.12f * random.nextFloat()), 0f);
+                sample.play(finalGain, pitch * (0.94f + 0.12f * random.nextFloat()), 0f);
                 return;
             }
             index = (index + 1) % variants.length;

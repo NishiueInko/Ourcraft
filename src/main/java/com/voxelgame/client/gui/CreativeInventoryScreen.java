@@ -527,28 +527,165 @@ public class CreativeInventoryScreen extends Screen {
     }
 
     /**
-     * Kết xuất toàn bộ Kho Creative trong chế độ 2D Orthographic.
+     * Kết xuất toàn bộ Kho Creative trong chế độ 2D Orthographic (không kèm font VT323).
      */
     public void render(ShaderProgram shader, PlayerInventory inv, Texture blockAtlas,
                        ItemTextureAtlas itemAtlas, int screenW, int screenH,
                        float mouseX, float mouseY) {
+        render(shader, inv, blockAtlas, itemAtlas, null, screenW, screenH, mouseX, mouseY);
+    }
+
+    /**
+     * Kết xuất toàn bộ Kho Creative trong chế độ 2D Orthographic cùng font {@link Vt323FontRenderer}.
+     */
+    public void render(ShaderProgram shader, PlayerInventory inv, Texture blockAtlas,
+                       ItemTextureAtlas itemAtlas, Vt323FontRenderer font, int screenW, int screenH,
+                       float mouseX, float mouseY) {
         if (!open || shader == null || inv == null || Gdx.gl == null) {
             return;
         }
+        boolean useVt323 = font != null && font.isReady();
         if (needsGridRebuild(inv, screenW, screenH)) {
-            rebuildGridMesh(inv, screenW, screenH);
+            rebuildGridMesh(inv, !useVt323, screenW, screenH);
             syncCache(inv, screenW, screenH);
         }
-        rebuildOverlayMesh(inv, screenW, screenH, mouseX, mouseY);
+        rebuildOverlayMesh(inv, !useVt323, screenW, screenH, mouseX, mouseY);
 
         if (gridMesh != null && gridPassCount > 0) {
             renderMeshPasses(shader, gridMesh, gridPassCount, gridPassStart, gridPassCountVerts,
                     gridPassTexSource, gridPassTints, blockAtlas, itemAtlas);
         }
+        if (useVt323) {
+            renderGridVt323Text(shader, font, inv, screenW, screenH);
+        }
         if (overlayMesh != null && overlayPassCount > 0) {
             renderMeshPasses(shader, overlayMesh, overlayPassCount, overlayPassStart, overlayPassCountVerts,
                     overlayPassTexSource, overlayPassTints, blockAtlas, itemAtlas);
         }
+        if (useVt323) {
+            renderOverlayVt323Text(shader, font, inv, screenW, screenH, mouseX, mouseY);
+        }
+    }
+
+    /** Vẽ nhãn 5 tab, nút cuộn +/-, nút thùng rác X và số lượng stack Hotbar bằng font VT323. */
+    private void renderGridVt323Text(ShaderProgram shader, Vt323FontRenderer font, PlayerInventory inv,
+                                     int screenW, int screenH) {
+        float scale = getPanelScale(screenW, screenH);
+        float panelX = getPanelX(screenW, scale);
+        float panelY = getPanelY(screenH, scale);
+        float panelW = PANEL_W * scale;
+        float slotSize = SLOT_INNER * scale;
+        float tabW = ((PANEL_W - (TABS.length - 1) * TAB_GAP) / TABS.length) * scale;
+        float tabH = TAB_BAR_H * scale;
+        float tabY = panelY + 4.0f * scale;
+
+        float tabPxH = Math.max(13.0f, scale * 5.6f);
+        for (int i = 0; i < TABS.length; i++) {
+            String label = TABS[i].getLabel();
+            float tx = panelX + i * (tabW + TAB_GAP * scale);
+            float lw = font.measureWidth(label, tabPxH);
+            font.drawTextWithShadow(shader, label, tx + (tabW - lw) * 0.5f,
+                    tabY + (tabH - tabPxH) * 0.5f, tabPxH, 1.0f, 1.0f, 1.0f, 1.0f);
+        }
+
+        float scrollX = panelX + SCROLL_X * scale;
+        float scrollW = SCROLL_W * scale;
+        float scrollTop = panelY + GRID_Y * scale;
+        float scrollTotalH = ((ROWS - 1) * SLOT_PITCH + SLOT_INNER) * scale;
+        float btnH = SCROLL_BTN_H * scale;
+        float btnPxH = Math.max(14.0f, scale * 6.0f);
+
+        font.drawCenteredTextWithShadow(shader, "-", scrollX + scrollW * 0.5f,
+                scrollTop + (btnH - btnPxH) * 0.5f, btnPxH, 1.0f, 1.0f, 1.0f, 1.0f);
+        font.drawCenteredTextWithShadow(shader, "+", scrollX + scrollW * 0.5f,
+                scrollTop + scrollTotalH - btnH + (btnH - btnPxH) * 0.5f, btnPxH, 1.0f, 1.0f, 1.0f, 1.0f);
+        font.drawCenteredTextWithShadow(shader, "X", panelX + TRASH_X * scale + slotSize * 0.5f,
+                panelY + TRASH_Y * scale + (slotSize - btnPxH) * 0.5f, btnPxH, 1.0f, 1.0f, 1.0f, 1.0f);
+
+        float hy = panelY + HOTBAR_Y * scale;
+        float countPxH = Math.max(14.0f, scale * 6.2f);
+        for (int s = 0; s < PlayerInventory.HOTBAR_SLOTS; s++) {
+            int count = inv.getCount(s);
+            if (count > 1 && !inv.getItem(s).isNone()) {
+                int clamped = Math.max(0, Math.min(NUMBER_LABELS.length - 1, count));
+                String countStr = NUMBER_LABELS[clamped];
+                float hx = panelX + (HOTBAR_X + s * SLOT_PITCH) * scale;
+                float tw = font.measureWidth(countStr, countPxH);
+                font.drawTextWithShadow(shader, countStr,
+                        hx + slotSize - tw - 1.5f, hy + slotSize - countPxH - 1.0f,
+                        countPxH, 1.0f, 1.0f, 1.0f, 1.0f);
+            }
+        }
+    }
+
+    /** Vẽ số lượng stack trên con trỏ và tooltip vật phẩm bằng font VT323. */
+    private void renderOverlayVt323Text(ShaderProgram shader, Vt323FontRenderer font, PlayerInventory inv,
+                                        int screenW, int screenH, float mouseX, float mouseY) {
+        float scale = getPanelScale(screenW, screenH);
+        float slotSize = SLOT_INNER * scale;
+        boolean hasCursor = cursorItem != null && !cursorItem.isNone() && cursorCount > 0;
+        if (hasCursor && cursorCount > 1) {
+            int clamped = Math.max(0, Math.min(NUMBER_LABELS.length - 1, cursorCount));
+            String countStr = NUMBER_LABELS[clamped];
+            float countPxH = Math.max(14.0f, scale * 6.2f);
+            float boxX = mouseX - slotSize * 0.5f;
+            float boxY = mouseY - slotSize * 0.5f;
+            float tw = font.measureWidth(countStr, countPxH);
+            font.drawTextWithShadow(shader, countStr,
+                    boxX + slotSize - tw - 1.5f, boxY + slotSize - countPxH - 1.0f,
+                    countPxH, 1.0f, 1.0f, 1.0f, 1.0f);
+        }
+
+        if (!hasCursor) {
+            int hoveredCatalog = getCatalogSlotAt(mouseX, mouseY, screenW, screenH);
+            int hoveredHotbar = hoveredCatalog < 0 ? getHotbarSlotAt(mouseX, mouseY, screenW, screenH) : -1;
+            boolean hoveredTrash = hoveredCatalog < 0 && hoveredHotbar < 0
+                    && isTrashSlotAt(mouseX, mouseY, screenW, screenH);
+
+            Item hoveredItem = Item.NONE;
+            if (hoveredCatalog >= 0) {
+                hoveredItem = CreativeCatalog.getItem(activeTab, scrollRow * COLS + hoveredCatalog);
+            } else if (hoveredHotbar >= 0 && inv.getCount(hoveredHotbar) > 0) {
+                hoveredItem = inv.getItem(hoveredHotbar);
+            }
+
+            String tooltipLabel = null;
+            if (hoveredItem != null && !hoveredItem.isNone()) {
+                tooltipLabel = hoveredItem.getDisplayName();
+            } else if (hoveredTrash) {
+                tooltipLabel = "Clear / Shift: Clear All";
+            }
+
+            if (tooltipLabel != null) {
+                float tipPxH = 19.0f;
+                float textW = font.measureWidth(tooltipLabel, tipPxH);
+                float padX = 10.0f;
+                float padY = 6.0f;
+                float tipW = textW + padX * 2.0f;
+                float tipH = tipPxH + padY * 2.0f;
+                float tipX = Math.max(4.0f, Math.min(screenW - tipW - 4.0f, mouseX + 14.0f));
+                float tipY = Math.max(4.0f, Math.min(screenH - tipH - 4.0f, mouseY - tipH - 8.0f));
+
+                drawSolidQuad(shader, tipX - 2f, tipY - 2f, tipW + 4f, tipH + 4f, 0.45f, 0.48f, 0.78f, 0.96f);
+                drawSolidQuad(shader, tipX, tipY, tipW, tipH, 0.08f, 0.09f, 0.14f, 0.96f);
+                font.drawTextWithShadow(shader, tooltipLabel, tipX + padX, tipY + padY, tipPxH, 1.0f, 1.0f, 1.0f, 1.0f);
+            }
+        }
+    }
+
+    /** Vẽ hình chữ nhật đồng nhất ngắn gọn cho khung tooltip VT323. */
+    private void drawSolidQuad(ShaderProgram shader, float x, float y, float w, float h,
+                               float r, float g, float b, float a) {
+        if (overlayMesh == null) {
+            overlayMesh = new Mesh(Mesh.VertexDataType.VertexBufferObjectWithVAO, false,
+                    OVERLAY_VERTEX_CAPACITY, 0, VERTEX_ATTRIBUTES);
+        }
+        BitmapFont.writeQuad(overlayVertices, 0, x, y + h, 0f, x + w, y + h, 0f,
+                x + w, y, 0f, x, y, 0f, 0f, 0f, 1f, 1f);
+        overlayMesh.setVertices(overlayVertices, 0, 36);
+        shader.setUniform1i("uUseTexture", 0);
+        shader.setUniformVec4("uTintColor", r, g, b, a);
+        overlayMesh.render(shader.getGdxShader(), GL20.GL_TRIANGLES, 0, 6);
     }
 
     private boolean needsGridRebuild(PlayerInventory inv, int screenW, int screenH) {
@@ -577,7 +714,7 @@ public class CreativeInventoryScreen extends Screen {
     }
 
     /** Dựng lưới tĩnh: nền tối, khung panel, 5 tab, 45 ô danh mục, thanh cuộn, 9 ô Hotbar và Thùng rác. */
-    private void rebuildGridMesh(PlayerInventory inv, int screenW, int screenH) {
+    private void rebuildGridMesh(PlayerInventory inv, boolean bakeLegacyText, int screenW, int screenH) {
         gridFloatLength = 0;
         gridPassCount = 0;
 
@@ -676,34 +813,36 @@ public class CreativeInventoryScreen extends Screen {
                 panelX + TRASH_X * scale, panelY + TRASH_Y * scale, slotSize, slotSize);
         endPass(gridPassStart, gridPassCountVerts, pass, gridFloatLength);
 
-        // 7. Nhãn chữ trên 5 Tab, mũi tên +/- trên nút cuộn và chữ X trên Thùng rác
-        float tabTextScale = Math.max(1.0f, scale * 0.45f);
-        pass = beginPass(gridPassStart, gridPassTexSource, gridPassTints, gridPassCount++,
-                gridFloatLength, TEXTURE_NONE, 1.0f, 1.0f, 1.0f, 1.0f);
-        for (int i = 0; i < TABS.length; i++) {
-            String label = TABS[i].getLabel();
-            float tx = panelX + i * (tabW + TAB_GAP * scale);
-            float lw = BitmapFont.measureWidth(label, tabTextScale);
-            float lh = BitmapFont.measureHeight(tabTextScale);
-            gridFloatLength = BitmapFont.appendTextVertices(gridVertices, gridFloatLength, label,
-                    tx + (tabW - lw) * 0.5f, tabY + (tabH - lh) * 0.5f, tabTextScale, gridVertices.length);
+        // 7. Nhãn chữ trên 5 Tab, mũi tên +/- trên nút cuộn và chữ X trên Thùng rác (chỉ khi fallback 5×7)
+        if (bakeLegacyText) {
+            float tabTextScale = Math.max(1.0f, scale * 0.45f);
+            pass = beginPass(gridPassStart, gridPassTexSource, gridPassTints, gridPassCount++,
+                    gridFloatLength, TEXTURE_NONE, 1.0f, 1.0f, 1.0f, 1.0f);
+            for (int i = 0; i < TABS.length; i++) {
+                String label = TABS[i].getLabel();
+                float tx = panelX + i * (tabW + TAB_GAP * scale);
+                float lw = BitmapFont.measureWidth(label, tabTextScale);
+                float lh = BitmapFont.measureHeight(tabTextScale);
+                gridFloatLength = BitmapFont.appendTextVertices(gridVertices, gridFloatLength, label,
+                        tx + (tabW - lw) * 0.5f, tabY + (tabH - lh) * 0.5f, tabTextScale, gridVertices.length);
+            }
+            float btnTextScale = Math.max(1.0f, scale * 0.50f);
+            float minusW = BitmapFont.measureWidth("-", btnTextScale);
+            float plusW = BitmapFont.measureWidth("+", btnTextScale);
+            float xW = BitmapFont.measureWidth("X", btnTextScale);
+            float btnTextH = BitmapFont.measureHeight(btnTextScale);
+            gridFloatLength = BitmapFont.appendTextVertices(gridVertices, gridFloatLength, "-",
+                    scrollX + (scrollW - minusW) * 0.5f, scrollTop + (btnH - btnTextH) * 0.5f,
+                    btnTextScale, gridVertices.length);
+            gridFloatLength = BitmapFont.appendTextVertices(gridVertices, gridFloatLength, "+",
+                    scrollX + (scrollW - plusW) * 0.5f, scrollTop + scrollTotalH - btnH + (btnH - btnTextH) * 0.5f,
+                    btnTextScale, gridVertices.length);
+            gridFloatLength = BitmapFont.appendTextVertices(gridVertices, gridFloatLength, "X",
+                    panelX + TRASH_X * scale + (slotSize - xW) * 0.5f,
+                    panelY + TRASH_Y * scale + (slotSize - btnTextH) * 0.5f,
+                    btnTextScale, gridVertices.length);
+            endPass(gridPassStart, gridPassCountVerts, pass, gridFloatLength);
         }
-        float btnTextScale = Math.max(1.0f, scale * 0.50f);
-        float minusW = BitmapFont.measureWidth("-", btnTextScale);
-        float plusW = BitmapFont.measureWidth("+", btnTextScale);
-        float xW = BitmapFont.measureWidth("X", btnTextScale);
-        float btnTextH = BitmapFont.measureHeight(btnTextScale);
-        gridFloatLength = BitmapFont.appendTextVertices(gridVertices, gridFloatLength, "-",
-                scrollX + (scrollW - minusW) * 0.5f, scrollTop + (btnH - btnTextH) * 0.5f,
-                btnTextScale, gridVertices.length);
-        gridFloatLength = BitmapFont.appendTextVertices(gridVertices, gridFloatLength, "+",
-                scrollX + (scrollW - plusW) * 0.5f, scrollTop + scrollTotalH - btnH + (btnH - btnTextH) * 0.5f,
-                btnTextScale, gridVertices.length);
-        gridFloatLength = BitmapFont.appendTextVertices(gridVertices, gridFloatLength, "X",
-                panelX + TRASH_X * scale + (slotSize - xW) * 0.5f,
-                panelY + TRASH_Y * scale + (slotSize - btnTextH) * 0.5f,
-                btnTextScale, gridVertices.length);
-        endPass(gridPassStart, gridPassCountVerts, pass, gridFloatLength);
 
         // 8. Vẽ biểu tượng khối (Block Atlas) cho cả lưới danh mục & 9 ô Hotbar
         Item[] catalog = CreativeCatalog.getItems(activeTab);
@@ -756,31 +895,33 @@ public class CreativeInventoryScreen extends Screen {
         }
         endPass(gridPassStart, gridPassCountVerts, pass, gridFloatLength);
 
-        // 10. Số lượng stack trên 9 ô Hotbar (bóng + chữ trắng)
-        float countScale = Math.max(1.2f, scale * 0.55f);
-        pass = beginPass(gridPassStart, gridPassTexSource, gridPassTints, gridPassCount++,
-                gridFloatLength, TEXTURE_NONE, 0.05f, 0.05f, 0.05f, 0.95f);
-        for (int s = 0; s < PlayerInventory.HOTBAR_SLOTS; s++) {
-            int count = inv.getCount(s);
-            if (count > 1 && !inv.getItem(s).isNone()) {
-                float hx = panelX + (HOTBAR_X + s * SLOT_PITCH) * scale;
-                gridFloatLength = appendSlotCountText(gridVertices, gridFloatLength, count,
-                        hx, hy, slotSize, countScale, 1.5f, gridVertices.length);
+        // 10. Số lượng stack trên 9 ô Hotbar (chỉ khi fallback 5×7)
+        if (bakeLegacyText) {
+            float countScale = Math.max(1.2f, scale * 0.55f);
+            pass = beginPass(gridPassStart, gridPassTexSource, gridPassTints, gridPassCount++,
+                    gridFloatLength, TEXTURE_NONE, 0.05f, 0.05f, 0.05f, 0.95f);
+            for (int s = 0; s < PlayerInventory.HOTBAR_SLOTS; s++) {
+                int count = inv.getCount(s);
+                if (count > 1 && !inv.getItem(s).isNone()) {
+                    float hx = panelX + (HOTBAR_X + s * SLOT_PITCH) * scale;
+                    gridFloatLength = appendSlotCountText(gridVertices, gridFloatLength, count,
+                            hx, hy, slotSize, countScale, 1.5f, gridVertices.length);
+                }
             }
-        }
-        endPass(gridPassStart, gridPassCountVerts, pass, gridFloatLength);
+            endPass(gridPassStart, gridPassCountVerts, pass, gridFloatLength);
 
-        pass = beginPass(gridPassStart, gridPassTexSource, gridPassTints, gridPassCount++,
-                gridFloatLength, TEXTURE_NONE, 1.0f, 1.0f, 1.0f, 1.0f);
-        for (int s = 0; s < PlayerInventory.HOTBAR_SLOTS; s++) {
-            int count = inv.getCount(s);
-            if (count > 1 && !inv.getItem(s).isNone()) {
-                float hx = panelX + (HOTBAR_X + s * SLOT_PITCH) * scale;
-                gridFloatLength = appendSlotCountText(gridVertices, gridFloatLength, count,
-                        hx, hy, slotSize, countScale, 0f, gridVertices.length);
+            pass = beginPass(gridPassStart, gridPassTexSource, gridPassTints, gridPassCount++,
+                    gridFloatLength, TEXTURE_NONE, 1.0f, 1.0f, 1.0f, 1.0f);
+            for (int s = 0; s < PlayerInventory.HOTBAR_SLOTS; s++) {
+                int count = inv.getCount(s);
+                if (count > 1 && !inv.getItem(s).isNone()) {
+                    float hx = panelX + (HOTBAR_X + s * SLOT_PITCH) * scale;
+                    gridFloatLength = appendSlotCountText(gridVertices, gridFloatLength, count,
+                            hx, hy, slotSize, countScale, 0f, gridVertices.length);
+                }
             }
+            endPass(gridPassStart, gridPassCountVerts, pass, gridFloatLength);
         }
-        endPass(gridPassStart, gridPassCountVerts, pass, gridFloatLength);
 
         if (gridMesh == null) {
             gridMesh = new Mesh(Mesh.VertexDataType.VertexBufferObjectWithVAO, false,
@@ -790,7 +931,7 @@ public class CreativeInventoryScreen extends Screen {
     }
 
     /** Dựng lớp phủ động gồm ô sáng khi hover, vật phẩm trên con trỏ và tooltip tên vật phẩm. */
-    private void rebuildOverlayMesh(PlayerInventory inv, int screenW, int screenH,
+    private void rebuildOverlayMesh(PlayerInventory inv, boolean bakeLegacyText, int screenW, int screenH,
                                     float mouseX, float mouseY) {
         overlayFloatLength = 0;
         overlayPassCount = 0;
@@ -857,7 +998,7 @@ public class CreativeInventoryScreen extends Screen {
                     cursorItem, boxX, boxY, slotSize);
             endPass(overlayPassStart, overlayPassCountVerts, pass, overlayFloatLength);
 
-            if (cursorCount > 1) {
+            if (bakeLegacyText && cursorCount > 1) {
                 float countScale = Math.max(1.2f, scale * 0.55f);
                 pass = beginPass(overlayPassStart, overlayPassTexSource, overlayPassTints, overlayPassCount++,
                         overlayFloatLength, TEXTURE_NONE, 0.05f, 0.05f, 0.05f, 0.95f);
@@ -873,8 +1014,8 @@ public class CreativeInventoryScreen extends Screen {
             }
         }
 
-        // Tooltip tên vật phẩm khi rê chuột
-        if (tooltipLabel != null) {
+        // Tooltip tên vật phẩm khi rê chuột (chỉ khi fallback 5×7)
+        if (bakeLegacyText && tooltipLabel != null) {
             float tipScale = 1.6f;
             float textW = BitmapFont.measureWidth(tooltipLabel, tipScale);
             float textH = BitmapFont.measureHeight(tipScale);

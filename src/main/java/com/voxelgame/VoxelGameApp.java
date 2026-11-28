@@ -105,6 +105,8 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor, 
 
     /** Cờ tạm dừng game (giữ đồng bộ trực tiếp với PauseScreen và kiểm thử reflection). */
     private boolean isPaused = false;
+    /** Cờ đánh dấu đang ở luồng màn hình chính ngoài thế giới (Main Menu / Settings / Hotkeys / Credits). */
+    private boolean inMainMenuFlow = false;
 
     /** Bộ đệm tái sử dụng cho Raycast ngắm khối và camera góc nhìn thứ nhất/thứ ba (zero-GC). */
     private final Vector3 eyePosition = new Vector3();
@@ -204,7 +206,16 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor, 
 
         GameInputController controller = ensureInputController();
         Gdx.input.setInputProcessor(this);
-        Gdx.input.setCursorCatched(true);
+
+        // Khởi động vào màn hình chính OurCraft (Main Menu), mở khóa con trỏ chuột và phát nhạc nền ngay
+        inMainMenuFlow = true;
+        isPaused = false;
+        uiRenderer.getMainMenuScreen().open();
+        uiRenderer.getSettingsScreen().close();
+        uiRenderer.getPauseScreen().close();
+        uiRenderer.getHotkeysScreen().close();
+        uiRenderer.getCreditsScreen().close();
+        Gdx.input.setCursorCatched(false);
         controller.skipNextMouseDelta();
     }
 
@@ -221,6 +232,33 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor, 
         if (audioManager != null) {
             audioManager.update();
         }
+
+        // Khi đang ở màn hình chính / Settings / Hotkeys / Credits ngoài thế giới: chỉ vẽ Menu 2D + Steve 3D
+        if (inMainMenuFlow) {
+            int menuW = Gdx.graphics.getWidth();
+            int menuH = Gdx.graphics.getHeight();
+            if (uiRenderer != null) {
+                uiRenderer.getMainMenuScreen().update(deltaTime);
+            }
+            Gdx.gl.glClearColor(0.04f, 0.05f, 0.07f, 1.0f);
+            Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT | GL20.GL_DEPTH_BUFFER_BIT);
+            shaderProgram.bind();
+            if (uiRenderer != null) {
+                uiRenderer.renderFullScreenMenu(
+                        shaderProgram,
+                        camera,
+                        audioManager,
+                        firstPersonRenderer,
+                        menuW,
+                        menuH,
+                        controller.getCurrentMouseX(),
+                        controller.getCurrentMouseY()
+                );
+            }
+            shaderProgram.unbind();
+            return;
+        }
+
         if (uiRenderer != null) {
             uiRenderer.updateToast(deltaTime);
         }
@@ -640,6 +678,16 @@ public class VoxelGameApp extends ApplicationAdapter implements InputProcessor, 
     @Override
     public void setPaused(boolean paused) {
         this.isPaused = paused;
+    }
+
+    @Override
+    public boolean isInMainMenuFlow() {
+        return inMainMenuFlow;
+    }
+
+    @Override
+    public void setInMainMenuFlow(boolean inMainMenuFlow) {
+        this.inMainMenuFlow = inMainMenuFlow;
     }
 
     @Override

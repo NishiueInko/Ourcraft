@@ -476,12 +476,19 @@ public class InventoryScreen extends Screen {
         render(shader, inv, blockAtlas, itemAtlas, null, screenW, screenH, mouseX, mouseY);
     }
 
+    /** Kết xuất toàn bộ giao diện túi đồ 36 ô với {@link GuiTextureAtlas} dùng chung (không kèm VT323). */
+    public void render(ShaderProgram shader, PlayerInventory inv, Texture blockAtlas,
+                       ItemTextureAtlas itemAtlas, GuiTextureAtlas guiAtlas,
+                       int screenW, int screenH, float mouseX, float mouseY) {
+        render(shader, inv, blockAtlas, itemAtlas, guiAtlas, null, screenW, screenH, mouseX, mouseY);
+    }
+
     /**
-     * Kết xuất toàn bộ giao diện túi đồ 36 ô với {@link GuiTextureAtlas} dùng chung.
+     * Kết xuất toàn bộ giao diện túi đồ 36 ô với {@link GuiTextureAtlas} và {@link Vt323FontRenderer}.
      * Không cấp phát rác (zero-GC) trong mỗi khung hình.
      */
     public void render(ShaderProgram shader, PlayerInventory inv, Texture blockAtlas,
-                       ItemTextureAtlas itemAtlas, GuiTextureAtlas guiAtlas,
+                       ItemTextureAtlas itemAtlas, GuiTextureAtlas guiAtlas, Vt323FontRenderer font,
                        int screenW, int screenH, float mouseX, float mouseY) {
         if (!open || shader == null || inv == null || screenW <= 0 || screenH <= 0 || Gdx.gl == null) {
             return;
@@ -489,6 +496,7 @@ public class InventoryScreen extends Screen {
 
         GuiTextureAtlas activeGui = resolveGuiAtlas(guiAtlas);
         boolean hasGuiTexture = activeGui != null;
+        boolean useVt323 = font != null && font.isReady();
 
         boolean changed = dirty || screenW != cachedScreenW || screenH != cachedScreenH
                 || hasGuiTexture != cachedHasGuiTexture;
@@ -507,21 +515,116 @@ public class InventoryScreen extends Screen {
             cachedScreenH = screenH;
             cachedHasGuiTexture = hasGuiTexture;
             dirty = false;
-            rebuildGridMesh(inv, hasGuiTexture, screenW, screenH);
+            rebuildGridMesh(inv, hasGuiTexture, !useVt323, screenW, screenH);
         }
 
         renderPasses(shader, gridMesh, gridPassCount, gridPassStart, gridPassCountVerts,
                 gridPassTexSource, gridPassTints, blockAtlas, itemAtlas, activeGui);
 
-        rebuildOverlayMesh(inv, screenW, screenH, mouseX, mouseY);
+        if (useVt323) {
+            renderGridVt323Text(shader, font, inv, hasGuiTexture, screenW, screenH);
+        }
+
+        rebuildOverlayMesh(inv, !useVt323, screenW, screenH, mouseX, mouseY);
         if (overlayFloatLength > 0) {
             renderPasses(shader, overlayMesh, overlayPassCount, overlayPassStart, overlayPassCountVerts,
                     overlayPassTexSource, overlayPassTints, blockAtlas, itemAtlas, activeGui);
         }
+
+        if (useVt323) {
+            renderOverlayVt323Text(shader, font, inv, screenW, screenH, mouseX, mouseY);
+        }
+    }
+
+    /** Vẽ tiêu đề và số lượng vật phẩm trong 36 ô bằng font VT323. */
+    private void renderGridVt323Text(ShaderProgram shader, Vt323FontRenderer font, PlayerInventory inv,
+                                     boolean hasGuiTexture, int screenW, int screenH) {
+        float scale = getPanelScale(screenW, screenH);
+        float panelX = getPanelX(screenW, scale);
+        float panelY = getPanelY(screenH, scale);
+        float slotSize = INV_SLOT_INNER * scale;
+
+        if (hasGuiTexture) {
+            float titlePxH = Math.max(15.0f, scale * 6.8f);
+            font.drawText(shader, "Inventory", panelX + 97.0f * scale, panelY + 5.5f * scale,
+                    titlePxH, 0.25f, 0.25f, 0.25f, 1.0f);
+        }
+
+        float countPxH = Math.max(14.0f, scale * 6.2f);
+        for (int s = 0; s < PlayerInventory.TOTAL_SLOTS; s++) {
+            Item item = inv.getItem(s);
+            int count = inv.getCount(s);
+            if (item != null && !item.isNone() && count > 1) {
+                int clamped = Math.max(0, Math.min(NUMBER_LABELS.length - 1, count));
+                String countStr = NUMBER_LABELS[clamped];
+                float sx = getSlotX(panelX, scale, s);
+                float sy = getSlotY(panelY, scale, s);
+                float tw = font.measureWidth(countStr, countPxH);
+                font.drawTextWithShadow(shader, countStr,
+                        sx + slotSize - tw - 1.5f, sy + slotSize - countPxH - 1.0f,
+                        countPxH, 1.0f, 1.0f, 1.0f, 1.0f);
+            }
+        }
+    }
+
+    /** Vẽ số lượng stack trên con trỏ và tooltip tên vật phẩm bằng font VT323. */
+    private void renderOverlayVt323Text(ShaderProgram shader, Vt323FontRenderer font, PlayerInventory inv,
+                                        int screenW, int screenH, float mouseX, float mouseY) {
+        float scale = getPanelScale(screenW, screenH);
+        float slotSize = INV_SLOT_INNER * scale;
+        boolean hasCursorItem = cursorItem != null && !cursorItem.isNone() && cursorCount > 0;
+        if (hasCursorItem && cursorCount > 1) {
+            int clamped = Math.max(0, Math.min(NUMBER_LABELS.length - 1, cursorCount));
+            String countStr = NUMBER_LABELS[clamped];
+            float countPxH = Math.max(14.0f, scale * 6.2f);
+            float boxX = mouseX - slotSize * 0.5f;
+            float boxY = mouseY - slotSize * 0.5f;
+            float tw = font.measureWidth(countStr, countPxH);
+            font.drawTextWithShadow(shader, countStr,
+                    boxX + slotSize - tw - 1.5f, boxY + slotSize - countPxH - 1.0f,
+                    countPxH, 1.0f, 1.0f, 1.0f, 1.0f);
+        }
+
+        int hoveredSlot = getSlotAt(mouseX, mouseY, screenW, screenH);
+        if (!hasCursorItem && hoveredSlot >= 0) {
+            Item hoveredItem = inv.getItem(hoveredSlot);
+            int hoveredCount = inv.getCount(hoveredSlot);
+            if (hoveredItem != null && !hoveredItem.isNone() && hoveredCount > 0) {
+                String label = hoveredItem.getDisplayName();
+                float tipPxH = 19.0f;
+                float textW = font.measureWidth(label, tipPxH);
+                float padX = 10.0f;
+                float padY = 6.0f;
+                float tipW = textW + padX * 2.0f;
+                float tipH = tipPxH + padY * 2.0f;
+                float tipX = Math.max(4.0f, Math.min(screenW - tipW - 4.0f, mouseX + 14.0f));
+                float tipY = Math.max(4.0f, Math.min(screenH - tipH - 4.0f, mouseY - tipH - 8.0f));
+
+                drawSolidQuad(shader, tipX - 2f, tipY - 2f, tipW + 4f, tipH + 4f, 0.45f, 0.48f, 0.78f, 0.96f);
+                drawSolidQuad(shader, tipX, tipY, tipW, tipH, 0.08f, 0.09f, 0.14f, 0.96f);
+                font.drawTextWithShadow(shader, label, tipX + padX, tipY + padY, tipPxH, 1.0f, 1.0f, 1.0f, 1.0f);
+            }
+        }
+    }
+
+    /** Vẽ hình chữ nhật đồng nhất ngắn gọn cho khung tooltip VT323. */
+    private void drawSolidQuad(ShaderProgram shader, float x, float y, float w, float h,
+                               float r, float g, float b, float a) {
+        if (overlayMesh == null) {
+            overlayMesh = new Mesh(Mesh.VertexDataType.VertexBufferObjectWithVAO, false,
+                    OVERLAY_VERTEX_CAPACITY, 0, VERTEX_ATTRIBUTES);
+        }
+        BitmapFont.writeQuad(overlayVertices, 0, x, y + h, 0f, x + w, y + h, 0f,
+                x + w, y, 0f, x, y, 0f, 0f, 0f, 1f, 1f);
+        overlayMesh.setVertices(overlayVertices, 0, 36);
+        shader.setUniform1i("uUseTexture", 0);
+        shader.setUniformVec4("uTintColor", r, g, b, a);
+        overlayMesh.render(shader.getGdxShader(), GL20.GL_TRIANGLES, 0, 6);
     }
 
     /** Dựng lại toàn bộ lưới tĩnh của khung túi đồ và 36 ô vào {@code gridMesh}. */
-    private void rebuildGridMesh(PlayerInventory inv, boolean hasGuiTexture, int screenW, int screenH) {
+    private void rebuildGridMesh(PlayerInventory inv, boolean hasGuiTexture, boolean bakeLegacyText,
+                                 int screenW, int screenH) {
         gridFloatLength = 0;
         gridPassCount = 0;
 
@@ -545,12 +648,14 @@ public class InventoryScreen extends Screen {
                     panelX, panelY, panelW, panelH, invUv[0], invUv[1], invUv[2], invUv[3]);
             endPass(gridPassStart, gridPassCountVerts, pass, gridFloatLength);
 
-            float titleScale = Math.max(1.0f, scale * 0.55f);
-            pass = beginPass(gridPassStart, gridPassTexSource, gridPassTints, gridPassCount++,
-                    gridFloatLength, TEXTURE_NONE, 0.25f, 0.25f, 0.25f, 1.0f);
-            gridFloatLength = BitmapFont.appendTextVertices(gridVertices, gridFloatLength, "INVENTORY",
-                    panelX + 97.0f * scale, panelY + 7.0f * scale, titleScale, gridVertices.length);
-            endPass(gridPassStart, gridPassCountVerts, pass, gridFloatLength);
+            if (bakeLegacyText) {
+                float titleScale = Math.max(1.0f, scale * 0.55f);
+                pass = beginPass(gridPassStart, gridPassTexSource, gridPassTints, gridPassCount++,
+                        gridFloatLength, TEXTURE_NONE, 0.25f, 0.25f, 0.25f, 1.0f);
+                gridFloatLength = BitmapFont.appendTextVertices(gridVertices, gridFloatLength, "INVENTORY",
+                        panelX + 97.0f * scale, panelY + 7.0f * scale, titleScale, gridVertices.length);
+                endPass(gridPassStart, gridPassCountVerts, pass, gridFloatLength);
+            }
         } else {
             pass = beginPass(gridPassStart, gridPassTexSource, gridPassTints, gridPassCount++,
                     gridFloatLength, TEXTURE_NONE, 0.65f, 0.68f, 0.75f, 0.96f);
@@ -599,34 +704,36 @@ public class InventoryScreen extends Screen {
         }
         endPass(gridPassStart, gridPassCountVerts, pass, gridFloatLength);
 
-        float countScale = Math.max(1.2f, scale * 0.55f);
-        pass = beginPass(gridPassStart, gridPassTexSource, gridPassTints, gridPassCount++,
-                gridFloatLength, TEXTURE_NONE, 0.05f, 0.05f, 0.05f, 0.95f);
-        for (int s = 0; s < PlayerInventory.TOTAL_SLOTS; s++) {
-            Item item = inv.getItem(s);
-            int count = inv.getCount(s);
-            if (item != null && !item.isNone() && count > 1) {
-                float sx = getSlotX(panelX, scale, s);
-                float sy = getSlotY(panelY, scale, s);
-                gridFloatLength = appendSlotCountText(gridVertices, gridFloatLength, count,
-                        sx, sy, slotSize, countScale, 1.5f, gridVertices.length);
+        if (bakeLegacyText) {
+            float countScale = Math.max(1.2f, scale * 0.55f);
+            pass = beginPass(gridPassStart, gridPassTexSource, gridPassTints, gridPassCount++,
+                    gridFloatLength, TEXTURE_NONE, 0.05f, 0.05f, 0.05f, 0.95f);
+            for (int s = 0; s < PlayerInventory.TOTAL_SLOTS; s++) {
+                Item item = inv.getItem(s);
+                int count = inv.getCount(s);
+                if (item != null && !item.isNone() && count > 1) {
+                    float sx = getSlotX(panelX, scale, s);
+                    float sy = getSlotY(panelY, scale, s);
+                    gridFloatLength = appendSlotCountText(gridVertices, gridFloatLength, count,
+                            sx, sy, slotSize, countScale, 1.5f, gridVertices.length);
+                }
             }
-        }
-        endPass(gridPassStart, gridPassCountVerts, pass, gridFloatLength);
+            endPass(gridPassStart, gridPassCountVerts, pass, gridFloatLength);
 
-        pass = beginPass(gridPassStart, gridPassTexSource, gridPassTints, gridPassCount++,
-                gridFloatLength, TEXTURE_NONE, 1.0f, 1.0f, 1.0f, 1.0f);
-        for (int s = 0; s < PlayerInventory.TOTAL_SLOTS; s++) {
-            Item item = inv.getItem(s);
-            int count = inv.getCount(s);
-            if (item != null && !item.isNone() && count > 1) {
-                float sx = getSlotX(panelX, scale, s);
-                float sy = getSlotY(panelY, scale, s);
-                gridFloatLength = appendSlotCountText(gridVertices, gridFloatLength, count,
-                        sx, sy, slotSize, countScale, 0f, gridVertices.length);
+            pass = beginPass(gridPassStart, gridPassTexSource, gridPassTints, gridPassCount++,
+                    gridFloatLength, TEXTURE_NONE, 1.0f, 1.0f, 1.0f, 1.0f);
+            for (int s = 0; s < PlayerInventory.TOTAL_SLOTS; s++) {
+                Item item = inv.getItem(s);
+                int count = inv.getCount(s);
+                if (item != null && !item.isNone() && count > 1) {
+                    float sx = getSlotX(panelX, scale, s);
+                    float sy = getSlotY(panelY, scale, s);
+                    gridFloatLength = appendSlotCountText(gridVertices, gridFloatLength, count,
+                            sx, sy, slotSize, countScale, 0f, gridVertices.length);
+                }
             }
+            endPass(gridPassStart, gridPassCountVerts, pass, gridFloatLength);
         }
-        endPass(gridPassStart, gridPassCountVerts, pass, gridFloatLength);
 
         if (gridMesh == null) {
             gridMesh = new Mesh(Mesh.VertexDataType.VertexBufferObjectWithVAO, false,
@@ -636,7 +743,7 @@ public class InventoryScreen extends Screen {
     }
 
     /** Dựng lớp phủ động gồm ô sáng khi hover, vật phẩm trên con trỏ và tooltip tên. */
-    private void rebuildOverlayMesh(PlayerInventory inv, int screenW, int screenH,
+    private void rebuildOverlayMesh(PlayerInventory inv, boolean bakeLegacyText, int screenW, int screenH,
                                     float mouseX, float mouseY) {
         overlayFloatLength = 0;
         overlayPassCount = 0;
@@ -676,7 +783,7 @@ public class InventoryScreen extends Screen {
                     cursorItem, boxX, boxY, slotSize);
             endPass(overlayPassStart, overlayPassCountVerts, pass, overlayFloatLength);
 
-            if (cursorCount > 1) {
+            if (bakeLegacyText && cursorCount > 1) {
                 float countScale = Math.max(1.2f, scale * 0.55f);
                 pass = beginPass(overlayPassStart, overlayPassTexSource, overlayPassTints, overlayPassCount++,
                         overlayFloatLength, TEXTURE_NONE, 0.05f, 0.05f, 0.05f, 0.95f);
@@ -692,7 +799,7 @@ public class InventoryScreen extends Screen {
             }
         }
 
-        if (showTooltip) {
+        if (bakeLegacyText && showTooltip) {
             String label = hoveredItem.getDisplayName();
             float tipScale = 1.6f;
             float textW = BitmapFont.measureWidth(label, tipScale);

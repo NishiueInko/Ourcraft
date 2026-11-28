@@ -1,11 +1,19 @@
 package com.voxelgame.engine;
 
+import com.voxelgame.client.audio.AudioOptions;
+import com.voxelgame.client.gui.AudioSettingsMenuScreen;
 import com.voxelgame.client.gui.BitmapFont;
 import com.voxelgame.client.gui.CreativeInventoryScreen;
+import com.voxelgame.client.gui.CreditsScreen;
+import com.voxelgame.client.gui.HotkeysScreen;
 import com.voxelgame.client.gui.HudRenderer;
 import com.voxelgame.client.gui.InventoryScreen;
+import com.voxelgame.client.gui.MainMenuScreen;
+import com.voxelgame.client.gui.MenuScreen;
 import com.voxelgame.client.gui.PauseScreen;
 import com.voxelgame.client.gui.Screen;
+import com.voxelgame.client.gui.SettingsScreen;
+import com.voxelgame.client.gui.Vt323FontRenderer;
 import com.voxelgame.core.Interactable;
 import com.voxelgame.core.Renderable;
 import com.voxelgame.core.Tickable;
@@ -98,6 +106,12 @@ import java.lang.reflect.Modifier;
 public final class OopArchitectureChecks {
 
     private OopArchitectureChecks() {
+    }
+
+    /** Điểm chạy độc lập cho bộ kiểm tra kiến trúc OOP. */
+    public static void main(String[] args) {
+        run();
+        System.out.println("OopArchitectureChecks PASSED");
     }
 
     /** Chạy toàn bộ các kiểm tra kiến trúc OOP hiện hành. */
@@ -359,33 +373,58 @@ public final class OopArchitectureChecks {
                 "SpearItem phải cung cấp đúng thông số Jab đa hình");
     }
 
-    /** Xác nhận hệ phân cấp màn hình Client/GUI (Screen, PauseScreen, InventoryScreen, BitmapFont, HudRenderer). */
+    /** Xác nhận hệ phân cấp màn hình Client/GUI (Screen, MenuScreen, AudioSettingsMenuScreen, Font VT323). */
     private static void checkClientScreenHierarchy() {
         requireAbstract(Screen.class);
-        requireSubclass(Screen.class, PauseScreen.class, InventoryScreen.class, CreativeInventoryScreen.class);
+        requireAbstract(MenuScreen.class);
+        requireAbstract(AudioSettingsMenuScreen.class);
+        requireSubclass(Screen.class, MenuScreen.class, InventoryScreen.class, CreativeInventoryScreen.class);
+        requireSubclass(MenuScreen.class, MainMenuScreen.class, AudioSettingsMenuScreen.class,
+                HotkeysScreen.class, CreditsScreen.class);
+        requireSubclass(AudioSettingsMenuScreen.class, SettingsScreen.class, PauseScreen.class);
 
+        MainMenuScreen mainMenu = new MainMenuScreen();
+        SettingsScreen settingsScreen = new SettingsScreen();
         PauseScreen pauseScreen = new PauseScreen();
+        HotkeysScreen hotkeysScreen = new HotkeysScreen();
+        CreditsScreen creditsScreen = new CreditsScreen();
         InventoryScreen inventoryScreen = new InventoryScreen();
-        CreativeInventoryScreen creativeScreen = new CreativeInventoryScreen();
+        CreativeInventoryScreen creativeInventoryScreen = new CreativeInventoryScreen();
         try {
-            require(pauseScreen.pausesWorld(), "PauseScreen phải tạm dừng vòng cập nhật thế giới");
+            require(mainMenu.pausesWorld() && settingsScreen.pausesWorld() && pauseScreen.pausesWorld()
+                            && hotkeysScreen.pausesWorld() && creditsScreen.pausesWorld(),
+                    "Mọi màn hình MenuScreen phải tạm dừng vòng cập nhật thế giới");
             require(!inventoryScreen.pausesWorld(), "InventoryScreen không được tạm dừng thế giới");
-            require(!creativeScreen.pausesWorld(), "CreativeInventoryScreen không được tạm dừng thế giới");
-            require(!pauseScreen.isOpen() && !inventoryScreen.isOpen() && !creativeScreen.isOpen(),
+            require(!creativeInventoryScreen.pausesWorld(), "CreativeInventoryScreen không được tạm dừng thế giới");
+            require(!pauseScreen.isOpen() && !inventoryScreen.isOpen() && !creativeInventoryScreen.isOpen(),
                     "Màn hình Screen mặc định phải ở trạng thái đóng");
             pauseScreen.open();
             require(pauseScreen.isOpen(), "open() phải mở PauseScreen");
             pauseScreen.close();
             require(!pauseScreen.isOpen(), "close() phải đóng PauseScreen");
         } finally {
+            mainMenu.dispose();
+            settingsScreen.dispose();
             pauseScreen.dispose();
+            hotkeysScreen.dispose();
+            creditsScreen.dispose();
             inventoryScreen.dispose();
-            creativeScreen.dispose();
+            creativeInventoryScreen.dispose();
         }
 
         require(com.badlogic.gdx.utils.Disposable.class.isAssignableFrom(Screen.class)
-                        && com.badlogic.gdx.utils.Disposable.class.isAssignableFrom(HudRenderer.class),
-                "Screen và HudRenderer phải triển khai Disposable");
+                        && com.badlogic.gdx.utils.Disposable.class.isAssignableFrom(HudRenderer.class)
+                        && com.badlogic.gdx.utils.Disposable.class.isAssignableFrom(Vt323FontRenderer.class),
+                "Screen, HudRenderer và Vt323FontRenderer phải triển khai Disposable");
+
+        AudioOptions options = new AudioOptions(null);
+        require(Math.abs(options.getMusicVolume() - 0.70f) < 0.001f
+                        && Math.abs(options.getSfxVolume() - 0.70f) < 0.001f,
+                "AudioOptions mặc định phải đặt Music và SFX ở mức 70%");
+        options.setMusicVolume(1.5f);
+        options.setSfxVolume(-0.3f);
+        require(options.getMusicVolume() == 1.0f && options.getSfxVolume() == 0.0f,
+                "AudioOptions phải kẹp an toàn giá trị âm lượng trong [0.0..1.0]");
 
         char[] requiredChars = {'A', 'Z', 'a', 'z', '0', '9', ':', '%', '-', '+', '.', '/', ',', '(', ')', '='};
         for (char c : requiredChars) {

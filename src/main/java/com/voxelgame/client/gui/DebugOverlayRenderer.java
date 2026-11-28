@@ -26,12 +26,10 @@ public class DebugOverlayRenderer implements Disposable {
 
     /** Thông số bố cục pixel tại góc trên-trái (ngay dưới dòng thời gian của HUD). */
     private static final float ORIGIN_X = 10.0f;
-    private static final float ORIGIN_Y = 44.0f;
+    private static final float ORIGIN_Y = 52.0f;
     private static final float TEXT_SCALE = 1.5f;
-    private static final float LINE_STEP = 16.0f;
-    private static final float CHAR_ADVANCE = 6.0f * TEXT_SCALE;
-    private static final float TEXT_HEIGHT = 7.0f * TEXT_SCALE;
-    private static final float BACKDROP_PAD_X = 3.0f;
+    private static final float LINE_STEP = 21.0f;
+    private static final float BACKDROP_PAD_X = 4.0f;
     private static final float BACKDROP_PAD_Y = 2.0f;
 
     /** Bảy bộ đệm chuỗi thành viên dùng lại qua từng khung hình (zero-GC). */
@@ -95,15 +93,16 @@ public class DebugOverlayRenderer implements Disposable {
         int fps = Gdx.graphics != null ? Gdx.graphics.getFramesPerSecond() : 0;
         formatLines(world, player, camera, fps);
 
+        float textH = ui.measureOverlayTextHeight(TEXT_SCALE);
         for (int i = 0; i < LINE_COUNT; i++) {
             StringBuilder line = lineBuffers[i];
             if (line.isEmpty()) {
                 continue;
             }
             float y = ORIGIN_Y + i * LINE_STEP;
-            float width = line.length() * CHAR_ADVANCE;
+            float width = ui.measureOverlayTextWidth(line, TEXT_SCALE);
             ui.drawOverlayRect(shader, ORIGIN_X - BACKDROP_PAD_X, y - BACKDROP_PAD_Y,
-                    width + BACKDROP_PAD_X * 2.0f, TEXT_HEIGHT + BACKDROP_PAD_Y * 2.0f,
+                    width + BACKDROP_PAD_X * 2.0f, textH + BACKDROP_PAD_Y * 2.0f,
                     0.06f, 0.08f, 0.12f, 0.52f);
             ui.drawOverlayText(shader, line, ORIGIN_X, y, TEXT_SCALE);
         }

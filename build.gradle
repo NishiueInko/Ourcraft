@@ -35,6 +35,10 @@ dependencies {
     // Thư viện Native tự động cho Desktop (Windows/Linux/macOS, x64/arm64)
     // Classifier "natives-desktop" gói chung tất cả native vào 1 JAR duy nhất
     implementation "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-desktop"
+
+    // Thư viện FreeType của libGDX để nạp trực tiếp font TrueType VT323-Regular.ttf (hỗ trợ đầy đủ tiếng Việt)
+    implementation "com.badlogicgames.gdx:gdx-freetype:$gdxVersion"
+    implementation "com.badlogicgames.gdx:gdx-freetype-platform:$gdxVersion:natives-desktop"
 }
 
 // =========================================================================

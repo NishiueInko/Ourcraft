@@ -87,6 +87,9 @@ public class HudRenderer implements Disposable {
 
     private Mesh uiMesh;
     private ShaderProgram currentShader;
+    /** Bộ kết xuất font chữ VT323 dùng chung toàn bộ HUD, F3, Inventory và các Menu. */
+    private Vt323FontRenderer vt323Font;
+    private boolean vt323FontInitAttempted = false;
 
     private final float[] hotbarVertices = new float[HOTBAR_VERTEX_CAPACITY * 6];
     private final float[] hotbarTints = new float[HOTBAR_STYLES * 4];
@@ -222,6 +225,35 @@ public class HudRenderer implements Disposable {
         this.currentShader = shader;
     }
 
+    /** Nạp lười bộ kết xuất font VT323 khi có ngữ cảnh OpenGL (trả {@code null} nếu headless). */
+    public Vt323FontRenderer ensureFont() {
+        if (!vt323FontInitAttempted) {
+            vt323FontInitAttempted = true;
+            if (Gdx.gl != null && Gdx.files != null) {
+                vt323Font = new Vt323FontRenderer();
+            }
+        }
+        return (vt323Font != null && vt323Font.isReady()) ? vt323Font : null;
+    }
+
+    /** Đo chiều rộng chuỗi theo cỡ chữ tương đương {@code legacyScale} (dùng VT323 nếu sẵn sàng). */
+    float measureOverlayTextWidth(CharSequence text, float legacyScale) {
+        Vt323FontRenderer font = ensureFont();
+        if (font != null) {
+            return font.measureWidth(text, Vt323FontRenderer.legacyScaleToPixelHeight(legacyScale));
+        }
+        return BitmapFont.measureWidth(text, legacyScale);
+    }
+
+    /** Đo chiều cao chuỗi theo cỡ chữ tương đương {@code legacyScale}. */
+    float measureOverlayTextHeight(float legacyScale) {
+        Vt323FontRenderer font = ensureFont();
+        if (font != null) {
+            return font.measureHeight(Vt323FontRenderer.legacyScaleToPixelHeight(legacyScale));
+        }
+        return BitmapFont.measureHeight(legacyScale);
+    }
+
     /** Tính hệ số phóng nguyên pixel-perfect (2 hoặc 3) phù hợp với chiều rộng cửa sổ. */
     private static int getHudScale(int windowWidth) {
         return Math.max(2, Math.min(3, windowWidth / 420));
@@ -236,9 +268,15 @@ public class HudRenderer implements Disposable {
         drawRect2D(x, y, w, h);
     }
 
-    /** Vẽ dòng chữ 5×7 có bóng đổ cho màn hình thông số F3 (zero-GC). */
+    /** Vẽ dòng chữ VT323 có bóng đổ cho màn hình thông số F3 (zero-GC, fallback 5×7 khi headless). */
     void drawOverlayText(ShaderProgram shader, CharSequence text, float x, float y, float scale) {
         this.currentShader = shader;
+        Vt323FontRenderer font = ensureFont();
+        if (font != null) {
+            float pxH = Vt323FontRenderer.legacyScaleToPixelHeight(scale);
+            font.drawTextWithShadow(shader, text, x, y, pxH, 0.92f, 0.94f, 0.98f, 1.0f);
+            return;
+        }
         shader.setUniform1i("uUseTexture", 0);
         shader.setUniformVec4("uTintColor", 0.0f, 0.0f, 0.0f, 0.85f);
         drawPixelText(text, x + 1.5f, y + 1.5f, scale);
@@ -422,19 +460,21 @@ public class HudRenderer implements Disposable {
         }
         if (creativeInventoryScreen != null && creativeInventoryScreen.isOpen() && player != null) {
             creativeInventoryScreen.render(shader, player.getInventory(), textureAtlas, itemAtlas,
-                    windowWidth, windowHeight, (float) mouseX, (float) mouseY);
+                    ensureFont(), windowWidth, windowHeight, (float) mouseX, (float) mouseY);
         } else if (inventoryScreen != null && inventoryScreen.isOpen() && player != null) {
             inventoryScreen.render(shader, player.getInventory(), textureAtlas, itemAtlas, atlas,
-                    windowWidth, windowHeight, (float) mouseX, (float) mouseY);
+                    ensureFont(), windowWidth, windowHeight, (float) mouseX, (float) mouseY);
         }
     }
 
     /** Vẽ thông báo ngắn (toast) phía trên Hotbar khi vừa đổi chế độ chơi bằng phím {@code F2}. */
     private void renderModeToast(ShaderProgram shader, int windowWidth, int windowHeight) {
         float scale = 2.0f;
-        float textW = BitmapFont.measureWidth(modeToastLabel, scale);
-        float textH = BitmapFont.measureHeight(scale);
-        float padX = 10.0f;
+        Vt323FontRenderer font = ensureFont();
+        float pxH = Vt323FontRenderer.legacyScaleToPixelHeight(scale);
+        float textW = (font != null) ? font.measureWidth(modeToastLabel, pxH) : BitmapFont.measureWidth(modeToastLabel, scale);
+        float textH = (font != null) ? font.measureHeight(pxH) : BitmapFont.measureHeight(scale);
+        float padX = 12.0f;
         float padY = 6.0f;
         float boxW = textW + padX * 2.0f;
         float boxH = textH + padY * 2.0f;
@@ -445,10 +485,15 @@ public class HudRenderer implements Disposable {
         shader.setUniform1i("uUseTexture", 0);
         shader.setUniformVec4("uTintColor", 0.06f, 0.08f, 0.12f, 0.78f * alpha);
         drawRect2D(x, y, boxW, boxH);
-        shader.setUniformVec4("uTintColor", 0.05f, 0.05f, 0.05f, 0.90f * alpha);
-        drawPixelText(modeToastLabel, x + padX + 1.5f, y + padY + 1.5f, scale);
-        shader.setUniformVec4("uTintColor", 1.0f, 0.95f, 0.45f, alpha);
-        drawPixelText(modeToastLabel, x + padX, y + padY, scale);
+        if (font != null) {
+            font.drawTextWithShadow(shader, modeToastLabel, x + padX, y + padY, pxH,
+                    1.0f, 0.95f, 0.45f, alpha);
+        } else {
+            shader.setUniformVec4("uTintColor", 0.05f, 0.05f, 0.05f, 0.90f * alpha);
+            drawPixelText(modeToastLabel, x + padX + 1.5f, y + padY + 1.5f, scale);
+            shader.setUniformVec4("uTintColor", 1.0f, 0.95f, 0.45f, alpha);
+            drawPixelText(modeToastLabel, x + padX, y + padY, scale);
+        }
     }
 
     // =========================================================================
@@ -801,8 +846,13 @@ public class HudRenderer implements Disposable {
             currentShader.setUniformVec4("uTintColor", r, g, b, 1f);
             drawRect2D(x + 1f, y + 1f, 92f * Math.min(1f, progress), 6f);
         }
-        currentShader.setUniformVec4("uTintColor", 1f, 1f, 1f, 0.95f);
-        drawPixelText(label, x, y - 9f, 1f);
+        Vt323FontRenderer font = ensureFont();
+        if (font != null) {
+            font.drawTextWithShadow(currentShader, label, x, y - 14f, 13f, 1f, 1f, 1f, 0.95f);
+        } else {
+            currentShader.setUniformVec4("uTintColor", 1f, 1f, 1f, 0.95f);
+            drawPixelText(label, x, y - 9f, 1f);
+        }
     }
 
     private void rebuildFallbackVitals(int windowWidth, int windowHeight, int hp, int food) {
@@ -860,6 +910,8 @@ public class HudRenderer implements Disposable {
     }
 
     private void renderStatusEffects(Player player, int windowWidth) {
+        Vt323FontRenderer font = ensureFont();
+        float pxH = Vt323FontRenderer.legacyScaleToPixelHeight(1.5f);
         float y = 10f;
         for (int i = 0; i < StatusEffectType.COUNT; i++) {
             StatusEffectType type = StatusEffectType.at(i);
@@ -869,13 +921,20 @@ public class HudRenderer implements Disposable {
             }
             effectLabel.setLength(0);
             effectLabel.append(type.name()).append(' ').append((int) Math.ceil(remaining)).append('S');
-            float x = windowWidth - 10f - effectLabel.length() * 9f;
-            currentShader.setUniform1i("uUseTexture", 0);
-            currentShader.setUniformVec4("uTintColor", 0f, 0f, 0f, 0.8f);
-            drawPixelText(effectLabel, x + 1.5f, y + 1.5f, 1.5f);
-            currentShader.setUniformVec4("uTintColor", 1f, 1f, 1f, 0.95f);
-            drawPixelText(effectLabel, x, y, 1.5f);
-            y += 15f;
+            if (font != null) {
+                float w = font.measureWidth(effectLabel, pxH);
+                font.drawTextWithShadow(currentShader, effectLabel, windowWidth - 10f - w, y, pxH,
+                        1f, 1f, 1f, 0.95f);
+                y += pxH + 4f;
+            } else {
+                float x = windowWidth - 10f - effectLabel.length() * 9f;
+                currentShader.setUniform1i("uUseTexture", 0);
+                currentShader.setUniformVec4("uTintColor", 0f, 0f, 0f, 0.8f);
+                drawPixelText(effectLabel, x + 1.5f, y + 1.5f, 1.5f);
+                currentShader.setUniformVec4("uTintColor", 1f, 1f, 1f, 0.95f);
+                drawPixelText(effectLabel, x, y, 1.5f);
+                y += 15f;
+            }
         }
     }
 
@@ -892,10 +951,16 @@ public class HudRenderer implements Disposable {
         environmentLabel.append("DAY ").append(worldTime.dayCount() + 1).append(" - ");
         environmentLabel.append((char) ('0' + hour / 10)).append((char) ('0' + hour % 10));
         environmentLabel.append(':').append((char) ('0' + minute / 10)).append((char) ('0' + minute % 10));
-        drawEnvironmentLine(environmentLabel, 25f);
+        drawEnvironmentLine(environmentLabel, 29f);
     }
 
     private void drawEnvironmentLine(CharSequence label, float y) {
+        Vt323FontRenderer font = ensureFont();
+        if (font != null) {
+            font.drawTextWithShadow(currentShader, label, 10f, y,
+                    Vt323FontRenderer.legacyScaleToPixelHeight(1.5f), 1f, 1f, 1f, 0.95f);
+            return;
+        }
         currentShader.setUniform1i("uUseTexture", 0);
         currentShader.setUniformVec4("uTintColor", 0f, 0f, 0f, 0.8f);
         drawPixelText(label, 11.5f, y + 1.5f, 1.5f);
@@ -1027,6 +1092,83 @@ public class HudRenderer implements Disposable {
         } else if (boundSource == TEXTURE_BLOCK_ATLAS) {
             textureAtlas.unbind();
         }
+
+        // Vẽ toàn bộ chữ trên Hotbar (số ô 1..9, số lượng stack, tên vật phẩm) bằng font VT323
+        Vt323FontRenderer font = ensureFont();
+        if (font != null) {
+            renderHotbarVt323Text(shader, font, hotbar, useGui, windowWidth, windowHeight, mounted);
+        }
+    }
+
+    /** Vẽ số ô 1..9, số lượng stack và tên vật phẩm đang chọn trên Hotbar bằng font VT323. */
+    private void renderHotbarVt323Text(ShaderProgram shader, Vt323FontRenderer font, Hotbar hotbar,
+                                       boolean useGui, int windowWidth, int windowHeight, boolean mounted) {
+        if (useGui) {
+            int scale = getHudScale(windowWidth);
+            float totalWidth = 182.0f * scale;
+            float barHeight = 22.0f * scale;
+            float startX = Math.round((windowWidth - totalWidth) * 0.5f);
+            float startY = windowHeight - barHeight - 12.0f;
+            float slotInner = 16.0f * scale;
+            float keyPxH = Math.max(12.0f, scale * 5.2f);
+            float countPxH = Math.max(14.0f, scale * 6.5f);
+
+            for (int i = 0; i < Hotbar.SLOT_COUNT; i++) {
+                float slotX = startX + (3.0f + i * 20.0f) * scale;
+                float slotY = startY + 3.0f * scale;
+                font.drawText(shader, NUMBER_LABELS[i + 1], slotX + 2.0f, slotY + 1.0f, keyPxH,
+                        0.78f, 0.80f, 0.85f, 0.80f);
+
+                Item item = hotbar.getSlotItem(i);
+                int count = hotbar.getSlotCount(i);
+                if (!item.isNone() && count > 0) {
+                    String countStr = NUMBER_LABELS[count];
+                    float textW = font.measureWidth(countStr, countPxH);
+                    float tx = slotX + slotInner - textW - 1.5f;
+                    float ty = slotY + slotInner - countPxH - 1.0f;
+                    font.drawTextWithShadow(shader, countStr, tx, ty, countPxH, 1.0f, 1.0f, 1.0f, 1.0f);
+                }
+            }
+
+            Item selectedItem = hotbar.getSelectedItem();
+            if (!selectedItem.isNone() && hotbar.getSelectedCount() > 0) {
+                String label = selectedItem.getDisplayName();
+                float namePxH = Math.max(17.0f, scale * 7.8f);
+                float lx = (windowWidth - font.measureWidth(label, namePxH)) * 0.5f;
+                float ly = startY - (mounted ? 40.0f : 29.0f) * scale;
+                font.drawTextWithShadow(shader, label, lx, ly, namePxH, 1.0f, 0.96f, 0.72f, 1.0f);
+            }
+        } else {
+            float totalWidth = Hotbar.SLOT_COUNT * HOTBAR_SLOT_SIZE + (Hotbar.SLOT_COUNT + 1) * HOTBAR_SLOT_PADDING;
+            float barHeight = HOTBAR_SLOT_SIZE + HOTBAR_SLOT_PADDING * 2.0f;
+            float startX = (windowWidth - totalWidth) * 0.5f;
+            float startY = windowHeight - barHeight - 16.0f;
+
+            for (int i = 0; i < Hotbar.SLOT_COUNT; i++) {
+                float slotX = startX + HOTBAR_SLOT_PADDING + i * (HOTBAR_SLOT_SIZE + HOTBAR_SLOT_PADDING);
+                float slotY = startY + HOTBAR_SLOT_PADDING;
+                font.drawText(shader, NUMBER_LABELS[i + 1], slotX + 4.0f, slotY + 3.0f, 15.0f,
+                        0.72f, 0.74f, 0.78f, 0.85f);
+
+                Item item = hotbar.getSlotItem(i);
+                int count = hotbar.getSlotCount(i);
+                if (!item.isNone() && count > 0) {
+                    String countStr = NUMBER_LABELS[count];
+                    float textW = font.measureWidth(countStr, 18.0f);
+                    float tx = slotX + HOTBAR_SLOT_SIZE - textW - 3.0f;
+                    float ty = slotY + HOTBAR_SLOT_SIZE - 20.0f;
+                    font.drawTextWithShadow(shader, countStr, tx, ty, 18.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+                }
+            }
+
+            Item selectedItem = hotbar.getSelectedItem();
+            if (!selectedItem.isNone() && hotbar.getSelectedCount() > 0) {
+                String label = selectedItem.getDisplayName();
+                float lx = (windowWidth - font.measureWidth(label, 20.0f)) * 0.5f;
+                float ly = startY - 26.0f;
+                font.drawTextWithShadow(shader, label, lx, ly, 20.0f, 1.0f, 0.96f, 0.72f, 1.0f);
+            }
+        }
     }
 
     private void rebuildTexturedHotbar(Hotbar hotbar, int windowWidth, int windowHeight, boolean mounted) {
@@ -1049,6 +1191,7 @@ public class HudRenderer implements Disposable {
                 selUv[0], selUv[1], selUv[2], selUv[3]);
 
         float slotInner = 16.0f * scale;
+        boolean skipBakedText = ensureFont() != null;
         float keyLabelScale = Math.max(1.0f, scale * 0.45f);
         float countScale = Math.max(1.4f, scale * 0.60f);
 
@@ -1056,8 +1199,10 @@ public class HudRenderer implements Disposable {
             float slotX = startX + (3.0f + i * 20.0f) * scale;
             float slotY = startY + 3.0f * scale;
 
-            beginHotbarStyle(TEXTURE_NONE, 0.78f, 0.80f, 0.85f, 0.78f);
-            drawPixelText(NUMBER_LABELS[i + 1], slotX + 1.5f, slotY + 1.5f, keyLabelScale);
+            if (!skipBakedText) {
+                beginHotbarStyle(TEXTURE_NONE, 0.78f, 0.80f, 0.85f, 0.78f);
+                drawPixelText(NUMBER_LABELS[i + 1], slotX + 1.5f, slotY + 1.5f, keyLabelScale);
+            }
 
             Item item = hotbar.getSlotItem(i);
             int count = hotbar.getSlotCount(i);
@@ -1086,21 +1231,23 @@ public class HudRenderer implements Disposable {
                 beginHotbarStyle(texSource, 1.0f, 1.0f, 1.0f, 1.0f);
                 drawTexturedRect2D(iconX, iconY, iconWidth, iconHeight, uv[0], uv[1], uv[2], uv[3]);
 
-                String countStr = NUMBER_LABELS[count];
-                float textW = BitmapFont.measureWidth(countStr, countScale);
-                float tx = slotX + slotInner - textW - 1.0f;
-                float ty = slotY + slotInner - BitmapFont.measureHeight(countScale) - 1.0f;
+                if (!skipBakedText) {
+                    String countStr = NUMBER_LABELS[count];
+                    float textW = BitmapFont.measureWidth(countStr, countScale);
+                    float tx = slotX + slotInner - textW - 1.0f;
+                    float ty = slotY + slotInner - BitmapFont.measureHeight(countScale) - 1.0f;
 
-                beginHotbarStyle(TEXTURE_NONE, 0.05f, 0.05f, 0.05f, 0.95f);
-                drawPixelText(countStr, tx + 1.5f, ty + 1.5f, countScale);
+                    beginHotbarStyle(TEXTURE_NONE, 0.05f, 0.05f, 0.05f, 0.95f);
+                    drawPixelText(countStr, tx + 1.5f, ty + 1.5f, countScale);
 
-                beginHotbarStyle(TEXTURE_NONE, 1.0f, 1.0f, 1.0f, 1.0f);
-                drawPixelText(countStr, tx, ty, countScale);
+                    beginHotbarStyle(TEXTURE_NONE, 1.0f, 1.0f, 1.0f, 1.0f);
+                    drawPixelText(countStr, tx, ty, countScale);
+                }
             }
         }
 
         Item selectedItem = hotbar.getSelectedItem();
-        if (!selectedItem.isNone() && hotbar.getSelectedCount() > 0) {
+        if (!skipBakedText && !selectedItem.isNone() && hotbar.getSelectedCount() > 0) {
             String label = selectedItem.getDisplayName();
             float nameScale = Math.max(1.5f, scale * 0.68f);
             float labelW = BitmapFont.measureWidth(label, nameScale);
@@ -1317,6 +1464,10 @@ public class HudRenderer implements Disposable {
         if (guiAtlas != null) {
             guiAtlas.dispose();
             guiAtlas = null;
+        }
+        if (vt323Font != null) {
+            vt323Font.dispose();
+            vt323Font = null;
         }
         inventoryScreen = null;
         debugOverlay = null;

@@ -2,6 +2,7 @@ package com.voxelgame.client.gui;
 
 import com.voxelgame.client.audio.AudioManager;
 import com.voxelgame.client.render.Camera;
+import com.voxelgame.client.render.FirstPersonRenderer;
 import com.voxelgame.client.render.ItemTextureAtlas;
 import com.voxelgame.client.render.ShaderProgram;
 import com.voxelgame.client.render.Texture;
@@ -32,13 +33,21 @@ public class UIRenderer implements Disposable {
 
     /** Bộ kết xuất HUD trong game, hiệu ứng màn hình và Overlay 3D. */
     private final HudRenderer hudRenderer;
-    /** Màn hình Pause Menu kế thừa {@link Screen}. */
+    /** Các màn hình Menu kế thừa {@link MenuScreen} (Main Menu, Settings, Pause, Hotkeys, Credits). */
+    private final MainMenuScreen mainMenuScreen;
+    private final SettingsScreen settingsScreen;
     private final PauseScreen pauseScreen;
+    private final HotkeysScreen hotkeysScreen;
+    private final CreditsScreen creditsScreen;
 
-    /** Khởi tạo Facade UI cùng {@link HudRenderer} và {@link PauseScreen}. */
+    /** Khởi tạo Facade UI cùng {@link HudRenderer} và toàn bộ hệ thống màn hình Menu. */
     public UIRenderer() {
         this.hudRenderer = new HudRenderer();
+        this.mainMenuScreen = new MainMenuScreen();
+        this.settingsScreen = new SettingsScreen();
         this.pauseScreen = new PauseScreen();
+        this.hotkeysScreen = new HotkeysScreen();
+        this.creditsScreen = new CreditsScreen();
     }
 
     /** Truy cập bộ kết xuất HUD nội bộ. */
@@ -46,9 +55,29 @@ public class UIRenderer implements Disposable {
         return hudRenderer;
     }
 
+    /** Truy cập màn hình chính OurCraft. */
+    public MainMenuScreen getMainMenuScreen() {
+        return mainMenuScreen;
+    }
+
+    /** Truy cập màn hình Settings từ Main Menu. */
+    public SettingsScreen getSettingsScreen() {
+        return settingsScreen;
+    }
+
     /** Truy cập màn hình Pause Menu nội bộ. */
     public PauseScreen getPauseScreen() {
         return pauseScreen;
+    }
+
+    /** Truy cập màn hình danh sách phím tắt Hotkeys. */
+    public HotkeysScreen getHotkeysScreen() {
+        return hotkeysScreen;
+    }
+
+    /** Truy cập màn hình danh sách thành viên Credits. */
+    public CreditsScreen getCreditsScreen() {
+        return creditsScreen;
     }
 
     /** Gắn đồng hồ và thời tiết để hiển thị trong lượt vẽ HUD. */
@@ -92,7 +121,17 @@ public class UIRenderer implements Disposable {
         hudRenderer.drawOverlayRect(shader, x, y, w, h, r, g, b, a);
     }
 
-    /** Vẽ dòng chữ 5×7 có bóng đổ cho {@link DebugOverlayRenderer}. */
+    /** Đo chiều rộng dòng chữ cho {@link DebugOverlayRenderer} (VT323 hoặc fallback 5×7). */
+    float measureOverlayTextWidth(CharSequence text, float scale) {
+        return hudRenderer.measureOverlayTextWidth(text, scale);
+    }
+
+    /** Đo chiều cao dòng chữ cho {@link DebugOverlayRenderer}. */
+    float measureOverlayTextHeight(float scale) {
+        return hudRenderer.measureOverlayTextHeight(scale);
+    }
+
+    /** Vẽ dòng chữ có bóng đổ cho {@link DebugOverlayRenderer}. */
     void drawOverlayText(ShaderProgram shader, CharSequence text, float x, float y, float scale) {
         hudRenderer.drawOverlayText(shader, text, x, y, scale);
     }
@@ -165,8 +204,44 @@ public class UIRenderer implements Disposable {
         if (!isPaused) {
             hudRenderer.renderInGameOverlays(shader, this, textureAtlas, itemAtlas, atlas, camera,
                     player, windowWidth, windowHeight, miningProgress, mouseX, mouseY);
+        } else if (hotkeysScreen.isOpen()) {
+            hotkeysScreen.render(shader, hudRenderer, atlas, windowWidth, windowHeight, mouseX, mouseY);
+        } else if (creditsScreen.isOpen()) {
+            creditsScreen.render(shader, hudRenderer, atlas, windowWidth, windowHeight, mouseX, mouseY);
         } else {
             pauseScreen.render(shader, hudRenderer, atlas, audioManager, windowWidth, windowHeight, mouseX, mouseY);
+        }
+
+        shader.enable3DWorldMode();
+        Gdx.gl.glDisable(GL20.GL_BLEND);
+        Gdx.gl.glEnable(GL20.GL_CULL_FACE);
+        Gdx.gl.glEnable(GL20.GL_DEPTH_TEST);
+    }
+
+    /**
+     * Kết xuất toàn màn hình các màn hình ngoài thế giới ({@link MainMenuScreen}, {@link SettingsScreen},
+     * {@link HotkeysScreen}, {@link CreditsScreen}) theo đúng thứ tự mở hiện tại.
+     */
+    public void renderFullScreenMenu(ShaderProgram shader, Camera camera, AudioManager audioManager,
+                                     FirstPersonRenderer steveRenderer, int windowWidth, int windowHeight,
+                                     double mouseX, double mouseY) {
+        GuiTextureAtlas atlas = hudRenderer.ensureGuiAtlas();
+
+        Gdx.gl.glDisable(GL20.GL_DEPTH_TEST);
+        Gdx.gl.glDisable(GL20.GL_CULL_FACE);
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+
+        shader.enable2DUIMode(camera.getOrthoMatrix(windowWidth, windowHeight));
+
+        if (hotkeysScreen.isOpen()) {
+            hotkeysScreen.render(shader, hudRenderer, atlas, windowWidth, windowHeight, mouseX, mouseY);
+        } else if (creditsScreen.isOpen()) {
+            creditsScreen.render(shader, hudRenderer, atlas, windowWidth, windowHeight, mouseX, mouseY);
+        } else if (settingsScreen.isOpen()) {
+            settingsScreen.render(shader, hudRenderer, atlas, audioManager, windowWidth, windowHeight, mouseX, mouseY);
+        } else {
+            mainMenuScreen.render(shader, hudRenderer, atlas, steveRenderer, windowWidth, windowHeight, mouseX, mouseY);
         }
 
         shader.enable3DWorldMode();
@@ -195,10 +270,14 @@ public class UIRenderer implements Disposable {
         return pauseScreen.getSliderVolumeAtCursor(mouseX, mouseY, windowWidth, windowHeight);
     }
 
-    /** Giải phóng toàn bộ tài nguyên GPU của {@link PauseScreen} và {@link HudRenderer}. */
+    /** Giải phóng toàn bộ tài nguyên GPU của các màn hình Menu và {@link HudRenderer}. */
     @Override
     public void dispose() {
+        mainMenuScreen.dispose();
+        settingsScreen.dispose();
         pauseScreen.dispose();
+        hotkeysScreen.dispose();
+        creditsScreen.dispose();
         hudRenderer.dispose();
     }
 }

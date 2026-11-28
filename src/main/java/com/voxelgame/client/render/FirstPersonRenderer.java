@@ -369,6 +369,106 @@ public final class FirstPersonRenderer implements Disposable {
         }
     }
 
+    /**
+     * Kết xuất mô hình nhân vật Steve 3D bên phải màn hình chính ({@code MainMenuScreen}),
+     * có hoạt ảnh thở nhẹ và quay đầu nhìn theo vị trí con trỏ chuột (zero-GC).
+     */
+    public void renderMenuSteve(ShaderProgram shader, int screenW, int screenH,
+                                float mouseX, float mouseY, float animSeconds) {
+        if (disposed || shader == null || Gdx.gl == null || screenW <= 0 || screenH <= 0) {
+            return;
+        }
+        if (!glInitialized) {
+            initGlResources();
+        }
+        if (steveTexture == null || thirdHeadMesh == null) {
+            return;
+        }
+
+        float aspect = (float) screenW / Math.max(1, screenH);
+        viewmodelProjection.setToProjection(0.1f, 20.0f, 40.0f, aspect);
+
+        Gdx.gl.glClear(GL20.GL_DEPTH_BUFFER_BIT);
+        Gdx.gl.glEnable(GL20.GL_DEPTH_TEST);
+        Gdx.gl.glEnable(GL20.GL_CULL_FACE);
+        Gdx.gl.glCullFace(GL20.GL_BACK);
+        Gdx.gl.glDisable(GL20.GL_BLEND);
+
+        try {
+            shader.enable3DWorldMode();
+            shader.enableChunkColorMode(false);
+            shader.setUniform1i("uEnvironmentMode", 0);
+            shader.setUniform1i("uUseTexture", 1);
+            shader.setUniform1f("uMobWhiteFlash", 0.0f);
+            shader.setUniformVec3("uWorldLight", 1.0f, 1.0f, 1.0f);
+            shader.setUniformVec4("uTintColor", 1.0f, 1.0f, 1.0f, 1.0f);
+            shader.setUniformMatrix4f("uProjection", viewmodelProjection);
+            shader.setUniformMatrix4f("uView", identityMatrix);
+
+            // Vị trí Steve ở phía bên phải màn hình giống ảnh mẫu, xoay nhẹ về phía giữa
+            float breath = (float) Math.sin(animSeconds * 2.1f);
+            float armSwing = breath * 3.0f;
+            float steveScale = PLAYER_PIXEL_SCALE * 0.98f;
+            float offsetX = Math.max(1.05f, Math.min(1.55f, aspect * 0.72f));
+
+            rootMatrix.idt()
+                    .translate(offsetX, -1.04f + breath * 0.012f, -3.55f)
+                    .rotate(Vector3.Y, 162.0f)
+                    .scale(steveScale, steveScale, steveScale);
+
+            // Tính góc quay đầu nhìn theo con trỏ chuột (giới hạn tự nhiên)
+            float headScreenX = screenW * 0.84f;
+            float headScreenY = screenH * 0.34f;
+            float normX = Math.max(-1.0f, Math.min(1.0f, (mouseX - headScreenX) / (screenW * 0.50f)));
+            float normY = Math.max(-1.0f, Math.min(1.0f, (mouseY - headScreenY) / (screenH * 0.50f)));
+            float headYawDeg = -normX * 34.0f;
+            float headPitchDeg = -normY * 22.0f;
+
+            steveTexture.bind(0);
+
+            // 1. Hai chân
+            partMatrix.set(rootMatrix).translate(2.0f, 12.0f, 0.0f);
+            shader.setUniformMatrix4f("uModel", partMatrix);
+            thirdRightLegMesh.render(shader.getGdxShader(), GL20.GL_TRIANGLES);
+
+            partMatrix.set(rootMatrix).translate(-2.0f, 12.0f, 0.0f);
+            shader.setUniformMatrix4f("uModel", partMatrix);
+            thirdLeftLegMesh.render(shader.getGdxShader(), GL20.GL_TRIANGLES);
+
+            // 2. Thân
+            partMatrix.set(rootMatrix).translate(0.0f, 12.0f, 0.0f);
+            shader.setUniformMatrix4f("uModel", partMatrix);
+            thirdBodyMesh.render(shader.getGdxShader(), GL20.GL_TRIANGLES);
+
+            // 3. Đầu (xoay mượt theo chuột)
+            partMatrix.set(rootMatrix).translate(0.0f, 24.0f, 0.0f)
+                    .rotate(Vector3.Y, headYawDeg)
+                    .rotate(Vector3.X, headPitchDeg);
+            shader.setUniformMatrix4f("uModel", partMatrix);
+            thirdHeadMesh.render(shader.getGdxShader(), GL20.GL_TRIANGLES);
+
+            // 4. Hai tay đung đưa nhẹ theo nhịp thở
+            partMatrix.set(rootMatrix).translate(-5.0f, 22.0f, 0.0f)
+                    .rotate(Vector3.Z, 4.0f + armSwing * 0.5f)
+                    .rotate(Vector3.X, armSwing);
+            shader.setUniformMatrix4f("uModel", partMatrix);
+            thirdLeftArmMesh.render(shader.getGdxShader(), GL20.GL_TRIANGLES);
+
+            partMatrix.set(rootMatrix).translate(5.0f, 22.0f, 0.0f)
+                    .rotate(Vector3.Z, -4.0f - armSwing * 0.5f)
+                    .rotate(Vector3.X, -armSwing);
+            shader.setUniformMatrix4f("uModel", partMatrix);
+            thirdRightArmMesh.render(shader.getGdxShader(), GL20.GL_TRIANGLES);
+        } finally {
+            Gdx.gl.glBindTexture(GL20.GL_TEXTURE_2D, 0);
+            shader.setUniformMatrix4f("uModel", identityMatrix);
+            Gdx.gl.glDisable(GL20.GL_DEPTH_TEST);
+            Gdx.gl.glDisable(GL20.GL_CULL_FACE);
+            Gdx.gl.glEnable(GL20.GL_BLEND);
+            Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        }
+    }
+
     /** Vẽ tay trần góc nhìn thứ nhất từ skin {@code steve.png} (bàn tay hướng ra trước, vai áo ở góc dưới phải). */
     private void renderFirstPersonArm(ShaderProgram shader, float bobX, float bobY,
                                       float swingSin, float swingSqrt) {

@@ -1,9 +1,11 @@
 package com.voxelgame.client.input;
 
 import com.voxelgame.client.audio.AudioManager;
+import com.voxelgame.client.gui.AudioSettingsMenuScreen;
 import com.voxelgame.client.gui.CreativeInventoryScreen;
 import com.voxelgame.client.gui.DebugOverlayRenderer;
 import com.voxelgame.client.gui.InventoryScreen;
+import com.voxelgame.client.gui.MainMenuScreen;
 import com.voxelgame.client.gui.UIRenderer;
 import com.voxelgame.client.render.Camera;
 import com.voxelgame.client.render.ParticleManager;
@@ -59,6 +61,8 @@ public class GameInputController implements InputProcessor {
         WorldTime getWorldTime();
         boolean isPaused();
         void setPaused(boolean paused);
+        boolean isInMainMenuFlow();
+        void setInMainMenuFlow(boolean inMainMenuFlow);
     }
 
     /** Thứ tự ghé thăm 5 biome theo trục X từ tây sang đông khi bấm Ctrl+C. */
@@ -221,11 +225,13 @@ public class GameInputController implements InputProcessor {
     /** Chuyển game sang trạng thái Tạm dừng, mở PauseScreen và mở khóa con trỏ chuột. */
     public void pauseGame() {
         if (isInventoryOpen()) {
-            host.getInventoryScreen().close(host.getPlayer(), host.getWorld());
+            closeInventory();
         }
         host.setPaused(true);
         UIRenderer uiRenderer = host.getUiRenderer();
         if (uiRenderer != null) {
+            uiRenderer.getHotkeysScreen().close();
+            uiRenderer.getCreditsScreen().close();
             uiRenderer.getPauseScreen().open();
         }
         isLeftMouseDown = false;
@@ -240,7 +246,9 @@ public class GameInputController implements InputProcessor {
             audioManager.setUnderwater(false);
             audioManager.setRainPaused(true);
         }
-        Gdx.input.setCursorCatched(false);
+        if (Gdx.input != null) {
+            Gdx.input.setCursorCatched(false);
+        }
     }
 
     /** Tiếp tục game từ trạng thái Tạm dừng, đóng PauseScreen và khóa lại con trỏ chuột. */
@@ -249,14 +257,68 @@ public class GameInputController implements InputProcessor {
         UIRenderer uiRenderer = host.getUiRenderer();
         if (uiRenderer != null) {
             uiRenderer.getPauseScreen().close();
+            uiRenderer.getHotkeysScreen().close();
+            uiRenderer.getCreditsScreen().close();
         }
         isDraggingVolumeSlider = false;
         AudioManager audioManager = host.getAudioManager();
         if (audioManager != null) {
             audioManager.setRainPaused(false);
         }
-        Gdx.input.setCursorCatched(true);
+        if (Gdx.input != null) {
+            Gdx.input.setCursorCatched(true);
+        }
         skipNextMouseDelta = true;
+    }
+
+    /** Vào thẳng thế giới từ màn hình chính Main Menu (giữ nguyên tiến trình thế giới nếu quay lại từ Pause). */
+    public void enterWorldFromMenu() {
+        host.setInMainMenuFlow(false);
+        host.setPaused(false);
+        UIRenderer uiRenderer = host.getUiRenderer();
+        if (uiRenderer != null) {
+            uiRenderer.getMainMenuScreen().close();
+            uiRenderer.getSettingsScreen().close();
+            uiRenderer.getPauseScreen().close();
+            uiRenderer.getHotkeysScreen().close();
+            uiRenderer.getCreditsScreen().close();
+        }
+        isLeftMouseDown = false;
+        isDraggingVolumeSlider = false;
+        resetMiningProgress();
+        AudioManager audioManager = host.getAudioManager();
+        if (audioManager != null) {
+            audioManager.setRainPaused(false);
+        }
+        if (Gdx.input != null) {
+            Gdx.input.setCursorCatched(true);
+        }
+        skipNextMouseDelta = true;
+    }
+
+    /** Quay về màn hình chính OurCraft từ Pause Menu (bảo toàn trạng thái thế giới để bấm Play tiếp tục). */
+    public void returnToMainMenu() {
+        host.setPaused(false);
+        host.setInMainMenuFlow(true);
+        UIRenderer uiRenderer = host.getUiRenderer();
+        if (uiRenderer != null) {
+            uiRenderer.getPauseScreen().close();
+            uiRenderer.getSettingsScreen().close();
+            uiRenderer.getHotkeysScreen().close();
+            uiRenderer.getCreditsScreen().close();
+            uiRenderer.getMainMenuScreen().open();
+        }
+        isLeftMouseDown = false;
+        isDraggingVolumeSlider = false;
+        resetMiningProgress();
+        AudioManager audioManager = host.getAudioManager();
+        if (audioManager != null) {
+            audioManager.setUnderwater(false);
+            audioManager.setRainPaused(true);
+        }
+        if (Gdx.input != null) {
+            Gdx.input.setCursorCatched(false);
+        }
     }
 
     /**
@@ -362,46 +424,111 @@ public class GameInputController implements InputProcessor {
         nextMiningSoundTime = 0.0f;
     }
 
-    /** Xử lý click chuột trên Pause Menu (nút Resume, nút -/+, thanh trượt âm lượng). */
+    /** Xử lý click chuột trên luồng Main Menu / Settings / Hotkeys / Credits ngoài thế giới. */
+    private void handleMainMenuFlowMouse(float screenX, float screenY, boolean pressed) {
+        UIRenderer uiRenderer = host.getUiRenderer();
+        if (uiRenderer == null) {
+            return;
+        }
+        AudioManager audioManager = host.getAudioManager();
+        int screenW = Gdx.graphics.getWidth();
+        int screenH = Gdx.graphics.getHeight();
+
+        if (!pressed) {
+            if (uiRenderer.getSettingsScreen().isOpen()) {
+                uiRenderer.getSettingsScreen().handleMouseUp(audioManager);
+            }
+            return;
+        }
+
+        if (uiRenderer.getHotkeysScreen().isOpen()) {
+            if (uiRenderer.getHotkeysScreen().handleMouseDown(screenX, screenY, screenW, screenH, audioManager)) {
+                uiRenderer.getHotkeysScreen().close();
+            }
+            return;
+        }
+        if (uiRenderer.getCreditsScreen().isOpen()) {
+            if (uiRenderer.getCreditsScreen().handleMouseDown(screenX, screenY, screenW, screenH, audioManager)) {
+                uiRenderer.getCreditsScreen().close();
+            }
+            return;
+        }
+        if (uiRenderer.getSettingsScreen().isOpen()) {
+            AudioSettingsMenuScreen.Action action = uiRenderer.getSettingsScreen()
+                    .handleMouseDown(screenX, screenY, screenW, screenH, audioManager);
+            switch (action) {
+                case OPEN_HOTKEYS -> {
+                    uiRenderer.getHotkeysScreen().setBackdropAlpha(1.0f);
+                    uiRenderer.getHotkeysScreen().open();
+                }
+                case OPEN_CREDITS -> {
+                    uiRenderer.getCreditsScreen().setBackdropAlpha(1.0f);
+                    uiRenderer.getCreditsScreen().open();
+                }
+                case BACK_OR_RESUME -> {
+                    uiRenderer.getSettingsScreen().close();
+                    uiRenderer.getMainMenuScreen().open();
+                }
+                default -> {
+                }
+            }
+            return;
+        }
+
+        MainMenuScreen.Action action = uiRenderer.getMainMenuScreen()
+                .handleMouseDown(screenX, screenY, screenW, screenH, audioManager);
+        if (action == MainMenuScreen.Action.PLAY) {
+            enterWorldFromMenu();
+        } else if (action == MainMenuScreen.Action.SETTINGS) {
+            uiRenderer.getMainMenuScreen().close();
+            uiRenderer.getSettingsScreen().open();
+        }
+    }
+
+    /** Xử lý click chuột trên Pause Menu (Music/SFX slider, Hotkeys, Credits, Resume Game, Back to Menu). */
     private void handlePauseMenuMouseClick(float screenX, float screenY, boolean pressed) {
         UIRenderer uiRenderer = host.getUiRenderer();
         if (uiRenderer == null) {
             return;
         }
+        AudioManager audioManager = host.getAudioManager();
         int screenWidth = Gdx.graphics.getWidth();
         int screenHeight = Gdx.graphics.getHeight();
 
         if (!pressed) {
             isDraggingVolumeSlider = false;
+            uiRenderer.getPauseScreen().handleMouseUp(audioManager);
             return;
         }
 
-        AudioManager audioManager = host.getAudioManager();
-        if (uiRenderer.isInsideResumeButton(screenX, screenY, screenWidth, screenHeight)) {
-            if (audioManager != null) {
-                audioManager.playEffect(AudioManager.Effect.CLICK, 0.36f);
-            }
-            resumeGame();
-            return;
-        }
-        if (uiRenderer.isInsideVolumeMinus(screenX, screenY, screenWidth, screenHeight)) {
-            if (audioManager != null) {
-                audioManager.playEffect(AudioManager.Effect.CLICK, 0.36f);
-                audioManager.changeVolume(-0.10f);
+        if (uiRenderer.getHotkeysScreen().isOpen()) {
+            if (uiRenderer.getHotkeysScreen().handleMouseDown(screenX, screenY, screenWidth, screenHeight, audioManager)) {
+                uiRenderer.getHotkeysScreen().close();
             }
             return;
         }
-        if (uiRenderer.isInsideVolumePlus(screenX, screenY, screenWidth, screenHeight)) {
-            if (audioManager != null) {
-                audioManager.playEffect(AudioManager.Effect.CLICK, 0.36f);
-                audioManager.changeVolume(0.10f);
+        if (uiRenderer.getCreditsScreen().isOpen()) {
+            if (uiRenderer.getCreditsScreen().handleMouseDown(screenX, screenY, screenWidth, screenHeight, audioManager)) {
+                uiRenderer.getCreditsScreen().close();
             }
             return;
         }
-        float sliderVal = uiRenderer.getSliderVolumeAtCursor(screenX, screenY, screenWidth, screenHeight);
-        if (sliderVal >= 0.0f && audioManager != null) {
-            isDraggingVolumeSlider = true;
-            audioManager.setVolume(sliderVal);
+
+        AudioSettingsMenuScreen.Action action = uiRenderer.getPauseScreen()
+                .handleMouseDown(screenX, screenY, screenWidth, screenHeight, audioManager);
+        switch (action) {
+            case OPEN_HOTKEYS -> {
+                uiRenderer.getHotkeysScreen().setBackdropAlpha(0.84f);
+                uiRenderer.getHotkeysScreen().open();
+            }
+            case OPEN_CREDITS -> {
+                uiRenderer.getCreditsScreen().setBackdropAlpha(0.84f);
+                uiRenderer.getCreditsScreen().open();
+            }
+            case BACK_OR_RESUME -> resumeGame();
+            case BACK_TO_MAIN_MENU -> returnToMainMenu();
+            default -> {
+            }
         }
     }
 
@@ -573,6 +700,28 @@ public class GameInputController implements InputProcessor {
 
     @Override
     public boolean keyDown(int keycode) {
+        if (host.isInMainMenuFlow()) {
+            if (keycode == Input.Keys.ESCAPE) {
+                UIRenderer uiRenderer = host.getUiRenderer();
+                if (uiRenderer != null) {
+                    if (uiRenderer.getHotkeysScreen().isOpen()) {
+                        uiRenderer.getHotkeysScreen().close();
+                        return true;
+                    }
+                    if (uiRenderer.getCreditsScreen().isOpen()) {
+                        uiRenderer.getCreditsScreen().close();
+                        return true;
+                    }
+                    if (uiRenderer.getSettingsScreen().isOpen()) {
+                        uiRenderer.getSettingsScreen().close();
+                        uiRenderer.getMainMenuScreen().open();
+                        return true;
+                    }
+                }
+            }
+            return true;
+        }
+
         Player player = host.getPlayer();
         if (keycode == Input.Keys.F1 && player != null && player.getGameMode().canUseTerrainTools()) {
             player.cycleTerrainSpeed();
@@ -596,7 +745,16 @@ public class GameInputController implements InputProcessor {
             if (!host.isPaused()) {
                 pauseGame();
             } else {
-                Gdx.app.exit();
+                UIRenderer uiRenderer = host.getUiRenderer();
+                if (uiRenderer != null && uiRenderer.getHotkeysScreen().isOpen()) {
+                    uiRenderer.getHotkeysScreen().close();
+                    return true;
+                }
+                if (uiRenderer != null && uiRenderer.getCreditsScreen().isOpen()) {
+                    uiRenderer.getCreditsScreen().close();
+                    return true;
+                }
+                resumeGame();
             }
             return true;
         }
@@ -688,6 +846,13 @@ public class GameInputController implements InputProcessor {
         currentMouseX = screenX;
         currentMouseY = screenY;
 
+        if (host.isInMainMenuFlow()) {
+            if (button == Input.Buttons.LEFT) {
+                handleMainMenuFlowMouse(screenX, screenY, true);
+            }
+            return true;
+        }
+
         if (host.isPaused()) {
             if (button == Input.Buttons.LEFT) {
                 handlePauseMenuMouseClick(screenX, screenY, true);
@@ -730,6 +895,13 @@ public class GameInputController implements InputProcessor {
         currentMouseX = screenX;
         currentMouseY = screenY;
 
+        if (host.isInMainMenuFlow()) {
+            if (button == Input.Buttons.LEFT) {
+                handleMainMenuFlowMouse(screenX, screenY, false);
+            }
+            return true;
+        }
+
         if (host.isPaused()) {
             if (button == Input.Buttons.LEFT) {
                 handlePauseMenuMouseClick(screenX, screenY, false);
@@ -762,12 +934,14 @@ public class GameInputController implements InputProcessor {
 
         UIRenderer uiRenderer = host.getUiRenderer();
         AudioManager audioManager = host.getAudioManager();
-        if (host.isPaused() && isDraggingVolumeSlider && uiRenderer != null && audioManager != null) {
+        if (uiRenderer != null && audioManager != null) {
             int screenWidth = Gdx.graphics.getWidth();
             int screenHeight = Gdx.graphics.getHeight();
-            float newVol = uiRenderer.getSliderVolumeAtCursor(screenX, screenY, screenWidth, screenHeight);
-            if (newVol >= 0.0f) {
-                audioManager.setVolume(newVol);
+            if (host.isInMainMenuFlow() && uiRenderer.getSettingsScreen().isOpen()) {
+                uiRenderer.getSettingsScreen().handleMouseDrag(screenX, screenY, screenWidth, screenHeight, audioManager);
+            } else if (host.isPaused() && !uiRenderer.getHotkeysScreen().isOpen()
+                    && !uiRenderer.getCreditsScreen().isOpen()) {
+                uiRenderer.getPauseScreen().handleMouseDrag(screenX, screenY, screenWidth, screenHeight, audioManager);
             }
         }
         return true;
